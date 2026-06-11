@@ -78,6 +78,17 @@ POST /v1/images/generations
 api_family = openai_compatible
 ```
 
+
+Native API family paths описываются отдельно:
+
+```text
+docs/spec/011-native-api-families.ru.md
+```
+
+Эти paths нужны для drop-in совместимости с SDK, которые не используют OpenAI-compatible `/v1/chat/completions`.
+
+
+
 Соответствие:
 
 ```text
@@ -90,7 +101,7 @@ api_family = openai_compatible
 
 ## 2.4. Request body passthrough
 
-Tokenio Gateway не должен изменять request body клиента.
+Tokenio Gateway не должен изменять semantic request payload клиента.
 
 Запрещено:
 
@@ -115,6 +126,28 @@ audit-free local metadata
 ```
 
 Прочитанный body должен быть отправлен upstream route без изменений.
+
+
+Единственное допустимое исключение — явная model alias rewrite policy.
+
+Если route имеет:
+
+```text
+model_rewrite_policy = provider_model
+```
+
+provider adapter может заменить только model identifier:
+
+```text
+OpenAI-compatible: body.model
+Native path-based APIs: model path segment, если adapter это явно поддерживает
+```
+
+Любые другие изменения body запрещены.
+
+Если route требует `provider_model`, но adapter не поддерживает безопасную model rewrite для данного API family, route считается invalid.
+
+
 
 ## 2.5. Response body passthrough
 
@@ -573,6 +606,19 @@ hop-by-hop headers
 ```
 
 Request semantic payload не меняется.
+
+
+Если route явно настроен с:
+
+```text
+model_rewrite_policy = provider_model
+```
+
+adapter может заменить только model identifier на `route.provider_model`.
+
+Это не разрешает конвертировать API format или менять semantic payload.
+
+
 
 ## 8.7. Response
 

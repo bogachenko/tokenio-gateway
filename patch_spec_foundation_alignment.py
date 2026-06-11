@@ -1,4 +1,23 @@
-package config
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import difflib
+import subprocess
+from pathlib import Path
+
+EXPECTED_MODULE = "module github.com/bogachenko/tokenio-gateway"
+
+PATCH_PATHS = [
+    "AGENTS.md",
+    "docs/spec/070-database-schema.ru.md",
+    "internal/domain/domain.go",
+    "internal/config/config.go",
+    "internal/forwarding/ratelimiter.go",
+    "cmd/gateway/main.go",
+]
+
+CONFIG_GO = r'''package config
 
 import (
 	"fmt"
@@ -315,3 +334,246 @@ func oneOf(value string, allowed ...string) bool {
 	}
 	return false
 }
+'''
+
+def run(cmd: list[str], repo: Path, check: bool = True) -> int:
+    print("$ " + " ".join(cmd))
+    proc = subprocess.run(cmd, cwd=repo)
+    if check and proc.returncode != 0:
+        raise SystemExit(proc.returncode)
+    return proc.returncode
+
+def read(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
+
+def write_if_changed(path: Path, content: str) -> bool:
+    old = read(path) if path.exists() else ""
+    if old == content:
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    return True
+
+def unified_diff(path: Path, old: str, new: str) -> str:
+    return "".join(difflib.unified_diff(
+        old.splitlines(keepends=True),
+        new.splitlines(keepends=True),
+        fromfile=str(path),
+        tofile=str(path),
+    ))
+
+def require_repo(repo: Path) -> None:
+    go_mod = repo / "go.mod"
+    if not go_mod.exists():
+        raise SystemExit(f"ERROR: go.mod not found in {repo}")
+    if EXPECTED_MODULE not in read(go_mod):
+        raise SystemExit(f"ERROR: expected {EXPECTED_MODULE!r} in {go_mod}")
+
+def patch_agents(repo: Path) -> tuple[Path, str, str]:
+    path = repo / "AGENTS.md"
+    old = read(path)
+    new = old
+    hydra_line = "- Hydra is not the core architecture. Hydra is only one possible `provider_type` / reseller route."
+    replacement = (
+        "- Provider-specific behavior must not be implemented in generic gateway layers.\n"
+        "- Every upstream provider is represented through `provider_type`, `reseller`, `route`, "
+        "`api_family`, `endpoint_kind` and `capabilities`."
+    )
+    if hydra_line in new:
+        new = new.replace(hydra_line, replacement)
+    if "Provider-specific behavior must not be implemented in generic gateway layers." not in new:
+        marker = "## Non-negotiable invariants\n\n"
+        if marker not in new:
+            raise SystemExit("ERROR: AGENTS.md does not contain expected Non-negotiable invariants section")
+        new = new.replace(marker, marker + replacement + "\n", 1)
+    if new.count("```") % 2 != 0:
+        new = new.rstrip() + "\n```\n"
+    if not new.endswith("\n"):
+        new += "\n"
+    write_if_changed(path, new)
+    return path, old, new
+
+def patch_schema(repo: Path) -> tuple[Path, str, str]:
+    path = repo / "docs/spec/070-database-schema.ru.md"
+    old = read(path)
+    new = old.replace("    CHECK (balance_cents >= 0 OR balance_cents < 0),\n", "")
+    if not new.endswith("\n"):
+        new += "\n"
+    write_if_changed(path, new)
+    return path, old, new
+
+def patch_domain(repo: Path) -> tuple[Path, str, str]:
+    path = repo / "internal/domain/domain.go"
+    old = read(path)
+    new = old
+    if "EndpointModels" not in new:
+        needle = (
+            'const (\n'
+            '\tEndpointChat             EndpointKind = "chat"\n'
+            '\tEndpointEmbeddings       EndpointKind = "embeddings"\n'
+            '\tEndpointImagesGeneration EndpointKind = "images_generation"\n'
+            ')'
+        )
+        replacement = (
+            'const (\n'
+            '\tEndpointChat             EndpointKind = "chat"\n'
+            '\tEndpointEmbeddings       EndpointKind = "embeddings"\n'
+            '\tEndpointImagesGeneration EndpointKind = "images_generation"\n'
+            '\tEndpointModels           EndpointKind = "models"\n'
+            '\tEndpointHealth           EndpointKind = "health"\n'
+            ')'
+        )
+        if needle not in new:
+            raise SystemExit("ERROR: endpoint const block not found in internal/domain/domain.go")
+        new = new.replace(needle, replacement, 1)
+    write_if_changed(path, new)
+    return path, old, new
+
+def patch_config(repo: Path) -> tuple[Path, str, str]:
+    path = repo / "internal/config/config.go"
+    old = read(path)
+    new = CONFIG_GO
+    write_if_changed(path, new)
+    return path, old, new
+
+def patch_ratelimiter(repo: Path) -> tuple[Path, str, str]:
+    path = repo / "internal/forwarding/ratelimiter.go"
+    old = read(path)
+    new = old
+    if "disabled bool" not in new:
+        new = new.replace(
+            "\tmaxWait time.Duration\n\tlimit   rate.Limit\n\tburst   int\n",
+            "\tmaxWait  time.Duration\n\tlimit    rate.Limit\n\tburst    int\n\tdisabled bool\n",
+            1,
+        )
+    old_ctor = '''func NewRateLimiter(rpm int, burst int, maxWait time.Duration) *RateLimiter {
+	return &RateLimiter{
+		maxWait:  maxWait,
+		limit:    rate.Every(time.Minute / time.Duration(rpm)),
+		burst:    burst,
+		limiters: map[string]*rate.Limiter{},
+	}
+}
+'''
+    new_ctor = '''func NewRateLimiter(rpm int, burst int, maxWait time.Duration) *RateLimiter {
+	if rpm <= 0 || burst <= 0 {
+		return &RateLimiter{
+			maxWait:  maxWait,
+			disabled: true,
+			limiters: map[string]*rate.Limiter{},
+		}
+	}
+	return &RateLimiter{
+		maxWait:  maxWait,
+		limit:    rate.Every(time.Minute / time.Duration(rpm)),
+		burst:    burst,
+		limiters: map[string]*rate.Limiter{},
+	}
+}
+'''
+    if old_ctor in new:
+        new = new.replace(old_ctor, new_ctor, 1)
+    if "if r == nil || r.disabled" not in new:
+        new = new.replace(
+            "func (r *RateLimiter) Wait(ctx context.Context, model string) error {\n",
+            "func (r *RateLimiter) Wait(ctx context.Context, model string) error {\n\tif r == nil || r.disabled {\n\t\treturn nil\n\t}\n",
+            1,
+        )
+    write_if_changed(path, new)
+    return path, old, new
+
+def patch_main(repo: Path) -> tuple[Path, str, str]:
+    path = repo / "cmd/gateway/main.go"
+    old = read(path)
+    new = old
+    old_server = '''server := &http.Server{
+		Addr:              cfg.GatewayAddr,
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+'''
+    new_server = '''server := &http.Server{
+		Addr:              cfg.GatewayAddr,
+		Handler:           mux,
+		ReadHeaderTimeout: cfg.HTTPReadHeaderTimeout,
+		ReadTimeout:       cfg.HTTPReadTimeout,
+		WriteTimeout:      cfg.HTTPWriteTimeout,
+		IdleTimeout:       cfg.HTTPIdleTimeout,
+	}
+'''
+    if old_server in new:
+        new = new.replace(old_server, new_server, 1)
+        new = new.replace('\n\t"time"\n', "\n", 1)
+    write_if_changed(path, new)
+    return path, old, new
+
+def print_patch_preview(changes: list[tuple[Path, str, str]], repo: Path) -> None:
+    print("\n=== patch preview ===")
+    any_change = False
+    for path, old, new in changes:
+        if old != new:
+            any_change = True
+            print(unified_diff(path.relative_to(repo), old, new))
+    if not any_change:
+        print("No file content changes needed.")
+
+def verification(repo: Path) -> None:
+    print("\n=== verification grep ===")
+    commands = [
+        ["grep", "-R", "Hydra is not the core architecture", "-n", "AGENTS.md"],
+        ["grep", "-R", "Provider-specific behavior must not be implemented", "-n", "AGENTS.md"],
+        ["grep", "-R", "CHECK (balance_cents >= 0 OR balance_cents < 0)", "-n", "docs/spec/070-database-schema.ru.md"],
+        ["grep", "-R", "EndpointModels\\|EndpointHealth", "-n", "internal/domain/domain.go"],
+        ["grep", "-R", "panic(", "-n", "internal/config/config.go"],
+        ["grep", "-R", "TOKENIO_ADMIN_TOKEN\\|TOKENIO_ENV\\|TOKENIO_HTTP_READ_TIMEOUT", "-n", "internal/config/config.go"],
+        ["grep", "-R", "disabled bool\\|rpm <= 0\\|r.disabled", "-n", "internal/forwarding/ratelimiter.go"],
+        ["grep", "-R", "ReadHeaderTimeout: cfg.HTTPReadHeaderTimeout", "-n", "cmd/gateway/main.go"],
+    ]
+    for cmd in commands:
+        print("$ " + " ".join(cmd) + " || true")
+        subprocess.run(cmd, cwd=repo)
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Align tokenio-gateway foundation code/spec with specs.")
+    parser.add_argument("--repo", default=".", help="Path to tokenio-gateway repo. Default: current directory.")
+    parser.add_argument("--skip-tests", action="store_true", help="Skip go test ./...")
+    args = parser.parse_args()
+
+    repo = Path(args.repo).expanduser().resolve()
+    require_repo(repo)
+
+    before = {p: read(repo / p) for p in PATCH_PATHS if (repo / p).exists()}
+
+    changes = [
+        patch_agents(repo),
+        patch_schema(repo),
+        patch_domain(repo),
+        patch_config(repo),
+        patch_ratelimiter(repo),
+        patch_main(repo),
+    ]
+
+    print_patch_preview(changes, repo)
+
+    run(["gofmt", "-w", "cmd/gateway/main.go", "internal/domain/domain.go", "internal/config/config.go", "internal/forwarding/ratelimiter.go"], repo)
+
+    print("\n=== git diff ===")
+    run(["git", "diff", "--", *PATCH_PATHS], repo, check=False)
+
+    verification(repo)
+
+    if not args.skip_tests:
+        print("\n=== tests ===")
+        run(["go", "test", "./..."], repo)
+
+    after = {p: read(repo / p) for p in PATCH_PATHS if (repo / p).exists()}
+    touched = [p for p in PATCH_PATHS if before.get(p) != after.get(p)]
+    print("\n=== touched files ===")
+    if touched:
+        for p in touched:
+            print(p)
+    else:
+        print("No changes.")
+
+if __name__ == "__main__":
+    main()

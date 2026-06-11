@@ -67,7 +67,8 @@ request API format must be preserved
 Это означает:
 
 ```text
-Client request body is not converted.
+Client request semantic payload is not converted.
+Only explicitly configured model alias rewrite is allowed.
 Upstream response body is not converted.
 Billing metadata is returned through headers.
 ```
@@ -183,6 +184,54 @@ User API key не передаётся в billing service.
 User API key не передаётся reseller.
 
 Tokenio Gateway валидирует user API key, находит пользователя и использует внутренний billing JWT для вызовов billing service.
+
+
+---
+
+## 4.10. Model rewrite policy
+
+Model rewrite policy — явное правило route, которое определяет, может ли provider adapter заменить только структурное поле модели перед upstream request.
+
+Разрешённые значения:
+
+```text
+none
+provider_model
+```
+
+`none` означает:
+
+```text
+request model field/path не изменяется
+```
+
+`provider_model` означает:
+
+```text
+adapter может заменить только model identifier на route.provider_model
+```
+
+Это не является API-format conversion.
+
+Запрещено вместе с model rewrite:
+
+```text
+конвертировать messages/content/tools
+конвертировать multimodal payload
+конвертировать response_format
+менять semantic request payload
+делать fallback в другую API family
+```
+
+Для OpenAI-compatible request разрешённая mutation ограничена:
+
+```text
+body.model = route.provider_model
+```
+
+Для path-based native APIs разрешённая mutation ограничена model segment в path, если соответствующий adapter явно поддерживает это.
+
+
 
 ---
 

@@ -3,7 +3,6 @@ package main
 import (
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/bogachenko/tokenio-gateway/internal/config"
 	"github.com/bogachenko/tokenio-gateway/internal/httpapi"
@@ -41,7 +40,10 @@ func main() {
 	server := &http.Server{
 		Addr:              cfg.GatewayAddr,
 		Handler:           mux,
-		ReadHeaderTimeout: 10 * time.Second,
+		ReadHeaderTimeout: cfg.HTTPReadHeaderTimeout,
+		ReadTimeout:       cfg.HTTPReadTimeout,
+		WriteTimeout:      cfg.HTTPWriteTimeout,
+		IdleTimeout:       cfg.HTTPIdleTimeout,
 	}
 
 	log.Printf("tokenio-gateway listening on %s", cfg.GatewayAddr)

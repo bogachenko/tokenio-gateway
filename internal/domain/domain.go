@@ -32,6 +32,8 @@ const (
 	EndpointChat             EndpointKind = "chat"
 	EndpointEmbeddings       EndpointKind = "embeddings"
 	EndpointImagesGeneration EndpointKind = "images_generation"
+	EndpointModels           EndpointKind = "models"
+	EndpointHealth           EndpointKind = "health"
 )
 
 type CapabilitySet struct {

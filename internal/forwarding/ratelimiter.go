@@ -11,9 +11,10 @@ import (
 
 // PURPOSE: local in-memory per-model outbound route limiter with bounded blocking waits.
 type RateLimiter struct {
-	maxWait time.Duration
-	limit   rate.Limit
-	burst   int
+	maxWait  time.Duration
+	limit    rate.Limit
+	burst    int
+	disabled bool
 
 	mu       sync.Mutex
 	limiters map[string]*rate.Limiter
@@ -29,6 +30,13 @@ func (e *RateLimitWaitTimeoutError) Error() string {
 }
 
 func NewRateLimiter(rpm int, burst int, maxWait time.Duration) *RateLimiter {
+	if rpm <= 0 || burst <= 0 {
+		return &RateLimiter{
+			maxWait:  maxWait,
+			disabled: true,
+			limiters: map[string]*rate.Limiter{},
+		}
+	}
 	return &RateLimiter{
 		maxWait:  maxWait,
 		limit:    rate.Every(time.Minute / time.Duration(rpm)),
@@ -38,6 +46,9 @@ func NewRateLimiter(rpm int, burst int, maxWait time.Duration) *RateLimiter {
 }
 
 func (r *RateLimiter) Wait(ctx context.Context, model string) error {
+	if r == nil || r.disabled {
+		return nil
+	}
 	if model == "" {
 		model = "default"
 	}
