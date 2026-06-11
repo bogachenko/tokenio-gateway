@@ -74,7 +74,7 @@ Anthropic-native request -> OpenAI-compatible route
 Ollama-native request -> OpenAI-compatible route
 ```
 
-Gateway не конвертирует request body между API families.
+Gateway не конвертирует semantic request payload между API families; explicit model identifier rewrite не меняет API family.
 
 ---
 
@@ -325,6 +325,20 @@ body.model = route.provider_model
 
 Если `model_rewrite_policy = provider_model`, но adapter не поддерживает безопасную model rewrite для данного API family, route считается invalid и не должен выбираться.
 
+Model rewrite route selection rule:
+
+```text
+routes requiring model_rewrite_policy = provider_model are eligible only if adapter supports safe model identifier rewrite for this api_family.
+```
+
+If adapter does not support safe model rewrite:
+
+```text
+route is treated as unavailable
+reason = unsupported_model_rewrite_policy
+```
+
+
 
 
 ## 5.5. Model rewrite policy
@@ -391,7 +405,7 @@ Gateway определяет `api_family` по endpoint path.
 /v1/models              -> openai_compatible
 ```
 
-Native paths для Gemini/Anthropic/Ollama будут описываться отдельной спецификацией, если включаются во внешний API.
+Native paths для Gemini/Anthropic/Ollama описаны в `docs/spec/011-native-api-families.ru.md`.
 
 ## 6.3. Fallback boundary
 
@@ -508,6 +522,8 @@ audio_input_price_per_1m_tokens_cents
 audio_output_price_per_1m_tokens_cents
 file_input_price_per_1m_tokens_cents
 video_input_price_per_1m_tokens_cents
+image_generation_price_per_unit_cents
+image_generation_unit_kind
 markup_coefficient
 ```
 
@@ -552,6 +568,7 @@ route cooldown is absent or expired
 required capabilities are supported
 estimated upstream cost <= available reseller balance
 route rate/concurrency limits allow request
+route model_rewrite_policy is supported by adapter
 ```
 
 Если хотя бы одно условие не выполнено, route исключается из candidates.
@@ -602,16 +619,20 @@ Route selector должен выполнить:
 
 9. Отфильтровать routes по локальным rate/concurrency limits.
 
-10. Отсортировать candidates по:
+10. Отфильтровать routes, где:
+    model_rewrite_policy требует rewrite,
+    но adapter не поддерживает safe model identifier rewrite для этого api_family.
+
+11. Отсортировать candidates по:
     estimated_upstream_cost_cents ASC
     priority ASC
     route_id ASC
 
-11. Выбрать первый candidate.
+12. Выбрать первый candidate.
 
-12. Зарезервировать estimated_upstream_cost_cents на reseller.
+13. Зарезервировать estimated_upstream_cost_cents на reseller.
 
-13. Вернуть selected route.
+14. Вернуть selected route.
 ```
 
 ## 11.3. Unknown model
@@ -805,6 +826,36 @@ cooldown_reason
 last_error_code
 last_error_at
 ```
+## 14.5. Route skip reasons
+
+Route skip reasons are diagnostic values for route selection and admin/debug visibility.
+
+They are not necessarily cooldown reasons.
+
+Minimum route skip reasons:
+
+```text
+missing_reseller_api_key
+manual_disabled
+cooldown_active
+missing_capability
+insufficient_reseller_balance
+rate_limit_exceeded
+concurrency_limit_exceeded
+unsupported_model_rewrite_policy
+invalid_route_price
+pricing_unavailable
+```
+
+`unsupported_model_rewrite_policy` means:
+
+```text
+route requires model_rewrite_policy = provider_model,
+but the selected provider adapter cannot safely rewrite only model identifier for this api_family.
+```
+
+This is a configuration/adapter compatibility issue, not a temporary upstream failure.
+
 
 ---
 
@@ -885,7 +936,7 @@ Route selector работает только с нормализованными
 ```text
 active = true
 pricing = cheapest available route sell price
-capabilities = union or public-safe intersection according to model catalog policy
+capabilities = intersection of available routes for this client_model and endpoint type
 ```
 
 Решение первой версии для capabilities:
@@ -997,6 +1048,7 @@ Routing layer считается реализованным, если:
 12. Success reconciles reserve and actual upstream cost.
 13. Retry не происходит между разными API families.
 14. Retry не происходит после unsafe upstream processing.
-15. Generic selector не содержит provider-specific if/switch по конкретным APIs.
-16. Unit tests покрывают route ordering, capability filtering, cooldown, balance filtering, missing env, retry boundary и no_route_available.
+15. Route with unsupported model_rewrite_policy is skipped before selection.
+16. Generic selector не содержит provider-specific if/switch по конкретным APIs.
+17. Unit tests покрывают route ordering, capability filtering, cooldown, balance filtering, missing env, unsupported_model_rewrite_policy, retry boundary и no_route_available.
 ```

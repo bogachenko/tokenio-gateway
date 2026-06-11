@@ -42,6 +42,7 @@ api_family
 endpoint_kind
 client_model
 provider_model
+model_rewrite_policy
 capabilities
 route_price
 usage_record
@@ -75,6 +76,9 @@ estimated upstream cost
 
 * Клиент передаёт `Authorization: Bearer sk_...`.
 * Клиентский JWT не является публичным auth contract.
+* User API key hashing в production contract выполняется через HMAC-SHA256 с `TOKENIO_API_KEY_HASH_SECRET`.
+* SHA-256 без secret не является допустимым production fallback.
+
 * Billing JWT используется только внутри gateway.
 * Request semantic payload не конвертируется; допускается только explicit model alias rewrite.
 * Response body не конвертируется.

@@ -109,6 +109,7 @@ Tokenio Gateway не должен изменять semantic request payload кл
 добавлять поля в body
 удалять поля из body
 переименовывать поля в body
+изменять значения body, кроме единственного разрешённого model identifier rewrite
 конвертировать messages/content/tools
 конвертировать multimodal payload
 конвертировать response_format
@@ -125,7 +126,7 @@ idempotency handling
 audit-free local metadata
 ```
 
-Прочитанный body должен быть отправлен upstream route без изменений.
+Прочитанный semantic payload должен быть отправлен upstream route без изменений; model identifier может быть rewritten только по explicit `model_rewrite_policy`.
 
 
 Единственное допустимое исключение — явная model alias rewrite policy.
@@ -594,7 +595,7 @@ error.code = no_route_available
 
 ## 8.6. Upstream forwarding
 
-Gateway отправляет upstream body без изменений.
+Gateway отправляет upstream semantic payload без изменений; model identifier может быть rewritten только по explicit `model_rewrite_policy`.
 
 Gateway может изменить только:
 
@@ -742,6 +743,8 @@ X-Billing-Audio-Input-Tokens: 0
 X-Billing-Audio-Output-Tokens: 0
 X-Billing-File-Input-Tokens: 0
 X-Billing-Video-Input-Tokens: 0
+
+X-Billing-Image-Generation-Units: 0
 X-Billing-Amount-Cents: 12
 X-Billing-Currency: RUB
 X-Wallet-Balance-Cents: 10000
@@ -878,3 +881,13 @@ api_family
 endpoint_kind
 client_model
 ```
+
+Model rewrite acceptance criteria:
+
+```text
+1. model rewrite is disabled by default.
+2. model rewrite changes only model identifier.
+3. model rewrite never changes messages/content/tools/multimodal payload.
+4. model rewrite never allows fallback to another API family.
+```
+

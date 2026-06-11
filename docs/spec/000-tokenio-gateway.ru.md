@@ -92,7 +92,7 @@ Tokenio Gateway отвечает за:
 1. Единый внешний LLM base URL.
 2. Пользовательские API keys.
 3. Маппинг API key → user_id.
-4. Получение или построение billing JWT для billing service.
+4. Передачу user identity в billing identity layer для построения billing JWT.
 5. Хранение reseller routes.
 6. Хранение reseller balances.
 7. Хранение route prices.
@@ -118,7 +118,7 @@ Tokenio Gateway не отвечает за:
 1. Семантическую конвертацию OpenAI ↔ Gemini ↔ Anthropic.
 2. Конвертацию tools/function calling между API formats.
 3. Конвертацию multimodal payload между API formats.
-4. Изменение request body клиента.
+4. Изменение semantic request payload клиента, кроме explicit model alias rewrite.
 5. Изменение response body reseller.
 6. Обучение моделей.
 7. Хранение пользовательских prompts как бизнес-данных.
@@ -183,12 +183,12 @@ User API key не передаётся в billing service.
 
 User API key не передаётся reseller.
 
-Tokenio Gateway валидирует user API key, находит пользователя и использует внутренний billing JWT для вызовов billing service.
+Tokenio Gateway валидирует user API key, находит пользователя и передаёт `billing_subject_user_id` в billing identity layer. Billing JWT строится отдельным billing identity service перед вызовом billing service.
 
 
 ---
 
-## 4.10. Model rewrite policy
+## 4.3. Model rewrite policy
 
 Model rewrite policy — явное правило route, которое определяет, может ли provider adapter заменить только структурное поле модели перед upstream request.
 
@@ -235,7 +235,7 @@ body.model = route.provider_model
 
 ---
 
-## 4.3. Billing JWT
+## 4.4. Billing JWT
 
 Billing JWT — внутренний credential для взаимодействия Tokenio Gateway с billing service от имени пользователя.
 
@@ -249,7 +249,7 @@ Billing JWT не должен быть виден клиенту.
 
 ---
 
-## 4.4. Provider type
+## 4.5. Provider type
 
 Provider type — тип upstream/provider API или reseller ecosystem.
 
@@ -274,7 +274,7 @@ Provider type описывает класс провайдера или upstream
 
 ---
 
-## 4.5. Reseller
+## 4.6. Reseller
 
 Reseller — конкретный upstream account/base_url/API key/balance/limits.
 
@@ -308,7 +308,7 @@ api_key_env
 
 ---
 
-## 4.6. Route
+## 4.7. Route
 
 Route — возможность купить конкретную client model у конкретного reseller через конкретный API family и endpoint kind.
 
@@ -317,6 +317,7 @@ Route связывает:
 ```text
 client_model
 provider_model
+model_rewrite_policy
 provider_type
 reseller_id
 api_family
@@ -332,6 +333,7 @@ cooldown
 ```text
 client_model: gpt-4.1-mini
 provider_model: openai/gpt-4.1-mini
+model_rewrite_policy: provider_model
 provider_type: openrouter
 reseller_id: openrouter_primary
 api_family: openai_compatible
@@ -343,6 +345,7 @@ endpoint_kind: chat
 ```text
 client_model: gemini-2.5-flash
 provider_model: gemini-2.5-flash
+model_rewrite_policy: none
 provider_type: gemini
 reseller_id: google_gemini_primary
 api_family: gemini_native
@@ -351,7 +354,7 @@ endpoint_kind: chat
 
 ---
 
-## 4.7. Client model
+## 4.8. Client model
 
 Client model — имя модели, которое видит клиент.
 
@@ -369,7 +372,7 @@ Client model не обязан совпадать с provider model.
 
 ---
 
-## 4.8. Provider model
+## 4.9. Provider model
 
 Provider model — имя модели, которое нужно отправить конкретному reseller.
 
@@ -391,7 +394,7 @@ Tokenio Gateway не должен раскрывать provider model клиен
 
 ---
 
-## 4.9. API family
+## 4.10. API family
 
 API family — формат API, в котором клиент отправил запрос.
 
@@ -416,7 +419,7 @@ ollama_native
 
 ---
 
-## 4.10. Endpoint kind
+## 4.11. Endpoint kind
 
 Endpoint kind — нормализованный тип операции.
 
@@ -625,11 +628,11 @@ Tokenio Gateway должен:
 
 1. Прочитать request body.
 2. Извлечь `model` из `body.model`.
-3. Не изменять request body.
+3. Не изменять semantic request payload, кроме explicit model alias rewrite.
 4. Определить requested capabilities.
 5. Найти совместимые routes.
 6. Выбрать самый дешёвый доступный route.
-7. Проксировать body как есть.
+7. Проксировать request semantic payload как есть; model identifier может быть rewritten только по `model_rewrite_policy`.
 8. Вернуть upstream response body как есть.
 9. Добавить billing headers.
 
@@ -686,7 +689,7 @@ embeddings
 Tokenio Gateway должен:
 
 1. Извлечь `model` из `body.model`.
-2. Не изменять request body.
+2. Не изменять semantic request payload, кроме explicit model alias rewrite.
 3. Выбрать route с capability `embeddings=true`.
 4. Проксировать request.
 5. Извлечь usage.
@@ -719,7 +722,7 @@ images_generation
 Tokenio Gateway должен:
 
 1. Извлечь `model` из `body.model`.
-2. Не изменять request body.
+2. Не изменять semantic request payload, кроме explicit model alias rewrite.
 3. Выбрать route с capability `images_generation=true`.
 4. Проксировать request.
 5. Извлечь usage или рассчитать conservative estimated usage.
@@ -750,8 +753,8 @@ JWT от клиента больше не принимается как публ
 3. Проверить, что key enabled.
 4. Проверить, что user enabled.
 5. Получить `user_id`.
-6. Получить или построить `billing_jwt`.
-7. Использовать `billing_jwt` для вызовов billing service.
+6. Получить `billing_subject_user_id`.
+7. Построить `billing_jwt` в billing identity service перед вызовом billing service.
 
 ## 6.3. Хранение API keys
 
@@ -776,6 +779,15 @@ revoked_at
 ```text
 sk_live_abcd...
 ```
+
+Production auth invariant:
+
+```text
+key_hash = HMAC-SHA256(TOKENIO_API_KEY_HASH_SECRET, raw_api_key)
+```
+
+SHA-256 без secret не является допустимым production fallback.
+
 
 ## 6.4. Billing JWT
 
@@ -877,7 +889,7 @@ hydra
 
 ```text
 user API keys
-billing JWT conversion
+billing identity conversion
 reseller api_key_env
 route selection
 capability validation

@@ -876,6 +876,7 @@ provider_model
 
 estimated_input_tokens
 estimated_output_tokens
+estimated_image_generation_units
 estimated_client_amount_cents
 estimated_upstream_cost_cents
 
@@ -888,6 +889,7 @@ audio_input_tokens
 audio_output_tokens
 file_input_tokens
 video_input_tokens
+image_generation_units
 
 client_amount_cents
 charged_amount_cents

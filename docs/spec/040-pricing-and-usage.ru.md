@@ -374,6 +374,7 @@ total_raw =
 + audio_output_tokens * audio_output_price_per_1m_tokens_cents
 + file_input_tokens   * file_input_price_per_1m_tokens_cents
 + video_input_tokens  * video_input_price_per_1m_tokens_cents
++ image_generation_units * image_generation_price_per_unit_cents * 1_000_000
 ```
 
 Так как prices заданы за 1M tokens, сумма в cents:
@@ -392,11 +393,7 @@ image_generation_unit_raw =
   image_generation_units * image_generation_price_per_unit_cents * 1_000_000
 ```
 
-Then:
-
-```text
-total_raw = token_category_raw_sum + image_generation_unit_raw
-```
+`total_raw` therefore includes both token category raw costs and image generation unit raw cost.
 
 Final rounding still happens once at the end.
 
@@ -772,7 +769,7 @@ pricing_unavailable
 
 Estimator не должен добавлять `max_tokens` в request body.
 
-Даже если estimator использует `default_max_output_tokens`, request body upstream отправляется без изменений.
+Даже если estimator использует `default_max_output_tokens`, semantic payload upstream отправляется без изменений. Единственное допустимое изменение на forwarding stage — explicit model identifier rewrite по `model_rewrite_policy`.
 
 ---
 
@@ -940,6 +937,8 @@ X-Billing-Audio-Input-Tokens: 0
 X-Billing-Audio-Output-Tokens: 0
 X-Billing-File-Input-Tokens: 0
 X-Billing-Video-Input-Tokens: 0
+
+X-Billing-Image-Generation-Units: 0
 X-Billing-Amount-Cents: 12
 X-Billing-Currency: RUB
 ```
@@ -1107,7 +1106,7 @@ Pricing and usage layer считается реализованным, если:
 10. Multimodal aggregate usage считается по самой дорогой присутствующей input category.
 11. Preflight estimation использует safety coefficients.
 12. max_tokens absent использует route.default_max_output_tokens.
-13. Request body не мутируется для estimate.
+13. Estimator не мутирует request body; forwarding stage может изменить только model identifier по explicit `model_rewrite_policy`.
 14. Billing headers отражают committed actual или estimated usage.
 15. Pricing failure after upstream success не теряет usage и виден admin/debug layer.
 16. Tests покрывают все token categories и multimodal max input rule.

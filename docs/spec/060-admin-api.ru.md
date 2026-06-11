@@ -918,6 +918,8 @@ Request:
   "audio_output_price_per_1m_tokens_cents": 6000,
   "file_input_price_per_1m_tokens_cents": 3000,
   "video_input_price_per_1m_tokens_cents": 10000,
+  "image_generation_price_per_unit_cents": 150,
+  "image_generation_unit_kind": "generated_image",
   "markup_coefficient": 1.3,
   "enabled": true
 }
@@ -928,6 +930,8 @@ Validation:
 ```text
 currency must be RUB
 all price fields must be >= 0
+image_generation_price_per_unit_cents must be >= 0
+image_generation_unit_kind must be one of: none, generated_image
 markup_coefficient must be > 0
 route_id must exist
 ```

@@ -170,7 +170,7 @@ TOKENIO_ADMIN_TOKEN
 TOKENIO_API_KEY_HASH_SECRET
 ```
 
-`TOKENIO_API_KEY_HASH_SECRET` обязателен для production, если используется HMAC hashing API keys.
+`TOKENIO_API_KEY_HASH_SECRET` обязателен для API key hashing во всех runtime environments, кроме специально изолированных unit tests без persisted keys.
 
 ---
 
@@ -477,7 +477,7 @@ Safety factors are applied only to estimation.
 
 Actual committed usage should use actual provider usage when available.
 
-Request body must not be mutated because of estimation.
+Estimator must not mutate request body; forwarding may only apply explicit model identifier rewrite according to route `model_rewrite_policy`.
 
 ---
 
@@ -703,25 +703,21 @@ No implicit dev fallback.
 TOKENIO_API_KEY_HASH_SECRET
 ```
 
-Recommended for production.
+Required for runtime API key hashing.
 
-If set, API key hash:
+API key hash:
 
 ```text
 HMAC-SHA256(TOKENIO_API_KEY_HASH_SECRET, raw_api_key)
 ```
 
-If absent, fallback first implementation may use:
-
-```text
-SHA-256(raw_api_key)
-```
-
-But production must require HMAC.
+SHA-256 without secret is forbidden as runtime fallback.
 
 ## 13.2. No silent downgrade
 
-If environment mode is production, missing `TOKENIO_API_KEY_HASH_SECRET` must be startup error.
+Missing `TOKENIO_API_KEY_HASH_SECRET` must be startup error for any runtime mode that validates persisted API keys.
+
+Only isolated unit tests may use an explicit test hasher that does not read production env.
 
 Environment mode must be explicit if used.
 

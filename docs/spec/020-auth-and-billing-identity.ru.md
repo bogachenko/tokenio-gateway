@@ -209,23 +209,27 @@ Display prefix не должен быть достаточным для ауте
 
 ## 5.2. Hashing
 
-Минимальное требование:
-
-```text
-key_hash = SHA-256(raw_api_key)
-```
-
-Production-рекомендация:
+Обязательное требование:
 
 ```text
 key_hash = HMAC-SHA256(TOKENIO_API_KEY_HASH_SECRET, raw_api_key)
 ```
 
-Если используется HMAC, secret задаётся через environment variable:
+Secret задаётся через environment variable:
 
 ```text
 TOKENIO_API_KEY_HASH_SECRET
 ```
+
+SHA-256 без secret запрещён как fallback.
+
+Причина:
+
+```text
+raw API key является bearer credential;
+hashing должен быть keyed, чтобы утечка БД не позволяла offline matching без TOKENIO_API_KEY_HASH_SECRET.
+```
+
 
 Инвариант:
 
@@ -348,10 +352,19 @@ error.code = user_disabled
 user_id
 api_key_id
 billing_subject_user_id
-billing_jwt
 ```
 
-`billing_jwt` может быть построен lazy, только перед вызовом billing service.
+`AuthPrincipal` не должен содержать `billing_jwt`.
+
+Billing JWT строится отдельным billing identity service перед вызовом billing service.
+
+Причина:
+
+```text
+auth layer отвечает за user identity;
+billing identity layer отвечает за billing JWT;
+эти ответственности нельзя смешивать.
+```
 
 ---
 
@@ -710,13 +723,14 @@ TOKENIO_BILLING_SERVICE_TOKEN
 TOKENIO_BILLING_JWT_SIGNING_KEY
 TOKENIO_BILLING_JWT_TTL
 TOKENIO_ADMIN_TOKEN
-```
-
-If HMAC API key hashing is enabled:
-
-```text
 TOKENIO_API_KEY_HASH_SECRET
 ```
+
+`TOKENIO_API_KEY_HASH_SECRET` is required for runtime API key validation.
+
+Runtime API key validation must fail at startup if this secret is missing.
+
+SHA-256 without secret is not a valid runtime fallback.
 
 ---
 
@@ -728,13 +742,14 @@ Auth layer считается реализованным, если:
 1. Public endpoints принимают Authorization: Bearer sk_...
 2. Public endpoints не принимают client JWT как auth contract.
 3. Raw API key не хранится.
-4. API key сравнивается через hash и constant-time comparison.
-5. Disabled/revoked/expired key отклоняется.
-6. Disabled user получает 403 user_disabled.
-7. Gateway строит billing JWT для balance request.
-8. Gateway использует service token для charge request.
-9. Gateway не передаёт sk_... в billing service.
-10. Gateway не передаёт sk_... reseller.
-11. Gateway не логирует secrets.
-12. go test покрывает auth parsing, hash comparison, disabled key, disabled user и billing JWT claims.
+4. API key hash считается через HMAC-SHA256 с TOKENIO_API_KEY_HASH_SECRET.
+5. API key сравнивается через hash и constant-time comparison.
+6. Disabled/revoked/expired key отклоняется.
+7. Disabled user получает 403 user_disabled.
+8. Gateway строит billing JWT для balance request.
+9. Gateway использует service token для charge request.
+10. Gateway не передаёт sk_... в billing service.
+11. Gateway не передаёт sk_... reseller.
+12. Gateway не логирует secrets.
+13. go test покрывает auth parsing, HMAC hash, constant-time comparison, disabled key, disabled user и billing JWT claims.
 ```

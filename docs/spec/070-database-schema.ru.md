@@ -257,6 +257,30 @@ user.enabled = true
 ```
 
 `key_prefix` нужен только для admin display.
+## 6.5. API key hash rule
+
+`key_hash` stores only:
+
+```text
+HMAC-SHA256(TOKENIO_API_KEY_HASH_SECRET, raw_api_key)
+```
+
+Forbidden values:
+
+```text
+raw API key
+unsalted SHA-256(raw_api_key)
+any reversible encrypted API key
+```
+
+Reason:
+
+```text
+database compromise must not allow offline API key matching without TOKENIO_API_KEY_HASH_SECRET.
+```
+
+The database schema stores `key_hash` as TEXT, but the hashing algorithm is a runtime invariant from `docs/spec/020-auth-and-billing-identity.ru.md`.
+
 
 ---
 
@@ -1221,20 +1245,21 @@ Database schema считается реализованной, если:
 ```text
 1. Все таблицы используют prefix tokenio_.
 2. Raw user API keys не хранятся.
-3. Raw reseller API keys не хранятся.
-4. Billing JWT не хранится.
-5. Users and API keys support enabled/revoked/expired states.
-6. Resellers store api_key_env, balance_cents, reserved_cents.
-7. Routes are keyed by api_family + endpoint_kind + client_model.
-8. Route prices support all token categories and image generation unit pricing.
-9. Usage records support all ledger statuses.
-10. Usage records support idempotency unique scope.
-11. Pending/chargeable records have indexes.
-12. Billing charge batches and allocations support partial charge.
-13. Route events support cooldown/debug history.
-14. Admin audit log exists.
-15. State transitions verify current status.
-16. Reseller reserve/reconcile can be done transactionally.
-17. SQL migrations are explicit and reviewable.
-18. go test or migration tests validate schema creation.
+3. API key hash stores HMAC-SHA256 digest, not unsalted SHA-256.
+4. Raw reseller API keys не хранятся.
+5. Billing JWT не хранится.
+6. Users and API keys support enabled/revoked/expired states.
+7. Resellers store api_key_env, balance_cents, reserved_cents.
+8. Routes are keyed by api_family + endpoint_kind + client_model.
+9. Route prices support all token categories and image generation unit pricing.
+10. Usage records support all ledger statuses.
+11. Usage records support idempotency unique scope.
+12. Pending/chargeable records have indexes.
+13. Billing charge batches and allocations support partial charge.
+14. Route events support cooldown/debug history.
+15. Admin audit log exists.
+16. State transitions verify current status.
+17. Reseller reserve/reconcile can be done transactionally.
+18. SQL migrations are explicit and reviewable.
+19. go test or migration tests validate schema creation.
 ```

@@ -44,27 +44,46 @@ provider adapter implementation
 
 # 2. Главный error invariant
 
-Tokenio Gateway различает два типа ошибок:
+Tokenio Gateway различает два типа upstream results:
 
 ```text
-1. Gateway-owned errors
-2. Upstream-originated responses
+1. Successful upstream responses
+2. Upstream/provider failures
 ```
 
-Gateway-owned errors возвращаются в едином JSON envelope.
+Successful upstream responses возвращаются клиенту без изменения response body.
 
-Upstream-originated responses не должны нормализоваться, если upstream уже вернул HTTP response и gateway решил вернуть его клиенту.
+Upstream/provider failures не возвращаются клиенту как raw provider response body. Они классифицируются provider adapter layer и возвращаются как gateway-owned errors в едином JSON envelope.
 
 Запрещено:
 
-```text
-смешивать gateway validation error и upstream error в одном формате без явного правила
-переписывать upstream response body без необходимости
+```text id="9wub64"
+возвращать raw provider error body клиенту
+возвращать raw upstream 4xx body клиенту
+возвращать raw upstream 5xx body клиенту
+смешивать gateway validation error и provider error без normalized code
+переписывать successful upstream response body
 возвращать raw Go error клиенту
 возвращать secrets в error message
 возвращать stack trace клиенту
 раскрывать api_key_env обычному клиенту
 раскрывать reseller_id обычному клиенту, если это не public/debug contract
+```
+
+Разрешено:
+
+```text id="x8o11m"
+возвращать successful upstream response body без изменений
+добавлять Tokenio billing/debug headers к successful response
+использовать provider adapter classifier для выбора gateway-owned error.code
+логировать safe classifier metadata без raw provider error body
+```
+
+Правило:
+
+```text id="ax8pfl"
+success body passthrough applies only to successful upstream responses.
+provider/upstream errors are normalized by Tokenio Gateway.
 ```
 
 ---
@@ -539,100 +558,161 @@ gateway возвращает upstream response body,
 
 ---
 
-# 12. Upstream-originated responses
+# 12. Upstream/provider failures
 
 ## 12.1. Main rule
 
-Если upstream вернул HTTP response и gateway решил не retry-ить другой route, gateway возвращает upstream response body без изменений.
+Если upstream вернул successful response и gateway не выполняет retry:
 
-Это относится к:
+```text id="pu8byn"
+HTTP status = upstream successful status
+response body = upstream response body unchanged
+```
 
-```text
-upstream 2xx
-upstream deterministic 4xx
-upstream non-retryable response
-upstream response received after request may have been processed
+Если upstream вернул error response или произошла upstream failure:
+
+```text id="hj3jhq"
+provider adapter classifies the failure
+gateway returns gateway-owned error envelope
+raw provider error body is not returned to public client
 ```
 
 Gateway может добавить безопасные Tokenio headers.
 
 ## 12.2. Upstream 4xx
 
-Если upstream вернул 4xx, связанный с client request, и retry запрещён:
+Если upstream вернул deterministic 4xx, связанный с client request, и retry запрещён:
 
-```text
-HTTP status = upstream status
-response body = upstream response body unchanged
+```text id="lk6twu"
+HTTP 400
+error.code = upstream_request_error
+error.message = Upstream rejected the request
 ```
 
-Gateway не должен превращать upstream schema error в собственный `invalid_json` или `unknown_model`, если request уже был отправлен upstream.
+Gateway не должен возвращать raw upstream error body клиенту.
 
-## 12.3. Upstream 429
+Gateway не должен превращать upstream request error в собственный validation error вроде `invalid_json` или `unknown_model`, если request уже был отправлен upstream.
 
-Если upstream вернул 429 до response body passthrough и route можно безопасно заменить, gateway может попробовать следующий compatible route.
+## 12.3. Upstream 401/403
 
-Если retry невозможен или candidates закончились:
+Если upstream вернул auth-related 401/403 для reseller credential:
 
-```text
-HTTP 503
-error.code = no_route_available
+```text id="dy54vd"
+adapter classifier = auth_error
+route cooldown reason = auth_error
 ```
 
-или, если upstream response должен быть preserved:
+Если есть compatible retry candidate:
 
-```text
-HTTP status = upstream status
-response body = upstream response body unchanged
-```
-
-Решение первой версии:
-
-```text
-если upstream 429 получен до passthrough и есть compatible retry candidate, retry;
-если candidates закончились, вернуть 503 no_route_available.
-```
-
-## 12.4. Upstream 5xx
-
-Если upstream 5xx получен до passthrough и есть compatible retry candidate:
-
-```text
+```text id="mpnjns"
 try next compatible route
 ```
 
 Если candidates закончились:
 
-```text
+```text id="vtw40i"
 HTTP 503
 error.code = no_route_available
 ```
 
-## 12.5. Upstream connection error before response
+Public response не должен раскрывать reseller credential state, route_id, reseller_id или api_key_env.
+
+## 12.4. Upstream 429
+
+Если upstream вернул 429 и есть compatible retry candidate:
+
+```text id="mba61g"
+try next compatible route
+```
+
+Если candidates закончились:
+
+```text id="ikggb2"
+HTTP 503
+error.code = no_route_available
+```
+
+Gateway не должен возвращать raw upstream 429 body клиенту.
+
+## 12.5. Upstream quota or reseller balance error
+
+Если provider adapter классифицировал upstream response как:
+
+```text id="fm03gu"
+quota_exceeded
+insufficient_reseller_balance
+```
+
+gateway должен:
+
+```text id="8sxkut"
+1. mark route cooldown according to classifier
+2. try next compatible route if retry boundary allows
+3. return 503 no_route_available if candidates exhausted
+```
+
+Gateway не должен возвращать raw upstream body клиенту.
+
+## 12.6. Upstream 5xx
+
+Если upstream 5xx получен до response passthrough и есть compatible retry candidate:
+
+```text id="bd1zgz"
+try next compatible route
+```
+
+Если candidates закончились:
+
+```text id="vlgs2a"
+HTTP 503
+error.code = no_route_available
+```
+
+Gateway не должен возвращать raw upstream 5xx body клиенту.
+
+## 12.7. Upstream connection error before response
 
 Если connection/DNS/TLS/timeout произошёл до response headers:
 
-```text
+```text id="cak642"
 try next compatible route if available
 ```
 
 Если compatible route нет:
 
-```text
+```text id="12t7rn"
 HTTP 502
 error.code = upstream_unavailable
 error.message = Upstream is unavailable
 ```
 
-## 12.6. Unsafe retry boundary
+## 12.8. Unsafe retry boundary
 
 Если есть риск, что upstream начал обработку request, retry запрещён.
 
-В этом случае gateway должен вернуть gateway-owned error или upstream response согласно фактическому состоянию.
+Если при этом upstream failure должна быть возвращена клиенту:
+
+```text id="h5iad0"
+gateway returns gateway-owned normalized error
+raw provider error body is not returned
+```
 
 Если response headers already received:
 
-```text
+```text id="ot637u"
 retry forbidden
+```
+
+Если response was successful:
+
+```text id="c0ohdu"
+successful response body passthrough applies
+```
+
+Если response was error:
+
+```text id="b65o8s"
+provider error normalization applies
 ```
 
 ---
@@ -959,6 +1039,7 @@ idempotency_key_reused
 
 usage_store_unavailable
 store_unavailable
+upstream_request_error
 upstream_unavailable
 configuration_error
 method_not_allowed
@@ -1021,6 +1102,7 @@ idempotency_key_reused                -> 409
 
 usage_store_unavailable               -> 503
 store_unavailable                     -> 503
+upstream_request_error                -> 400
 upstream_unavailable                  -> 502
 configuration_error                   -> 500
 method_not_allowed                    -> 405
@@ -1082,7 +1164,7 @@ Error model считается реализованным, если:
 6. Billing unavailable before upstream возвращает gateway-owned error.
 7. Billing failure after successful upstream не ломает upstream response.
 8. Upstream successful response body не изменяется.
-9. Upstream non-retryable response body не нормализуется.
+9. Upstream/provider failures нормализуются в gateway-owned error envelope и не возвращают raw provider body.
 10. Retryable upstream failures классифицируются adapter layer.
 11. Provider-specific parsing не находится в generic error writer.
 12. Public errors не содержат secrets.
