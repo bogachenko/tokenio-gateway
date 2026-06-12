@@ -3,6 +3,7 @@ package domain
 import (
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestProviderTypeContractValues(t *testing.T) {
@@ -205,6 +206,55 @@ func TestErrorCodeRegistryContractValues(t *testing.T) {
 	for want, got := range values {
 		if string(got) != want {
 			t.Fatalf("ErrorCode value mismatch: got %q, want %q", got, want)
+		}
+	}
+}
+
+func TestUsageRecordContainsAcceptedLedgerLifecycleFields(t *testing.T) {
+	typ := reflect.TypeOf(UsageRecord{})
+	fields := map[string]reflect.Type{
+		"LocalRequestID":             reflect.TypeOf(""),
+		"IdempotencyKey":             reflect.TypeOf(""),
+		"UserID":                     reflect.TypeOf(""),
+		"APIKeyID":                   reflect.TypeOf(""),
+		"APIFamily":                  reflect.TypeOf(APIFamily("")),
+		"EndpointKind":               reflect.TypeOf(EndpointKind("")),
+		"ClientModel":                reflect.TypeOf(""),
+		"BillingModel":               reflect.TypeOf(""),
+		"SelectedRouteID":            reflect.TypeOf(""),
+		"SelectedResellerID":         reflect.TypeOf(""),
+		"ProviderType":               reflect.TypeOf(ProviderType("")),
+		"ProviderModel":              reflect.TypeOf(""),
+		"ProviderRequestID":          reflect.TypeOf(""),
+		"ProviderResponseModel":      reflect.TypeOf(""),
+		"EstimatedUsage":             reflect.TypeOf(TokenUsage{}),
+		"Usage":                      reflect.TypeOf(TokenUsage{}),
+		"EstimatedClientAmountCents": reflect.TypeOf(int64(0)),
+		"EstimatedUpstreamCostCents": reflect.TypeOf(int64(0)),
+		"ClientAmountCents":          reflect.TypeOf(int64(0)),
+		"ChargedAmountCents":         reflect.TypeOf(int64(0)),
+		"RemainingAmountCents":       reflect.TypeOf(int64(0)),
+		"ActualUpstreamCostCents":    reflect.TypeOf(int64(0)),
+		"Currency":                   reflect.TypeOf(""),
+		"UsageCompleteness":          reflect.TypeOf(""),
+		"Status":                     reflect.TypeOf(UsageStatus("")),
+		"FailureReason":              reflect.TypeOf(""),
+		"BillingChargeRequestID":     reflect.TypeOf(""),
+		"CreatedAt":                  reflect.TypeOf(time.Time{}),
+		"ReservedAt":                 reflect.TypeOf((*time.Time)(nil)),
+		"ReleasedAt":                 reflect.TypeOf((*time.Time)(nil)),
+		"BillableAt":                 reflect.TypeOf((*time.Time)(nil)),
+		"ChargedAt":                  reflect.TypeOf((*time.Time)(nil)),
+		"FailedAt":                   reflect.TypeOf((*time.Time)(nil)),
+		"UpdatedAt":                  reflect.TypeOf(time.Time{}),
+	}
+	for name, want := range fields {
+		field, ok := typ.FieldByName(name)
+		if !ok {
+			t.Fatalf("UsageRecord.%s is missing", name)
+		}
+		if field.Type != want {
+			t.Fatalf("UsageRecord.%s type = %v, want %v", name, field.Type, want)
 		}
 	}
 }

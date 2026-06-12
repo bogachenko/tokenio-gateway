@@ -136,7 +136,44 @@ type ForwardingAdapter interface {
 	Forward(ctx context.Context, request ForwardRequest) (ForwardResponse, error)
 }
 
+type UsageReserveOutcome string
+
+const (
+	UsageReserveOutcomeCreated            UsageReserveOutcome = "created"
+	UsageReserveOutcomeLocalRequestExists UsageReserveOutcome = "local_request_exists"
+	UsageReserveOutcomeIdempotencyExists  UsageReserveOutcome = "idempotency_exists"
+	UsageReserveOutcomeUnresolvedUsage    UsageReserveOutcome = "unresolved_usage"
+)
+
+type UsageReserveResult struct {
+	Outcome  UsageReserveOutcome
+	Existing *domain.UsageRecord
+}
+
+type UsageTransitionResult struct {
+	Applied bool
+	Current *domain.UsageRecord
+}
+
+type UsageExposureSnapshot struct {
+	Currency string
+
+	ReservedEstimatedAmountCents         int64
+	BillableRemainingAmountCents         int64
+	PartiallyChargedRemainingAmountCents int64
+	PricingFailedCount                   int64
+}
+
 type UsageLedger interface {
-	CreateReserved(ctx context.Context, record domain.UsageRecord) error
+	// CreateReserved atomically checks unresolved user pricing failures, local_request_id
+	// uniqueness, optional client idempotency scope (user_id + endpoint_kind +
+	// idempotency_key), and inserts the reserved usage record in one persistence
+	// transaction. Callers must not emulate this with a Find-then-Insert sequence.
+	CreateReserved(ctx context.Context, record domain.UsageRecord) (UsageReserveResult, error)
 	FindByLocalRequestID(ctx context.Context, localRequestID string) (*domain.UsageRecord, error)
+	// CompareAndSwap persists next only when the current record identified by
+	// localRequestID is still in expectedStatus; when Applied is false Current
+	// contains the actual current record.
+	CompareAndSwap(ctx context.Context, localRequestID string, expectedStatus domain.UsageStatus, next domain.UsageRecord) (UsageTransitionResult, error)
+	LoadExposure(ctx context.Context, userID string, currency string) (UsageExposureSnapshot, error)
 }

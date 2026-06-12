@@ -90,11 +90,17 @@ func (forwardingAdapterFake) Forward(ctx context.Context, request ports.ForwardR
 
 type usageLedgerFake struct{}
 
-func (usageLedgerFake) CreateReserved(ctx context.Context, record domain.UsageRecord) error {
-	return nil
+func (usageLedgerFake) CreateReserved(ctx context.Context, record domain.UsageRecord) (ports.UsageReserveResult, error) {
+	return ports.UsageReserveResult{}, nil
 }
 func (usageLedgerFake) FindByLocalRequestID(ctx context.Context, localRequestID string) (*domain.UsageRecord, error) {
 	return nil, nil
+}
+func (usageLedgerFake) CompareAndSwap(ctx context.Context, localRequestID string, expectedStatus domain.UsageStatus, next domain.UsageRecord) (ports.UsageTransitionResult, error) {
+	return ports.UsageTransitionResult{}, nil
+}
+func (usageLedgerFake) LoadExposure(ctx context.Context, userID string, currency string) (ports.UsageExposureSnapshot, error) {
+	return ports.UsageExposureSnapshot{}, nil
 }
 
 var (
@@ -113,6 +119,28 @@ var (
 	_ ports.ForwardingAdapter      = forwardingAdapterFake{}
 	_ ports.UsageLedger            = usageLedgerFake{}
 )
+
+func TestUsageLedgerPortExposesAtomicReservedAndCASContracts(t *testing.T) {
+	ledgerType := reflect.TypeOf((*ports.UsageLedger)(nil)).Elem()
+	for _, methodName := range []string{"CreateReserved", "FindByLocalRequestID", "CompareAndSwap", "LoadExposure"} {
+		if _, ok := ledgerType.MethodByName(methodName); !ok {
+			t.Fatalf("UsageLedger.%s is missing", methodName)
+		}
+	}
+
+	if ports.UsageReserveOutcomeCreated != "created" || ports.UsageReserveOutcomeLocalRequestExists != "local_request_exists" || ports.UsageReserveOutcomeIdempotencyExists != "idempotency_exists" || ports.UsageReserveOutcomeUnresolvedUsage != "unresolved_usage" {
+		t.Fatal("UsageLedger reserve outcomes changed")
+	}
+
+	reserveResultType := reflect.TypeOf(ports.UsageReserveResult{})
+	if _, ok := reserveResultType.FieldByName("Existing"); !ok {
+		t.Fatal("UsageReserveResult.Existing is missing")
+	}
+	transitionResultType := reflect.TypeOf(ports.UsageTransitionResult{})
+	if _, ok := transitionResultType.FieldByName("Applied"); !ok {
+		t.Fatal("UsageTransitionResult.Applied is missing")
+	}
+}
 
 func TestRepositoryPortsUseContextAndAPIKeyRepositoryAcceptsHash(t *testing.T) {
 	method, ok := reflect.TypeOf((*ports.APIKeyRepository)(nil)).Elem().MethodByName("FindByHash")

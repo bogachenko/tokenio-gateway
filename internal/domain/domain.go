@@ -198,27 +198,50 @@ const (
 )
 
 type UsageRecord struct {
-	LocalRequestID             string       `json:"local_request_id"`
-	IdempotencyKey             string       `json:"idempotency_key,omitempty"`
-	UserID                     string       `json:"user_id"`
-	ClientModel                string       `json:"client_model"`
-	BillingModel               string       `json:"billing_model"`
-	SelectedResellerID         string       `json:"selected_reseller_id"`
-	SelectedRouteID            string       `json:"selected_route_id"`
-	ProviderType               ProviderType `json:"provider_type"`
-	APIFamily                  APIFamily    `json:"api_family"`
-	EndpointKind               EndpointKind `json:"endpoint_kind"`
-	ProviderModel              string       `json:"provider_model"`
-	Usage                      TokenUsage   `json:"usage"`
-	EstimatedClientAmountCents int64        `json:"estimated_client_amount_cents"`
-	ClientAmountCents          int64        `json:"client_amount_cents"`
-	EstimatedUpstreamCostCents int64        `json:"estimated_upstream_cost_cents"`
-	ActualUpstreamCostCents    int64        `json:"actual_upstream_cost_cents"`
-	Currency                   string       `json:"currency"`
-	Status                     UsageStatus  `json:"status"`
-	FailureReason              string       `json:"failure_reason,omitempty"`
-	BillingChargeRequestID     string       `json:"billing_charge_request_id,omitempty"`
-	CreatedAt                  time.Time    `json:"created_at"`
-	BillableAt                 *time.Time   `json:"billable_at,omitempty"`
-	ChargedAt                  *time.Time   `json:"charged_at,omitempty"`
+	LocalRequestID string `json:"local_request_id"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+
+	UserID   string `json:"user_id"`
+	APIKeyID string `json:"api_key_id"`
+
+	APIFamily    APIFamily    `json:"api_family"`
+	EndpointKind EndpointKind `json:"endpoint_kind"`
+
+	ClientModel  string `json:"client_model"`
+	BillingModel string `json:"billing_model"`
+
+	SelectedRouteID    string `json:"selected_route_id"`
+	SelectedResellerID string `json:"selected_reseller_id"`
+
+	ProviderType  ProviderType `json:"provider_type"`
+	ProviderModel string       `json:"provider_model"`
+
+	ProviderRequestID     string `json:"provider_request_id,omitempty"`
+	ProviderResponseModel string `json:"provider_response_model,omitempty"`
+
+	EstimatedUsage TokenUsage `json:"estimated_usage"`
+	Usage          TokenUsage `json:"usage"`
+
+	EstimatedClientAmountCents int64 `json:"estimated_client_amount_cents"`
+	EstimatedUpstreamCostCents int64 `json:"estimated_upstream_cost_cents"`
+
+	ClientAmountCents       int64 `json:"client_amount_cents"`
+	ChargedAmountCents      int64 `json:"charged_amount_cents"`
+	RemainingAmountCents    int64 `json:"remaining_amount_cents"`
+	ActualUpstreamCostCents int64 `json:"actual_upstream_cost_cents"`
+
+	Currency          string      `json:"currency"`
+	UsageCompleteness string      `json:"usage_completeness"`
+	Status            UsageStatus `json:"status"`
+
+	FailureReason          string `json:"failure_reason,omitempty"`
+	BillingChargeRequestID string `json:"billing_charge_request_id,omitempty"`
+
+	CreatedAt  time.Time  `json:"created_at"`
+	ReservedAt *time.Time `json:"reserved_at,omitempty"`
+	ReleasedAt *time.Time `json:"released_at,omitempty"`
+	BillableAt *time.Time `json:"billable_at,omitempty"`
+	ChargedAt  *time.Time `json:"charged_at,omitempty"`
+	FailedAt   *time.Time `json:"failed_at,omitempty"`
+	UpdatedAt  time.Time  `json:"updated_at"`
 }
