@@ -88,15 +88,16 @@ func (c TokenCalculator) AmountCents(input AmountInput) (int64, error) {
 
 func multiplyUsage(usage domain.TokenUsage, factor float64) domain.TokenUsage {
 	return domain.TokenUsage{
-		InputTokens:       ceilMul(usage.InputTokens, factor),
-		CachedInputTokens: ceilMul(usage.CachedInputTokens, factor),
-		OutputTokens:      ceilMul(usage.OutputTokens, factor),
-		ReasoningTokens:   ceilMul(usage.ReasoningTokens, factor),
-		ImageInputTokens:  ceilMul(usage.ImageInputTokens, factor),
-		AudioInputTokens:  ceilMul(usage.AudioInputTokens, factor),
-		AudioOutputTokens: ceilMul(usage.AudioOutputTokens, factor),
-		FileInputTokens:   ceilMul(usage.FileInputTokens, factor),
-		VideoInputTokens:  ceilMul(usage.VideoInputTokens, factor),
+		InputTokens:          ceilMul(usage.InputTokens, factor),
+		CachedInputTokens:    ceilMul(usage.CachedInputTokens, factor),
+		OutputTokens:         ceilMul(usage.OutputTokens, factor),
+		ReasoningTokens:      ceilMul(usage.ReasoningTokens, factor),
+		ImageInputTokens:     ceilMul(usage.ImageInputTokens, factor),
+		AudioInputTokens:     ceilMul(usage.AudioInputTokens, factor),
+		AudioOutputTokens:    ceilMul(usage.AudioOutputTokens, factor),
+		FileInputTokens:      ceilMul(usage.FileInputTokens, factor),
+		VideoInputTokens:     ceilMul(usage.VideoInputTokens, factor),
+		ImageGenerationUnits: usage.ImageGenerationUnits,
 	}
 }
 

@@ -36,6 +36,13 @@ const (
 	EndpointHealth           EndpointKind = "health"
 )
 
+type ModelRewritePolicy string
+
+const (
+	ModelRewritePolicyNone          ModelRewritePolicy = "none"
+	ModelRewritePolicyProviderModel ModelRewritePolicy = "provider_model"
+)
+
 type CapabilitySet struct {
 	Chat             bool `json:"chat"`
 	Embeddings       bool `json:"embeddings"`
@@ -66,61 +73,113 @@ type Reseller struct {
 }
 
 type Route struct {
-	ID                     string        `json:"id"`
-	ResellerID             string        `json:"reseller_id"`
-	ProviderType           ProviderType  `json:"provider_type"`
-	APIFamily              APIFamily     `json:"api_family"`
-	EndpointKind           EndpointKind  `json:"endpoint_kind"`
-	ClientModel            string        `json:"client_model"`
-	ProviderModel          string        `json:"provider_model"`
-	Enabled                bool          `json:"enabled"`
-	Priority               int           `json:"priority"`
-	RequestsPerMinute      int           `json:"requests_per_minute"`
-	TokensPerMinute        int           `json:"tokens_per_minute"`
-	ConcurrentRequests     int           `json:"concurrent_requests"`
-	DefaultMaxOutputTokens int64         `json:"default_max_output_tokens"`
-	Capabilities           CapabilitySet `json:"capabilities"`
-	CooldownUntil          *time.Time    `json:"cooldown_until,omitempty"`
-	CooldownReason         string        `json:"cooldown_reason,omitempty"`
-	CreatedAt              time.Time     `json:"created_at"`
-	UpdatedAt              time.Time     `json:"updated_at"`
+	ID                     string             `json:"id"`
+	ResellerID             string             `json:"reseller_id"`
+	ProviderType           ProviderType       `json:"provider_type"`
+	APIFamily              APIFamily          `json:"api_family"`
+	EndpointKind           EndpointKind       `json:"endpoint_kind"`
+	ClientModel            string             `json:"client_model"`
+	ProviderModel          string             `json:"provider_model"`
+	ModelRewritePolicy     ModelRewritePolicy `json:"model_rewrite_policy"`
+	Enabled                bool               `json:"enabled"`
+	Priority               int                `json:"priority"`
+	RequestsPerMinute      int                `json:"requests_per_minute"`
+	TokensPerMinute        int                `json:"tokens_per_minute"`
+	ConcurrentRequests     int                `json:"concurrent_requests"`
+	DefaultMaxOutputTokens int64              `json:"default_max_output_tokens"`
+	Capabilities           CapabilitySet      `json:"capabilities"`
+	CooldownUntil          *time.Time         `json:"cooldown_until,omitempty"`
+	CooldownReason         string             `json:"cooldown_reason,omitempty"`
+	CreatedAt              time.Time          `json:"created_at"`
+	UpdatedAt              time.Time          `json:"updated_at"`
 }
 
 type TokenUsage struct {
-	InputTokens       int64 `json:"input_tokens"`
-	CachedInputTokens int64 `json:"cached_input_tokens"`
-	OutputTokens      int64 `json:"output_tokens"`
-	ReasoningTokens   int64 `json:"reasoning_tokens"`
-	ImageInputTokens  int64 `json:"image_input_tokens"`
-	AudioInputTokens  int64 `json:"audio_input_tokens"`
-	AudioOutputTokens int64 `json:"audio_output_tokens"`
-	FileInputTokens   int64 `json:"file_input_tokens"`
-	VideoInputTokens  int64 `json:"video_input_tokens"`
+	InputTokens          int64 `json:"input_tokens"`
+	CachedInputTokens    int64 `json:"cached_input_tokens"`
+	OutputTokens         int64 `json:"output_tokens"`
+	ReasoningTokens      int64 `json:"reasoning_tokens"`
+	ImageInputTokens     int64 `json:"image_input_tokens"`
+	AudioInputTokens     int64 `json:"audio_input_tokens"`
+	AudioOutputTokens    int64 `json:"audio_output_tokens"`
+	FileInputTokens      int64 `json:"file_input_tokens"`
+	VideoInputTokens     int64 `json:"video_input_tokens"`
+	ImageGenerationUnits int64 `json:"image_generation_units"`
 }
 
+type ImageGenerationUnitKind string
+
+const (
+	ImageGenerationUnitKindNone           ImageGenerationUnitKind = "none"
+	ImageGenerationUnitKindGeneratedImage ImageGenerationUnitKind = "generated_image"
+)
+
 type RoutePrice struct {
-	RouteID                              string  `json:"route_id"`
-	Currency                             string  `json:"currency"`
-	InputPricePer1MTokensCents           int64   `json:"input_price_per_1m_tokens_cents"`
-	CachedInputPricePer1MTokensCents     int64   `json:"cached_input_price_per_1m_tokens_cents"`
-	OutputPricePer1MTokensCents          int64   `json:"output_price_per_1m_tokens_cents"`
-	ReasoningOutputPricePer1MTokensCents int64   `json:"reasoning_output_price_per_1m_tokens_cents"`
-	ImageInputPricePer1MTokensCents      int64   `json:"image_input_price_per_1m_tokens_cents"`
-	AudioInputPricePer1MTokensCents      int64   `json:"audio_input_price_per_1m_tokens_cents"`
-	AudioOutputPricePer1MTokensCents     int64   `json:"audio_output_price_per_1m_tokens_cents"`
-	FileInputPricePer1MTokensCents       int64   `json:"file_input_price_per_1m_tokens_cents"`
-	VideoInputPricePer1MTokensCents      int64   `json:"video_input_price_per_1m_tokens_cents"`
-	MarkupCoefficient                    float64 `json:"markup_coefficient"`
+	RouteID                              string                  `json:"route_id"`
+	Currency                             string                  `json:"currency"`
+	InputPricePer1MTokensCents           int64                   `json:"input_price_per_1m_tokens_cents"`
+	CachedInputPricePer1MTokensCents     int64                   `json:"cached_input_price_per_1m_tokens_cents"`
+	OutputPricePer1MTokensCents          int64                   `json:"output_price_per_1m_tokens_cents"`
+	ReasoningOutputPricePer1MTokensCents int64                   `json:"reasoning_output_price_per_1m_tokens_cents"`
+	ImageInputPricePer1MTokensCents      int64                   `json:"image_input_price_per_1m_tokens_cents"`
+	AudioInputPricePer1MTokensCents      int64                   `json:"audio_input_price_per_1m_tokens_cents"`
+	AudioOutputPricePer1MTokensCents     int64                   `json:"audio_output_price_per_1m_tokens_cents"`
+	FileInputPricePer1MTokensCents       int64                   `json:"file_input_price_per_1m_tokens_cents"`
+	VideoInputPricePer1MTokensCents      int64                   `json:"video_input_price_per_1m_tokens_cents"`
+	ImageGenerationPricePerUnitCents     int64                   `json:"image_generation_price_per_unit_cents"`
+	ImageGenerationUnitKind              ImageGenerationUnitKind `json:"image_generation_unit_kind"`
+	MarkupCoefficient                    float64                 `json:"markup_coefficient"`
 }
 
 type UsageStatus string
 
 const (
-	UsageStatusReserved UsageStatus = "reserved"
-	UsageStatusReleased UsageStatus = "released"
-	UsageStatusBillable UsageStatus = "billable"
-	UsageStatusCharged  UsageStatus = "charged"
-	UsageStatusFailed   UsageStatus = "failed"
+	UsageStatusReserved         UsageStatus = "reserved"
+	UsageStatusReleased         UsageStatus = "released"
+	UsageStatusBillable         UsageStatus = "billable"
+	UsageStatusPartiallyCharged UsageStatus = "partially_charged"
+	UsageStatusCharged          UsageStatus = "charged"
+	UsageStatusFailed           UsageStatus = "failed"
+	UsageStatusPricingFailed    UsageStatus = "pricing_failed"
+)
+
+type ErrorCode string
+
+const (
+	ErrorCodeUnauthorized                  ErrorCode = "unauthorized"
+	ErrorCodeInvalidAPIKey                 ErrorCode = "invalid_api_key"
+	ErrorCodeUserDisabled                  ErrorCode = "user_disabled"
+	ErrorCodeInvalidJSON                   ErrorCode = "invalid_json"
+	ErrorCodeRequestBodyTooLarge           ErrorCode = "request_body_too_large"
+	ErrorCodeUnsupportedContentType        ErrorCode = "unsupported_content_type"
+	ErrorCodeModelRequired                 ErrorCode = "model_required"
+	ErrorCodeStreamingUnsupported          ErrorCode = "streaming_unsupported"
+	ErrorCodeUnknownModel                  ErrorCode = "unknown_model"
+	ErrorCodeUnsupportedCapability         ErrorCode = "unsupported_capability"
+	ErrorCodeNoRouteAvailable              ErrorCode = "no_route_available"
+	ErrorCodeRouteUnavailable              ErrorCode = "route_unavailable"
+	ErrorCodeInsufficientFunds             ErrorCode = "insufficient_funds"
+	ErrorCodeBillingUnavailable            ErrorCode = "billing_unavailable"
+	ErrorCodePricingUnavailable            ErrorCode = "pricing_unavailable"
+	ErrorCodeUnresolvedUsage               ErrorCode = "unresolved_usage"
+	ErrorCodeRequestInProgress             ErrorCode = "request_in_progress"
+	ErrorCodeIdempotencyReplayNotAvailable ErrorCode = "idempotency_replay_not_available"
+	ErrorCodeIdempotencyKeyReused          ErrorCode = "idempotency_key_reused"
+	ErrorCodeUsageStoreUnavailable         ErrorCode = "usage_store_unavailable"
+	ErrorCodeStoreUnavailable              ErrorCode = "store_unavailable"
+	ErrorCodeUpstreamRequestError          ErrorCode = "upstream_request_error"
+	ErrorCodeUpstreamUnavailable           ErrorCode = "upstream_unavailable"
+	ErrorCodeConfigurationError            ErrorCode = "configuration_error"
+	ErrorCodeMethodNotAllowed              ErrorCode = "method_not_allowed"
+	ErrorCodeNotFound                      ErrorCode = "not_found"
+	ErrorCodeInternalError                 ErrorCode = "internal_error"
+	ErrorCodeAdminUnauthorized             ErrorCode = "admin_unauthorized"
+	ErrorCodeAdminForbidden                ErrorCode = "admin_forbidden"
+	ErrorCodeAdminValidationError          ErrorCode = "admin_validation_error"
+	ErrorCodeAdminNotFound                 ErrorCode = "admin_not_found"
+	ErrorCodeAdminConflict                 ErrorCode = "admin_conflict"
+	ErrorCodeAdminStateConflict            ErrorCode = "admin_state_conflict"
+	ErrorCodeAdminSecretNotAvailable       ErrorCode = "admin_secret_not_available"
 )
 
 type UsageRecord struct {
