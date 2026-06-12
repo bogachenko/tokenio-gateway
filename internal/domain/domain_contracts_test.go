@@ -258,3 +258,26 @@ func TestUsageRecordContainsAcceptedLedgerLifecycleFields(t *testing.T) {
 		}
 	}
 }
+
+func TestBillingChargeDomainContracts(t *testing.T) {
+	if BillingChargeStatusPending != "pending" || BillingChargeStatusSucceeded != "succeeded" || BillingChargeStatusFailed != "failed" {
+		t.Fatal("BillingChargeStatus values changed")
+	}
+	batchType := reflect.TypeOf(BillingChargeBatch{})
+	for _, name := range []string{"ID", "UserID", "BillingSubjectUserID", "ProviderType", "ClientModel", "BillingModel", "InputTokens", "OutputTokens", "AmountCents", "Currency", "Status", "BillingResponseBalanceCents", "BillingErrorCode", "CreatedAt", "ChargedAt", "FailedAt", "UpdatedAt"} {
+		if _, ok := batchType.FieldByName(name); !ok {
+			t.Fatalf("BillingChargeBatch.%s is missing", name)
+		}
+	}
+	allocType := reflect.TypeOf(BillingChargeAllocation{})
+	for _, name := range []string{"ID", "BatchID", "LocalRequestID", "ChargedAmountCents", "RemainingAmountCents", "CreatedAt"} {
+		if _, ok := allocType.FieldByName(name); !ok {
+			t.Fatalf("BillingChargeAllocation.%s is missing", name)
+		}
+	}
+	for _, forbidden := range []string{"Credential", "Token", "RawRequest", "RawResponse", "RawError", "ServiceToken", "JWT"} {
+		if _, ok := batchType.FieldByName(forbidden); ok {
+			t.Fatalf("BillingChargeBatch exposes forbidden field %s", forbidden)
+		}
+	}
+}

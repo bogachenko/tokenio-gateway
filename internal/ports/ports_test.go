@@ -102,6 +102,21 @@ func (usageLedgerFake) CompareAndSwap(ctx context.Context, localRequestID string
 func (usageLedgerFake) LoadExposure(ctx context.Context, userID string, currency string) (ports.UsageExposureSnapshot, error) {
 	return ports.UsageExposureSnapshot{}, nil
 }
+func (usageLedgerFake) LoadOpenChargeBatches(ctx context.Context, userID string, billingSubjectUserID string, currency string) ([]ports.BillingChargeBatchSnapshot, error) {
+	return nil, nil
+}
+func (usageLedgerFake) LoadChargeCandidates(ctx context.Context, userID string, currency string) ([]domain.UsageRecord, error) {
+	return nil, nil
+}
+func (usageLedgerFake) PrepareChargeBatch(ctx context.Context, plan ports.UsageChargeBatchPlan) (ports.BillingChargeBatchSnapshot, error) {
+	return ports.BillingChargeBatchSnapshot{}, nil
+}
+func (usageLedgerFake) MarkChargeBatchFailed(ctx context.Context, batchID string, expectedStatus domain.BillingChargeStatus, billingErrorCode string, failedAt time.Time) error {
+	return nil
+}
+func (usageLedgerFake) ApplyChargeSuccess(ctx context.Context, success ports.UsageChargeSuccess) error {
+	return nil
+}
 
 var (
 	_ ports.APIKeyRepository       = apiKeyRepositoryFake{}
@@ -122,7 +137,7 @@ var (
 
 func TestUsageLedgerPortExposesAtomicReservedAndCASContracts(t *testing.T) {
 	ledgerType := reflect.TypeOf((*ports.UsageLedger)(nil)).Elem()
-	for _, methodName := range []string{"CreateReserved", "FindByLocalRequestID", "CompareAndSwap", "LoadExposure"} {
+	for _, methodName := range []string{"CreateReserved", "FindByLocalRequestID", "CompareAndSwap", "LoadExposure", "LoadOpenChargeBatches", "LoadChargeCandidates", "PrepareChargeBatch", "MarkChargeBatchFailed", "ApplyChargeSuccess"} {
 		if _, ok := ledgerType.MethodByName(methodName); !ok {
 			t.Fatalf("UsageLedger.%s is missing", methodName)
 		}

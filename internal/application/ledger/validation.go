@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/bogachenko/tokenio-gateway/internal/application/pricing"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
@@ -52,6 +53,9 @@ func acceptedPricingFailedCompleteness(value pricing.UsageCompleteness) bool {
 }
 
 func ValidateRecord(record domain.UsageRecord) error {
+	if err := validateLocalRequestID(record.LocalRequestID); err != nil {
+		return fmt.Errorf("%w: local request id", ErrRecordCorrupt)
+	}
 	if !isKnownStatus(record.Status) {
 		return fmt.Errorf("%w: %s", ErrInvalidUsageStatus, record.Status)
 	}
@@ -88,11 +92,14 @@ func ValidateRecord(record domain.UsageRecord) error {
 			return fmt.Errorf("%w: billable amounts", ErrRecordCorrupt)
 		}
 	case domain.UsageStatusPartiallyCharged:
+		if record.ChargedAt == nil || strings.TrimSpace(record.BillingChargeRequestID) == "" || record.BillableAt == nil || !acceptedBillableCompleteness(pricing.UsageCompleteness(record.UsageCompleteness)) || validateUsage(record.Usage) != nil {
+			return fmt.Errorf("%w: partially charged fields", ErrRecordCorrupt)
+		}
 		if record.ClientAmountCents <= 0 || record.ChargedAmountCents <= 0 || record.ChargedAmountCents >= record.ClientAmountCents || record.RemainingAmountCents != record.ClientAmountCents-record.ChargedAmountCents {
 			return fmt.Errorf("%w: partially charged amounts", ErrRecordCorrupt)
 		}
 	case domain.UsageStatusCharged:
-		if record.ChargedAt == nil || record.ChargedAmountCents != record.ClientAmountCents || record.RemainingAmountCents != 0 {
+		if record.ChargedAt == nil || strings.TrimSpace(record.BillingChargeRequestID) == "" || record.BillableAt == nil || !acceptedBillableCompleteness(pricing.UsageCompleteness(record.UsageCompleteness)) || validateUsage(record.Usage) != nil || record.ChargedAmountCents != record.ClientAmountCents || record.RemainingAmountCents != 0 {
 			return fmt.Errorf("%w: charged fields", ErrRecordCorrupt)
 		}
 	case domain.UsageStatusPricingFailed:
@@ -104,3 +111,81 @@ func ValidateRecord(record domain.UsageRecord) error {
 }
 
 func isZeroUsage(usage domain.TokenUsage) bool { return usage == (domain.TokenUsage{}) }
+
+func ValidateChargeBatch(batch domain.BillingChargeBatch) error {
+	if !validBillingChargeID(batch.ID) {
+		return fmt.Errorf("%w: charge batch id", ErrRecordCorrupt)
+	}
+	if isBlank(batch.UserID) || isBlank(batch.BillingSubjectUserID) || isBlank(string(batch.ProviderType)) || isBlank(batch.ClientModel) || isBlank(batch.BillingModel) {
+		return fmt.Errorf("%w: charge batch identity", ErrRecordCorrupt)
+	}
+	billingModel, err := pricing.BillingModel(batch.ProviderType, batch.ClientModel)
+	if err != nil || batch.BillingModel != billingModel {
+		return fmt.Errorf("%w: charge batch billing model", ErrRecordCorrupt)
+	}
+	if batch.Currency != currencyRUB || batch.AmountCents <= 0 || batch.InputTokens < 0 || batch.OutputTokens < 0 {
+		return fmt.Errorf("%w: charge batch amounts", ErrRecordCorrupt)
+	}
+	if batch.BillingResponseBalanceCents != nil && *batch.BillingResponseBalanceCents < 0 {
+		return fmt.Errorf("%w: charge batch response balance", ErrRecordCorrupt)
+	}
+	if batch.CreatedAt.IsZero() || batch.UpdatedAt.IsZero() || !isUTCTime(batch.CreatedAt) || !isUTCTime(batch.UpdatedAt) {
+		return fmt.Errorf("%w: charge batch timestamps", ErrRecordCorrupt)
+	}
+	switch batch.Status {
+	case domain.BillingChargeStatusPending:
+		if batch.ChargedAt != nil || batch.FailedAt != nil || batch.BillingErrorCode != "" {
+			return fmt.Errorf("%w: pending charge batch fields", ErrRecordCorrupt)
+		}
+	case domain.BillingChargeStatusFailed:
+		if batch.FailedAt == nil || !isUTCTime(*batch.FailedAt) || batch.ChargedAt != nil || validateBillingErrorCode(batch.BillingErrorCode) != nil {
+			return fmt.Errorf("%w: failed charge batch fields", ErrRecordCorrupt)
+		}
+	case domain.BillingChargeStatusSucceeded:
+		if batch.ChargedAt == nil || !isUTCTime(*batch.ChargedAt) || batch.FailedAt != nil || batch.BillingErrorCode != "" {
+			return fmt.Errorf("%w: succeeded charge batch fields", ErrRecordCorrupt)
+		}
+	default:
+		return fmt.Errorf("%w: charge batch status", ErrRecordCorrupt)
+	}
+	return nil
+}
+
+func isUTCTime(value time.Time) bool { return value.Location() == time.UTC }
+
+func ValidateAllocation(batch domain.BillingChargeBatch, allocation domain.BillingChargeAllocation) error {
+	if !validBillingAllocationID(allocation.ID) || allocation.BatchID != batch.ID || isBlank(allocation.LocalRequestID) {
+		return fmt.Errorf("%w: charge allocation identity", ErrRecordCorrupt)
+	}
+	if allocation.ChargedAmountCents <= 0 || allocation.RemainingAmountCents < 0 {
+		return fmt.Errorf("%w: charge allocation amounts", ErrRecordCorrupt)
+	}
+	if allocation.CreatedAt.IsZero() {
+		return fmt.Errorf("%w: charge allocation timestamp", ErrRecordCorrupt)
+	}
+	return nil
+}
+
+func validateBillingErrorCode(code string) error {
+	if isBlank(code) || len(code) > 64 || !failureReasonPattern.MatchString(code) {
+		return fmt.Errorf("%w: invalid billing error code", ErrRecordCorrupt)
+	}
+	return nil
+}
+
+func validBillingChargeID(id string) bool {
+	return len(id) == len("billchg_")+64 && strings.HasPrefix(id, "billchg_") && isLowerHex(id[len("billchg_"):])
+}
+
+func validBillingAllocationID(id string) bool {
+	return len(id) == len("billalloc_")+64 && strings.HasPrefix(id, "billalloc_") && isLowerHex(id[len("billalloc_"):])
+}
+
+func isLowerHex(value string) bool {
+	for _, ch := range value {
+		if (ch < '0' || ch > '9') && (ch < 'a' || ch > 'f') {
+			return false
+		}
+	}
+	return true
+}

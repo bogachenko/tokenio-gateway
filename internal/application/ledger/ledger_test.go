@@ -116,6 +116,26 @@ func (f *fakeLedger) LoadExposure(ctx context.Context, userID string, currency s
 	return s, nil
 }
 
+func (f *fakeLedger) LoadOpenChargeBatches(ctx context.Context, userID string, billingSubjectUserID string, currency string) ([]ports.BillingChargeBatchSnapshot, error) {
+	return nil, nil
+}
+
+func (f *fakeLedger) LoadChargeCandidates(ctx context.Context, userID string, currency string) ([]domain.UsageRecord, error) {
+	return nil, nil
+}
+
+func (f *fakeLedger) PrepareChargeBatch(ctx context.Context, plan ports.UsageChargeBatchPlan) (ports.BillingChargeBatchSnapshot, error) {
+	return ports.BillingChargeBatchSnapshot{}, nil
+}
+
+func (f *fakeLedger) MarkChargeBatchFailed(ctx context.Context, batchID string, expectedStatus domain.BillingChargeStatus, billingErrorCode string, failedAt time.Time) error {
+	return nil
+}
+
+func (f *fakeLedger) ApplyChargeSuccess(ctx context.Context, success ports.UsageChargeSuccess) error {
+	return nil
+}
+
 func (f *fakeLedger) put(record domain.UsageRecord) {
 	f.mu.Lock()
 	f.records[record.LocalRequestID] = copyRecord(record)
@@ -164,6 +184,7 @@ func chargedRecord(id string) domain.UsageRecord {
 	r.ChargedAmountCents = r.ClientAmountCents
 	r.RemainingAmountCents = 0
 	r.ChargedAt = &now
+	r.BillingChargeRequestID = "billchg_" + strings.Repeat("a", 64)
 	return r
 }
 
@@ -601,17 +622,26 @@ func TestRecordValidationPendingExposureBalance(t *testing.T) {
 	}(), func() domain.UsageRecord {
 		r := reserveRecord("llmreq_v_part")
 		r.Status = domain.UsageStatusPartiallyCharged
+		r.Usage = domain.TokenUsage{InputTokens: 1}
+		r.UsageCompleteness = string(pricing.UsageCompletenessDetailed)
+		r.BillableAt = &now
 		r.ClientAmountCents = 10
 		r.ChargedAmountCents = 4
 		r.RemainingAmountCents = 6
+		r.ChargedAt = &now
+		r.BillingChargeRequestID = "billchg_" + strings.Repeat("c", 64)
 		return r
 	}(), func() domain.UsageRecord {
 		r := reserveRecord("llmreq_v_charged")
 		r.Status = domain.UsageStatusCharged
+		r.Usage = domain.TokenUsage{InputTokens: 1}
+		r.UsageCompleteness = string(pricing.UsageCompletenessDetailed)
+		r.BillableAt = &now
 		r.ClientAmountCents = 10
 		r.ChargedAmountCents = 10
 		r.RemainingAmountCents = 0
 		r.ChargedAt = &now
+		r.BillingChargeRequestID = "billchg_" + strings.Repeat("b", 64)
 		return r
 	}(), func() domain.UsageRecord {
 		r := reserveRecord("llmreq_v_failed")
@@ -790,4 +820,47 @@ func TestSafetyNoPayloadsOrSecrets(t *testing.T) {
 func ptr(s string) *string { return &s }
 func stringify(v any) string {
 	return strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(reflect.ValueOf(v).String(), "\n", " "), "\t", " "))
+}
+
+func TestValidateChargeBatchCanonicalModelBalanceAndUTC(t *testing.T) {
+	now := time.Unix(1, 0).UTC()
+	chargedAt := time.Unix(2, 0).UTC()
+	balance := int64(0)
+	batch := domain.BillingChargeBatch{
+		ID:                          "billchg_" + strings.Repeat("a", 64),
+		UserID:                      "u",
+		BillingSubjectUserID:        "billing",
+		ProviderType:                domain.ProviderOpenAI,
+		ClientModel:                 "gpt",
+		BillingModel:                "openai:gpt",
+		InputTokens:                 1,
+		OutputTokens:                2,
+		AmountCents:                 3,
+		Currency:                    "RUB",
+		Status:                      domain.BillingChargeStatusSucceeded,
+		BillingResponseBalanceCents: &balance,
+		CreatedAt:                   now,
+		ChargedAt:                   &chargedAt,
+		UpdatedAt:                   chargedAt,
+	}
+	if err := ValidateChargeBatch(batch); err != nil {
+		t.Fatalf("valid batch err=%v", err)
+	}
+	badModel := batch
+	badModel.BillingModel = "wrong:gpt"
+	if err := ValidateChargeBatch(badModel); err == nil {
+		t.Fatal("bad billing model accepted")
+	}
+	badBalance := batch
+	negative := int64(-1)
+	badBalance.BillingResponseBalanceCents = &negative
+	if err := ValidateChargeBatch(badBalance); err == nil {
+		t.Fatal("negative response balance accepted")
+	}
+	badTime := batch
+	local := time.Unix(1, 0)
+	badTime.CreatedAt = local
+	if err := ValidateChargeBatch(badTime); err == nil {
+		t.Fatal("non-UTC timestamp accepted")
+	}
 }

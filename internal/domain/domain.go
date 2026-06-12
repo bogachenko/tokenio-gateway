@@ -158,6 +158,14 @@ const (
 	UsageStatusPricingFailed    UsageStatus = "pricing_failed"
 )
 
+type BillingChargeStatus string
+
+const (
+	BillingChargeStatusPending   BillingChargeStatus = "pending"
+	BillingChargeStatusSucceeded BillingChargeStatus = "succeeded"
+	BillingChargeStatusFailed    BillingChargeStatus = "failed"
+)
+
 type ErrorCode string
 
 const (
@@ -244,4 +252,43 @@ type UsageRecord struct {
 	ChargedAt  *time.Time `json:"charged_at,omitempty"`
 	FailedAt   *time.Time `json:"failed_at,omitempty"`
 	UpdatedAt  time.Time  `json:"updated_at"`
+}
+
+type BillingChargeBatch struct {
+	ID string `json:"id"`
+
+	UserID               string `json:"user_id"`
+	BillingSubjectUserID string `json:"billing_subject_user_id"`
+
+	ProviderType ProviderType `json:"provider_type"`
+	ClientModel  string       `json:"client_model"`
+	BillingModel string       `json:"billing_model"`
+
+	InputTokens  int64 `json:"input_tokens"`
+	OutputTokens int64 `json:"output_tokens"`
+
+	AmountCents int64  `json:"amount_cents"`
+	Currency    string `json:"currency"`
+
+	Status BillingChargeStatus `json:"status"`
+
+	BillingResponseBalanceCents *int64 `json:"billing_response_balance_cents,omitempty"`
+	BillingErrorCode            string `json:"billing_error_code,omitempty"`
+
+	CreatedAt time.Time  `json:"created_at"`
+	ChargedAt *time.Time `json:"charged_at,omitempty"`
+	FailedAt  *time.Time `json:"failed_at,omitempty"`
+	UpdatedAt time.Time  `json:"updated_at"`
+}
+
+type BillingChargeAllocation struct {
+	ID string `json:"id"`
+
+	BatchID        string `json:"batch_id"`
+	LocalRequestID string `json:"local_request_id"`
+
+	ChargedAmountCents   int64 `json:"charged_amount_cents"`
+	RemainingAmountCents int64 `json:"remaining_amount_cents"`
+
+	CreatedAt time.Time `json:"created_at"`
 }
