@@ -52,6 +52,7 @@ Postgres является source of truth для:
 ```text
 user identity
 API key records
+API key provisioning delivery state
 reseller registry
 route registry
 route prices
@@ -265,7 +266,7 @@ user.enabled = true
 HMAC-SHA256(TOKENIO_API_KEY_HASH_SECRET, raw_api_key)
 ```
 
-Forbidden values:
+Forbidden values inside `tokenio_api_keys`:
 
 ```text
 raw API key
@@ -278,6 +279,16 @@ Reason:
 ```text
 database compromise must not allow offline API key matching without TOKENIO_API_KEY_HASH_SECRET.
 ```
+
+Retry-safe initial delivery uses a separate temporary table:
+
+```text
+tokenio_api_key_provisionings
+```
+
+That table may contain only AEAD-encrypted raw key material while status is `pending_delivery`.
+
+It is not an authentication source of truth, and encrypted fields must be cleared on `delivered` or `expired`.
 
 The database schema stores `key_hash` as TEXT, but the hashing algorithm is a runtime invariant from `docs/spec/020-auth-and-billing-identity.ru.md`.
 
@@ -1223,7 +1234,166 @@ admin_subject
 
 ---
 
-# 20. Data retention
+# 20. Table: tokenio_api_key_provisionings
+
+## 20.1. Purpose
+
+`tokenio_api_key_provisionings` хранит idempotency и temporary encrypted delivery state для initial API key delivery.
+
+Permanent authentication source of truth остаётся:
+
+```text
+tokenio_api_keys.key_hash
+```
+
+## 20.2. Columns
+
+```sql
+CREATE TABLE tokenio_api_key_provisionings (
+    id TEXT PRIMARY KEY,
+
+    idempotency_key TEXT NOT NULL,
+    source_reference_hash TEXT NOT NULL,
+
+    external_billing_user_id TEXT NOT NULL,
+    user_id TEXT NOT NULL REFERENCES tokenio_users(id),
+    api_key_id TEXT NOT NULL REFERENCES tokenio_api_keys(id),
+
+    result_type TEXT NOT NULL,
+    status TEXT NOT NULL,
+
+    encrypted_raw_key BYTEA,
+    encryption_nonce BYTEA,
+    encryption_key_version TEXT,
+
+    delivery_attempts INTEGER NOT NULL DEFAULT 0,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at TIMESTAMPTZ,
+    delivered_at TIMESTAMPTZ,
+    expired_at TIMESTAMPTZ,
+
+    CHECK (result_type IN ('key_created', 'already_provisioned')),
+    CHECK (status IN ('pending_delivery', 'delivered', 'expired')),
+    CHECK (delivery_attempts >= 0),
+
+    CHECK (
+        (
+            status = 'pending_delivery'
+            AND result_type = 'key_created'
+            AND encrypted_raw_key IS NOT NULL
+            AND encryption_nonce IS NOT NULL
+            AND encryption_key_version IS NOT NULL
+            AND expires_at IS NOT NULL
+        )
+        OR
+        (
+            status IN ('delivered', 'expired')
+            AND encrypted_raw_key IS NULL
+            AND encryption_nonce IS NULL
+        )
+    )
+);
+```
+
+`result_type = already_provisioned` создаётся сразу в terminal `delivered` state и не содержит encrypted material.
+
+## 20.3. Idempotency constraint
+
+```sql
+CREATE UNIQUE INDEX tokenio_api_key_provisionings_idempotency_uq
+    ON tokenio_api_key_provisionings (idempotency_key);
+```
+
+Same `Idempotency-Key` не может создать второй record или второй API key.
+
+## 20.4. One pending delivery per user
+
+```sql
+CREATE UNIQUE INDEX tokenio_api_key_provisionings_user_pending_uq
+    ON tokenio_api_key_provisionings (user_id)
+    WHERE status = 'pending_delivery';
+```
+
+Один user не может иметь несколько одновременно replay-able raw keys.
+
+## 20.5. Lookup indexes
+
+```sql
+CREATE INDEX tokenio_api_key_provisionings_external_billing_user_idx
+    ON tokenio_api_key_provisionings (
+        external_billing_user_id,
+        created_at
+    );
+
+CREATE INDEX tokenio_api_key_provisionings_api_key_idx
+    ON tokenio_api_key_provisionings (
+        api_key_id
+    );
+
+CREATE INDEX tokenio_api_key_provisionings_expiry_idx
+    ON tokenio_api_key_provisionings (
+        status,
+        expires_at
+    )
+    WHERE status = 'pending_delivery';
+```
+
+## 20.6. Transaction rules
+
+First provisioning transaction must atomically:
+
+```text
+find/create user
+check active API key
+create API key hash record if required
+create provisioning record
+persist encrypted delivery copy
+```
+
+Confirm-delivery transaction must atomically:
+
+```text
+pending_delivery -> delivered
+encrypted_raw_key = NULL
+encryption_nonce = NULL
+delivered_at = now()
+```
+
+Expiration transaction must atomically:
+
+```text
+pending_delivery -> expired
+encrypted_raw_key = NULL
+encryption_nonce = NULL
+associated API key revoked
+expired_at = now()
+```
+
+## 20.7. Encryption rules
+
+`encrypted_raw_key` contains only AES-256-GCM ciphertext.
+
+`encryption_nonce` must be unique for the encryption key.
+
+AEAD associated data includes:
+
+```text
+provisioning_id
+api_key_id
+user_id
+```
+
+Encryption key is stored only in runtime environment/config, never in Postgres.
+
+Full contract:
+
+```text
+docs/spec/021-api-key-provisioning.ru.md
+```
+
+# 21. Data retention
 
 Default retention:
 
@@ -1232,13 +1402,14 @@ usage_records: keep indefinitely until explicit retention policy is introduced
 route_events: keep 90 days minimum
 telegram_alerts: keep 90 days minimum
 admin_audit_log: keep indefinitely
+api_key_provisionings: keep metadata for audit; encrypted_raw_key and encryption_nonce must be NULL after terminal state
 ```
 
 Retention jobs are out of scope for first implementation unless required operationally.
 
 ---
 
-# 21. Acceptance criteria
+# 22. Acceptance criteria
 
 Database schema считается реализованной, если:
 
@@ -1262,4 +1433,6 @@ Database schema считается реализованной, если:
 17. Reseller reserve/reconcile can be done transactionally.
 18. SQL migrations are explicit and reviewable.
 19. go test or migration tests validate schema creation.
+20. API key provisioning idempotency имеет unique constraint.
+21. Terminal provisioning states не содержат encrypted raw key material.
 ```

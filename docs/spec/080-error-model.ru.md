@@ -908,6 +908,10 @@ Error response никогда не должен содержать:
 
 ```text
 raw user API key
+encrypted provisioning raw key
+provisioning encryption nonce
+provisioning encryption key
+provisioning service token
 key_hash
 billing JWT
 billing signing key
@@ -1109,6 +1113,13 @@ method_not_allowed                    -> 405
 not_found                             -> 404
 internal_error                        -> 500
 
+provisioning_unauthorized             -> 401
+provisioning_invalid_request           -> 400
+provisioning_conflict                  -> 409
+provisioning_expired                   -> 410
+provisioning_store_unavailable         -> 503
+provisioning_crypto_unavailable        -> 500
+
 admin_unauthorized                    -> 401
 admin_forbidden                       -> 403
 admin_validation_error                -> 400
@@ -1120,7 +1131,100 @@ admin_secret_not_available            -> 409
 
 ---
 
-# 23. Provider adapter error classifier
+# 23. Internal API key provisioning errors
+
+Provisioning API является internal service API и использует тот же gateway-owned error envelope.
+
+## 23.1. Unauthorized provisioning caller
+
+```text
+HTTP 401
+error.code = provisioning_unauthorized
+error.message = Provisioning authorization failed
+```
+
+Response не различает missing и invalid service token.
+
+## 23.2. Invalid provisioning request
+
+```text
+HTTP 400
+error.code = provisioning_invalid_request
+error.message = Invalid provisioning request
+```
+
+Используется для missing/invalid:
+
+```text
+Idempotency-Key
+external_billing_user_id
+source_reference
+```
+
+## 23.3. Provisioning conflict
+
+Если same `Idempotency-Key` повторён с другим normalized identity/source input:
+
+```text
+HTTP 409
+error.code = provisioning_conflict
+error.message = Provisioning request conflicts with existing state
+```
+
+## 23.4. Provisioning expired
+
+Если provisioning delivery window expired:
+
+```text
+HTTP 410
+error.code = provisioning_expired
+error.message = Provisioning delivery window has expired
+```
+
+Raw key не возвращается.
+
+## 23.5. Provisioning store unavailable
+
+Если transaction/state store недоступен:
+
+```text
+HTTP 503
+error.code = provisioning_store_unavailable
+error.message = Provisioning store is unavailable
+```
+
+Новый raw key не возвращается как successful result без committed state.
+
+## 23.6. Provisioning crypto unavailable
+
+Если encryption key invalid, AEAD initialization failed или encrypted state нельзя безопасно расшифровать:
+
+```text
+HTTP 500
+error.code = provisioning_crypto_unavailable
+error.message = Provisioning encryption is unavailable
+```
+
+Response не содержит crypto details, ciphertext, nonce или key version secret value.
+
+## 23.7. Registry
+
+```text
+provisioning_unauthorized
+provisioning_invalid_request
+provisioning_conflict
+provisioning_expired
+provisioning_store_unavailable
+provisioning_crypto_unavailable
+```
+
+Detailed flow:
+
+```text
+docs/spec/021-api-key-provisioning.ru.md
+```
+
+# 24. Provider adapter error classifier
 
 Provider-specific error parsing живёт в provider adapter layer.
 
@@ -1151,7 +1255,7 @@ Generic runtime не должен парсить provider-specific JSON schemas.
 
 ---
 
-# 24. Acceptance criteria
+# 25. Acceptance criteria
 
 Error model считается реализованным, если:
 
@@ -1171,4 +1275,5 @@ Error model считается реализованным, если:
 13. Admin errors используют отдельные admin_* codes.
 14. Method not allowed возвращает 405 и Allow header.
 15. Tests покрывают auth, validation, routing, billing, pricing, ledger, upstream passthrough и secrets policy.
+16. Provisioning errors не раскрывают raw/encrypted API key material.
 ```

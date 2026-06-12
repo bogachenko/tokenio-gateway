@@ -26,6 +26,7 @@ cooldowns
 billing config
 pricing config
 admin config
+API key provisioning config
 Telegram alerts config
 provider/reseller secret loading policy
 ```
@@ -168,6 +169,8 @@ TOKENIO_BILLING_SERVICE_TOKEN
 TOKENIO_BILLING_JWT_SIGNING_KEY
 TOKENIO_ADMIN_TOKEN
 TOKENIO_API_KEY_HASH_SECRET
+TOKENIO_PROVISIONING_SERVICE_TOKEN
+TOKENIO_API_KEY_PROVISIONING_ENCRYPTION_KEY
 ```
 
 `TOKENIO_API_KEY_HASH_SECRET` обязателен для API key hashing во всех runtime environments, кроме специально изолированных unit tests без persisted keys.
@@ -1200,11 +1203,25 @@ TOKENIO_BILLING_TIMEOUT                  default 30s
 TOKENIO_ADMIN_TOKEN                      required
 ```
 
-## 23.4. API keys
+## 23.4. API keys and provisioning
 
 ```text
-TOKENIO_API_KEY_HASH_SECRET              required in production
+TOKENIO_API_KEY_HASH_SECRET                    required
+TOKENIO_PROVISIONING_SERVICE_TOKEN             required
+TOKENIO_API_KEY_PROVISIONING_ENCRYPTION_KEY    required, base64-encoded 32 bytes
+TOKENIO_API_KEY_PROVISIONING_KEY_VERSION       default v1
+TOKENIO_API_KEY_PROVISIONING_TTL               default 24h
 ```
+
+Provisioning encryption key must differ from API key HMAC secret.
+
+First-version encryption algorithm:
+
+```text
+AES-256-GCM
+```
+
+Rotation to a new provisioning encryption key is allowed only when no pending delivery record requires the old key version.
 
 ## 23.5. Pricing and balance
 
@@ -1278,6 +1295,11 @@ export TOKENIO_BILLING_JWT_TTL='15m'
 export TOKENIO_ADMIN_TOKEN='...'
 export TOKENIO_API_KEY_HASH_SECRET='...'
 
+export TOKENIO_PROVISIONING_SERVICE_TOKEN='...'
+export TOKENIO_API_KEY_PROVISIONING_ENCRYPTION_KEY='<base64-encoded-32-byte-key>'
+export TOKENIO_API_KEY_PROVISIONING_KEY_VERSION='v1'
+export TOKENIO_API_KEY_PROVISIONING_TTL='24h'
+
 export TOKENIO_COST_CURRENCY='RUB'
 export TOKENIO_AUTO_CHARGE_THRESHOLD_CENTS='1000'
 export TOKENIO_MIN_CHARGE_AMOUNT_CENTS='100'
@@ -1337,4 +1359,9 @@ Configuration layer считается реализованным, если:
 17. Runtime config is immutable after startup.
 18. Mutable operational state lives in Postgres.
 19. Tests cover required env, defaults, invalid values, secret redaction and production strictness.
+20. Provisioning service token is required.
+21. Provisioning encryption key decodes from base64 to exactly 32 bytes.
+22. Provisioning encryption key differs from API key HMAC secret.
+23. Provisioning TTL is a positive duration.
+24. Provisioning key version is non-empty.
 ```

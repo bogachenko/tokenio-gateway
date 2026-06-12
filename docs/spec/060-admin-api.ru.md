@@ -421,6 +421,68 @@ api_key.revoke
 
 ---
 
+## 8.4. Provisioning records
+
+Provisioning endpoints не являются Admin API и находятся под:
+
+```text
+/internal/v1/api-key-provisionings
+```
+
+Admin API предоставляет только безопасную visibility:
+
+```http
+GET /admin/v1/api-key-provisionings
+GET /admin/v1/api-key-provisionings/{provisioning_id}
+```
+
+Query params списка:
+
+```text
+external_billing_user_id
+user_id
+api_key_id
+status
+result_type
+created_from
+created_to
+limit
+offset
+```
+
+Response может содержать:
+
+```text
+provisioning_id
+external_billing_user_id
+user_id
+api_key_id
+key_prefix
+result_type
+status
+source_reference_hash
+created_at
+expires_at
+delivered_at
+expired_at
+```
+
+Response никогда не содержит:
+
+```text
+raw API key
+encrypted_raw_key
+encryption_nonce
+provisioning encryption key
+provisioning service token
+```
+
+Detailed provisioning contract:
+
+```text
+docs/spec/021-api-key-provisioning.ru.md
+```
+
 # 9. Resellers
 
 ## 9.1. List resellers
@@ -1298,7 +1360,10 @@ manual resolution reason non-empty
 Admin API никогда не возвращает:
 
 ```text
-raw user API key, except one-time key creation response
+raw user API key, except one-time admin key creation response
+raw provisioning API key
+encrypted_raw_key
+encryption_nonce
 key_hash
 raw reseller API key
 billing JWT
@@ -1441,4 +1506,5 @@ Admin API считается реализованным, если:
 14. Pagination есть на list endpoints.
 15. Validation запрещает inconsistent provider_type/api_family/price/currency.
 16. Tests покрывают auth, validation, secrets policy, audit log и manual resolution.
+17. Admin может смотреть provisioning metadata без raw/encrypted key material.
 ```

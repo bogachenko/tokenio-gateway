@@ -2,6 +2,21 @@ package domain
 
 import "time"
 
+type APIKeyRecord struct {
+	ID        string     `json:"id"`
+	UserID    string     `json:"user_id"`
+	KeyHash   string     `json:"key_hash"`
+	Enabled   bool       `json:"enabled"`
+	RevokedAt *time.Time `json:"revoked_at,omitempty"`
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+}
+
+type User struct {
+	ID                    string `json:"id"`
+	ExternalBillingUserID string `json:"external_billing_user_id"`
+	Enabled               bool   `json:"enabled"`
+}
+
 type ProviderType string
 
 const (

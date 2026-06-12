@@ -54,6 +54,9 @@ Tokenio Gateway -> Billing Service balance:
 Tokenio Gateway -> Billing Service charge:
   X-Service-Token: <service_token>
 
+Trusted Provisioning Caller -> Tokenio Gateway:
+  X-Service-Token: <TOKENIO_PROVISIONING_SERVICE_TOKEN>
+
 Tokenio Gateway -> Reseller:
   Authorization/API key from route.reseller.api_key_env
 ```
@@ -69,6 +72,8 @@ Tokenio Gateway -> Reseller:
 передавать billing JWT reseller
 использовать reseller API key как user auth
 использовать client JWT как public auth contract
+использовать billing JWT как provisioning credential
+использовать billing service charge token как provisioning credential
 ```
 
 ---
@@ -109,7 +114,27 @@ Tokenio Gateway -> Reseller / Provider
 
 На этом boundary используется credential из environment variable, указанной в `reseller.api_key_env`.
 
-## 3.4. Admin boundary
+## 3.4. Provisioning boundary
+
+Provisioning boundary — это internal service-to-service взаимодействие после подтверждённой оплаты:
+
+```text
+Trusted Billing/Payment Caller -> Tokenio Gateway
+```
+
+На этом boundary используется отдельный:
+
+```http
+X-Service-Token: <TOKENIO_PROVISIONING_SERVICE_TOKEN>
+```
+
+Retry-safe delivery contract описан в:
+
+```text
+docs/spec/021-api-key-provisioning.ru.md
+```
+
+## 3.5. Admin boundary
 
 Admin boundary — это управление Tokenio Gateway:
 
@@ -161,13 +186,19 @@ sk_
 
 ## 4.2. Raw key
 
-Raw API key показывается пользователю только один раз при создании.
+Raw API key показывается пользователю только при initial delivery.
 
-Raw API key не хранится в БД.
+Raw API key не хранится plaintext.
+
+Permanent auth storage `tokenio_api_keys` хранит только HMAC hash.
+
+Для retry-safe initial delivery допускается отдельная временная encrypted copy только в `tokenio_api_key_provisionings` и только пока provisioning имеет status `pending_delivery`.
+
+После delivery confirmation или expiration encrypted copy удаляется.
 
 Raw API key не логируется.
 
-Raw API key не возвращается через API после создания.
+После delivery confirmation raw API key не возвращается через API.
 
 ## 4.3. Key entropy
 
@@ -199,13 +230,44 @@ Display prefix не должен быть достаточным для ауте
 
 ---
 
+## 4.5. Payment-triggered provisioning
+
+После подтверждённой оплаты Billing Service, Telegram bot backend или другой trusted payment orchestrator может запросить initial API key через internal provisioning API.
+
+Provisioning:
+
+```text
+не использует public user JWT
+не использует user sk_...
+не использует admin token
+использует отдельный service credential
+```
+
+Provisioning обязан поддерживать same-key retry при потере HTTP response.
+
+Полный contract:
+
+```text
+docs/spec/021-api-key-provisioning.ru.md
+```
+
 # 5. API key storage
 
-## 5.1. Raw key не хранится
+## 5.1. Permanent and temporary storage
 
-В БД запрещено хранить raw API key.
+В permanent auth table `tokenio_api_keys` запрещено хранить raw API key или reversible encrypted API key.
 
-Хранится только hash.
+Permanent auth record хранит только HMAC hash.
+
+Единственное допустимое reversible storage — отдельный temporary provisioning record согласно `docs/spec/021-api-key-provisioning.ru.md`.
+
+Temporary encrypted copy:
+
+```text
+существует только для pending_delivery
+не является authentication source of truth
+удаляется при delivered или expired
+```
 
 ## 5.2. Hashing
 
@@ -680,6 +742,10 @@ docs/spec/060-admin-api.ru.md
 
 ```text
 raw user API key
+encrypted provisioning raw key
+provisioning encryption nonce
+provisioning encryption key
+provisioning service token
 billing JWT
 billing signing key
 billing service token
@@ -724,6 +790,10 @@ TOKENIO_BILLING_JWT_SIGNING_KEY
 TOKENIO_BILLING_JWT_TTL
 TOKENIO_ADMIN_TOKEN
 TOKENIO_API_KEY_HASH_SECRET
+TOKENIO_PROVISIONING_SERVICE_TOKEN
+TOKENIO_API_KEY_PROVISIONING_ENCRYPTION_KEY
+TOKENIO_API_KEY_PROVISIONING_KEY_VERSION
+TOKENIO_API_KEY_PROVISIONING_TTL
 ```
 
 `TOKENIO_API_KEY_HASH_SECRET` is required for runtime API key validation.
@@ -752,4 +822,7 @@ Auth layer считается реализованным, если:
 11. Gateway не передаёт sk_... reseller.
 12. Gateway не логирует secrets.
 13. go test покрывает auth parsing, HMAC hash, constant-time comparison, disabled key, disabled user и billing JWT claims.
+14. Payment provisioning использует отдельный service credential.
+15. Permanent auth storage остаётся HMAC-only.
+16. Retry-safe raw key delivery соответствует docs/spec/021-api-key-provisioning.ru.md.
 ```
