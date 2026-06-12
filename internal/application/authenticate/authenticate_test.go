@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -112,6 +113,15 @@ func TestAuthenticatePublicRequestEmptyRawKeyRejected(t *testing.T) {
 
 func TestAuthenticatePublicRequestUnknownKey(t *testing.T) {
 	usecase := mustUseCase(t, &apiKeyRepositoryFake{err: ports.ErrNotFound}, &userRepositoryFake{user: validUser()}, &clockFake{})
+
+	_, err := usecase.AuthenticatePublicRequest(context.Background(), Input{RawAPIKey: testRawKey})
+	if !errors.Is(err, ErrInvalidAPIKey) {
+		t.Fatalf("error = %v, want ErrInvalidAPIKey", err)
+	}
+}
+
+func TestAuthenticatePublicRequestWrappedNotFoundMapsToInvalidAPIKey(t *testing.T) {
+	usecase := mustUseCase(t, &apiKeyRepositoryFake{err: fmt.Errorf("query api key: %w", ports.ErrNotFound)}, &userRepositoryFake{user: validUser()}, &clockFake{})
 
 	_, err := usecase.AuthenticatePublicRequest(context.Background(), Input{RawAPIKey: testRawKey})
 	if !errors.Is(err, ErrInvalidAPIKey) {
