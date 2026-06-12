@@ -1,51 +1,96 @@
 package auth
 
 import (
+	"crypto/hmac"
 	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/hex"
-	"fmt"
+	"errors"
 	"strings"
 )
 
+var (
+	ErrAuthorizationHeaderRequired = errors.New("authorization header is required")
+	ErrAuthorizationHeaderScheme   = errors.New("authorization header format must be Bearer {api_key}")
+	ErrBearerAPIKeyEmpty           = errors.New("bearer api key is empty")
+	ErrBearerAPIKeyPrefix          = errors.New("api key must start with sk_")
+	ErrAPIKeyHashSecretRequired    = errors.New("api key hash secret is required")
+)
+
 type APIKeyPrincipal struct {
-	UserID     string
-	APIKeyID   string
-	BillingJWT string
+	UserID               string
+	APIKeyID             string
+	BillingSubjectUserID string
 }
 
 type APIKeyAuthenticator interface {
 	ValidateAPIKey(rawAPIKey string) (*APIKeyPrincipal, error)
 }
 
+type APIKeyHasher struct {
+	secret []byte
+}
+
+func NewAPIKeyHasher(secret string) (*APIKeyHasher, error) {
+	secret = strings.TrimSpace(secret)
+	if secret == "" {
+		return nil, ErrAPIKeyHashSecretRequired
+	}
+
+	secretBytes := []byte(secret)
+	secretCopy := make([]byte, len(secretBytes))
+	copy(secretCopy, secretBytes)
+
+	return &APIKeyHasher{secret: secretCopy}, nil
+}
+
+func (h *APIKeyHasher) Hash(rawAPIKey string) string {
+	mac := hmac.New(sha256.New, h.secret)
+	_, _ = mac.Write([]byte(rawAPIKey))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+func (h *APIKeyHasher) Equal(expectedHash string, rawAPIKey string) bool {
+	if rawAPIKey == "" {
+		return false
+	}
+
+	expected, err := hex.DecodeString(expectedHash)
+	if err != nil || len(expected) != sha256.Size {
+		return false
+	}
+
+	actualHash := h.Hash(rawAPIKey)
+	actual, err := hex.DecodeString(actualHash)
+	if err != nil || len(actual) != sha256.Size {
+		return false
+	}
+
+	return hmac.Equal(expected, actual)
+}
+
 func ExtractBearerAPIKey(header string) (string, error) {
 	header = strings.TrimSpace(header)
 	if header == "" {
-		return "", fmt.Errorf("authorization header is required")
+		return "", ErrAuthorizationHeaderRequired
 	}
 
-	const prefix = "Bearer "
+	const scheme = "Bearer"
+	if header == scheme {
+		return "", ErrBearerAPIKeyEmpty
+	}
+
+	const prefix = scheme + " "
 	if !strings.HasPrefix(header, prefix) {
-		return "", fmt.Errorf("authorization header format must be Bearer {api_key}")
+		return "", ErrAuthorizationHeaderScheme
 	}
 
 	key := strings.TrimSpace(strings.TrimPrefix(header, prefix))
 	if key == "" {
-		return "", fmt.Errorf("bearer api key is empty")
+		return "", ErrBearerAPIKeyEmpty
 	}
 	if !strings.HasPrefix(key, "sk_") {
-		return "", fmt.Errorf("api key must start with sk_")
+		return "", ErrBearerAPIKeyPrefix
 	}
 
 	return key, nil
-}
-
-func HashAPIKey(rawAPIKey string) string {
-	sum := sha256.Sum256([]byte(rawAPIKey))
-	return hex.EncodeToString(sum[:])
-}
-
-func ConstantTimeEqualHash(expectedHash string, rawAPIKey string) bool {
-	actual := HashAPIKey(rawAPIKey)
-	return subtle.ConstantTimeCompare([]byte(expectedHash), []byte(actual)) == 1
 }

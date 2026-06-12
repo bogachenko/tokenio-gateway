@@ -74,7 +74,7 @@ func Load() (Config, error) {
 		BillingTimeout:       l.duration("TOKENIO_BILLING_TIMEOUT", 30*time.Second),
 
 		AdminToken:       l.required("TOKENIO_ADMIN_TOKEN"),
-		APIKeyHashSecret: env("TOKENIO_API_KEY_HASH_SECRET", ""),
+		APIKeyHashSecret: l.required("TOKENIO_API_KEY_HASH_SECRET"),
 
 		CostCurrency:                env("TOKENIO_COST_CURRENCY", "RUB"),
 		AutoChargeThresholdCents:    l.int64("TOKENIO_AUTO_CHARGE_THRESHOLD_CENTS", 1000),
@@ -208,10 +208,10 @@ func validate(cfg Config) error {
 	if !oneOf(cfg.LogFormat, "text", "json") {
 		return fmt.Errorf("TOKENIO_LOG_FORMAT must be text or json")
 	}
+	if strings.TrimSpace(cfg.APIKeyHashSecret) == "" {
+		return fmt.Errorf("TOKENIO_API_KEY_HASH_SECRET is required")
+	}
 	if cfg.Environment == "production" {
-		if cfg.APIKeyHashSecret == "" {
-			return fmt.Errorf("TOKENIO_API_KEY_HASH_SECRET is required in production")
-		}
 		if len(cfg.AdminToken) < 32 {
 			return fmt.Errorf("TOKENIO_ADMIN_TOKEN must be at least 32 characters in production")
 		}
