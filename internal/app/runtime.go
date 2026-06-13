@@ -17,6 +17,7 @@ type Runtime struct {
 	Security     SecurityGraph
 	Billing      BillingInfrastructureGraph
 	Repositories RepositoryGraph
+	Applications ApplicationGraph
 	Handler      http.Handler
 
 	database  *postgres.DB
@@ -87,12 +88,25 @@ func NewRuntime(
 		)
 	}
 
+	applications, err := NewApplicationGraph(
+		cfg,
+		primitives,
+		security,
+		billingInfrastructure,
+		repositories,
+	)
+	if err != nil {
+		closeDatabase()
+		return nil, err
+	}
+
 	runtime := &Runtime{
 		Config:       cfg,
 		Primitives:   primitives,
 		Security:     security,
 		Billing:      billingInfrastructure,
 		Repositories: repositories,
+		Applications: applications,
 		Handler:      httptransport.NewRouter(),
 		database:     database,
 	}

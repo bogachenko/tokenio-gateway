@@ -83,20 +83,22 @@ func TestNewRuntimeIntegration(t *testing.T) {
 	}
 
 	cfg := config.Config{
-		DatabaseDSN:           dsn,
-		AdminToken:            "integration-admin-token",
-		APIKeyHashSecret:      "integration-api-key-hash-secret",
-		BillingBaseURL:        "https://billing.example",
-		BillingServiceToken:   "integration-billing-service-token",
-		BillingJWTSigningKey:  "integration-billing-jwt-signing-key",
-		BillingJWTTTL:         15 * time.Minute,
-		BillingTimeout:        30 * time.Second,
-		GatewayAddr:           "127.0.0.1:0",
-		HTTPReadHeaderTimeout: time.Second,
-		HTTPReadTimeout:       2 * time.Second,
-		HTTPWriteTimeout:      3 * time.Second,
-		HTTPIdleTimeout:       4 * time.Second,
-		HTTPShutdownTimeout:   5 * time.Second,
+		DatabaseDSN:              dsn,
+		AdminToken:               "integration-admin-token",
+		APIKeyHashSecret:         "integration-api-key-hash-secret",
+		BillingBaseURL:           "https://billing.example",
+		BillingServiceToken:      "integration-billing-service-token",
+		BillingJWTSigningKey:     "integration-billing-jwt-signing-key",
+		BillingJWTTTL:            15 * time.Minute,
+		BillingTimeout:           30 * time.Second,
+		AutoChargeThresholdCents: 1000,
+		MinChargeAmountCents:     100,
+		GatewayAddr:              "127.0.0.1:0",
+		HTTPReadHeaderTimeout:    time.Second,
+		HTTPReadTimeout:          2 * time.Second,
+		HTTPWriteTimeout:         3 * time.Second,
+		HTTPIdleTimeout:          4 * time.Second,
+		HTTPShutdownTimeout:      5 * time.Second,
 	}
 
 	runtime, err := NewRuntime(t.Context(), cfg)
@@ -116,6 +118,9 @@ func TestNewRuntimeIntegration(t *testing.T) {
 	}
 	if err := runtime.Repositories.Validate(); err != nil {
 		t.Fatalf("repository graph: %v", err)
+	}
+	if err := runtime.Applications.Validate(); err != nil {
+		t.Fatalf("application graph: %v", err)
 	}
 	if runtime.Handler == nil {
 		t.Fatal("runtime handler is nil")
