@@ -15,13 +15,14 @@ type RepositoryGraph struct {
 	RoutePrices ports.RoutePriceRepository
 	UsageLedger ports.UsageLedger
 
-	AdminUsers       ports.AdminUserRepository
-	AdminAPIKeys     ports.AdminAPIKeyRepository
-	AdminAudit       ports.AdminAuditStore
-	AdminResellers   ports.ResellerRepository
-	AdminRoutes      ports.AdminRouteRepository
-	AdminRoutePrices ports.AdminRoutePriceRepository
-	AdminUsage       ports.AdminUsageLedger
+	AdminUsers        ports.AdminUserRepository
+	AdminAPIKeys      ports.AdminAPIKeyRepository
+	AdminProvisioning ports.AdminAPIKeyProvisioningRepository
+	AdminAudit        ports.AdminAuditStore
+	AdminResellers    ports.ResellerRepository
+	AdminRoutes       ports.AdminRouteRepository
+	AdminRoutePrices  ports.AdminRoutePriceRepository
+	AdminUsage        ports.AdminUsageLedger
 
 	BillingSessions ports.BillingSessionStore
 	RouteEvents     ports.RouteEventStore
@@ -87,6 +88,14 @@ func NewRepositoryGraph(
 	if err != nil {
 		return RepositoryGraph{}, fmt.Errorf(
 			"construct admin API-key repository: %w",
+			err,
+		)
+	}
+	adminProvisioning, err :=
+		postgres.NewAdminAPIKeyProvisioningRepository(db)
+	if err != nil {
+		return RepositoryGraph{}, fmt.Errorf(
+			"construct admin API-key provisioning repository: %w",
 			err,
 		)
 	}
@@ -165,13 +174,14 @@ func NewRepositoryGraph(
 		RoutePrices: routePrices,
 		UsageLedger: usageLedger,
 
-		AdminUsers:       adminUsers,
-		AdminAPIKeys:     adminAPIKeys,
-		AdminAudit:       adminAudit,
-		AdminResellers:   adminResellers,
-		AdminRoutes:      adminRoutes,
-		AdminRoutePrices: adminRoutePrices,
-		AdminUsage:       adminUsage,
+		AdminUsers:        adminUsers,
+		AdminAPIKeys:      adminAPIKeys,
+		AdminProvisioning: adminProvisioning,
+		AdminAudit:        adminAudit,
+		AdminResellers:    adminResellers,
+		AdminRoutes:       adminRoutes,
+		AdminRoutePrices:  adminRoutePrices,
+		AdminUsage:        adminUsage,
 
 		BillingSessions: billingSessions,
 		RouteEvents:     routeEvents,
@@ -199,6 +209,10 @@ func (g RepositoryGraph) Validate() error {
 		return fmt.Errorf("admin user repository is nil")
 	case g.AdminAPIKeys == nil:
 		return fmt.Errorf("admin API-key repository is nil")
+	case g.AdminProvisioning == nil:
+		return fmt.Errorf(
+			"admin API-key provisioning repository is nil",
+		)
 	case g.AdminAudit == nil:
 		return fmt.Errorf("admin audit store is nil")
 	case g.AdminResellers == nil:

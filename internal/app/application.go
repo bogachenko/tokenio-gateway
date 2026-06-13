@@ -134,18 +134,19 @@ func NewApplicationGraph(
 	}
 
 	adminService, err := adminapp.NewService(adminapp.Dependencies{
-		Users:        repositories.AdminUsers,
-		APIKeys:      repositories.AdminAPIKeys,
-		Resellers:    repositories.AdminResellers,
-		Routes:       repositories.AdminRoutes,
-		Prices:       repositories.AdminRoutePrices,
-		Ledger:       repositories.AdminUsage,
-		Audit:        repositories.AdminAudit,
-		Secrets:      security.SecretPresence,
-		KeyGenerator: security.APIKeyGenerator,
-		Hasher:       security.APIKeyHasher,
-		Clock:        primitives.Clock,
-		BatchRetrier: failedBatchRetry,
+		Users:         repositories.AdminUsers,
+		APIKeys:       repositories.AdminAPIKeys,
+		Provisionings: repositories.AdminProvisioning,
+		Resellers:     repositories.AdminResellers,
+		Routes:        repositories.AdminRoutes,
+		Prices:        repositories.AdminRoutePrices,
+		Ledger:        repositories.AdminUsage,
+		Audit:         repositories.AdminAudit,
+		Secrets:       security.SecretPresence,
+		KeyGenerator:  security.APIKeyGenerator,
+		Hasher:        security.APIKeyHasher,
+		Clock:         primitives.Clock,
+		BatchRetrier:  failedBatchRetry,
 	})
 	if err != nil {
 		return ApplicationGraph{}, fmt.Errorf(

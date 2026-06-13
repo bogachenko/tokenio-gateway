@@ -171,7 +171,7 @@ func newServiceForTest(t *testing.T, users *fakeUsers, keys *fakeKeys, resellers
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, err := NewService(Dependencies{Users: users, APIKeys: keys, Resellers: resellers, Routes: routes, Prices: &fakePrices{}, Ledger: ledgerStore, Audit: &fakeAuditStore{}, Secrets: secrets, KeyGenerator: generator, Hasher: hasher, Clock: fixedClock{value: time.Unix(100, 0).UTC()}, BatchRetrier: &fakeRetrier{}})
+	service, err := NewService(Dependencies{Users: users, APIKeys: keys, Provisionings: &fakeAdminProvisioningRepository{}, Resellers: resellers, Routes: routes, Prices: &fakePrices{}, Ledger: ledgerStore, Audit: &fakeAuditStore{}, Secrets: secrets, KeyGenerator: generator, Hasher: hasher, Clock: fixedClock{value: time.Unix(100, 0).UTC()}, BatchRetrier: &fakeRetrier{}})
 	if err != nil {
 		t.Fatal(err)
 	}

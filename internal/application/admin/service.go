@@ -23,13 +23,25 @@ const (
 
 var billingChargeIDPattern = regexp.MustCompile(`^billchg_[0-9a-f]{64}$`)
 
-type Service struct{ deps Dependencies }
+type Service struct {
+	deps         Dependencies
+	provisioning *ProvisioningQueryService
+}
 
 func NewService(deps Dependencies) (*Service, error) {
-	if deps.Users == nil || deps.APIKeys == nil || deps.Resellers == nil || deps.Routes == nil || deps.Prices == nil || deps.Ledger == nil || deps.Audit == nil || deps.Secrets == nil || deps.KeyGenerator == nil || deps.Hasher == nil || deps.Clock == nil || deps.BatchRetrier == nil {
+	if deps.Users == nil || deps.APIKeys == nil || deps.Provisionings == nil || deps.Resellers == nil || deps.Routes == nil || deps.Prices == nil || deps.Ledger == nil || deps.Audit == nil || deps.Secrets == nil || deps.KeyGenerator == nil || deps.Hasher == nil || deps.Clock == nil || deps.BatchRetrier == nil {
 		return nil, fmt.Errorf("%w: dependency", ErrInternal)
 	}
-	return &Service{deps: deps}, nil
+	provisioning, err := NewProvisioningQueryService(
+		deps.Provisionings,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &Service{
+		deps:         deps,
+		provisioning: provisioning,
+	}, nil
 }
 
 func validateCommand(c CommandContext) error {

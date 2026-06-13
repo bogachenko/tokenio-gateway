@@ -58,6 +58,12 @@ func (*stage10V5RouterServiceFake) SetUserEnabled(context.Context, application.C
 func (*stage10V5RouterServiceFake) ListAPIKeys(context.Context, string, int, int) (application.ListResult[application.APIKeyView], error) {
 	return application.ListResult[application.APIKeyView]{}, nil
 }
+func (*stage10V5RouterServiceFake) ListAPIKeyProvisionings(
+	context.Context,
+	application.APIKeyProvisioningListInput,
+) (application.ListResult[application.APIKeyProvisioningView], error) {
+	return application.ListResult[application.APIKeyProvisioningView]{}, nil
+}
 func (*stage10V5RouterServiceFake) CreateAPIKey(context.Context, application.CommandContext, application.CreateAPIKeyInput) (application.CreatedAPIKey, error) {
 	return application.CreatedAPIKey{}, nil
 }

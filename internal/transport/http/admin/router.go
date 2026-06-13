@@ -29,6 +29,10 @@ type Service interface {
 	CreateUser(context.Context, application.CommandContext, application.CreateUserInput) (domain.User, error)
 	SetUserEnabled(context.Context, application.CommandContext, string, bool) (domain.User, error)
 	ListAPIKeys(context.Context, string, int, int) (application.ListResult[application.APIKeyView], error)
+	ListAPIKeyProvisionings(
+		context.Context,
+		application.APIKeyProvisioningListInput,
+	) (application.ListResult[application.APIKeyProvisioningView], error)
 	CreateAPIKey(context.Context, application.CommandContext, application.CreateAPIKeyInput) (application.CreatedAPIKey, error)
 	RevokeAPIKey(context.Context, application.CommandContext, string) (application.APIKeyView, error)
 	ListResellers(context.Context, application.ResellerListInput) (application.ListResult[application.ResellerView], error)
@@ -111,6 +115,9 @@ func (h *Router) dispatch(w http.ResponseWriter, r *http.Request, command applic
 			return
 		case "usage-records":
 			h.handleUsageRecords(w, r, command)
+			return
+		case "api-key-provisionings":
+			h.handleAPIKeyProvisionings(w, r, command)
 			return
 		case "billing-charge-batches":
 			h.handleBillingBatches(w, r, command)

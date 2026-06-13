@@ -195,18 +195,19 @@ type FailedChargeBatchRetrier interface {
 }
 
 type Dependencies struct {
-	Users        ports.AdminUserRepository
-	APIKeys      ports.AdminAPIKeyRepository
-	Resellers    ports.ResellerRepository
-	Routes       ports.AdminRouteRepository
-	Prices       ports.AdminRoutePriceRepository
-	Ledger       ports.AdminUsageLedger
-	Audit        ports.AdminAuditStore
-	Secrets      ports.SecretPresenceChecker
-	KeyGenerator ports.APIKeyGenerator
-	Hasher       APIKeyHasher
-	Clock        ports.Clock
-	BatchRetrier FailedChargeBatchRetrier
+	Users         ports.AdminUserRepository
+	APIKeys       ports.AdminAPIKeyRepository
+	Provisionings ports.AdminAPIKeyProvisioningRepository
+	Resellers     ports.ResellerRepository
+	Routes        ports.AdminRouteRepository
+	Prices        ports.AdminRoutePriceRepository
+	Ledger        ports.AdminUsageLedger
+	Audit         ports.AdminAuditStore
+	Secrets       ports.SecretPresenceChecker
+	KeyGenerator  ports.APIKeyGenerator
+	Hasher        APIKeyHasher
+	Clock         ports.Clock
+	BatchRetrier  FailedChargeBatchRetrier
 }
 
 type APIKeyHasher interface{ Hash(string) string }

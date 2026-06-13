@@ -111,6 +111,9 @@ func validApplicationGraphInputs(
 		AdminAPIKeys: &struct {
 			ports.AdminAPIKeyRepository
 		}{},
+		AdminProvisioning: &struct {
+			ports.AdminAPIKeyProvisioningRepository
+		}{},
 		AdminAudit: &struct {
 			ports.AdminAuditStore
 		}{},
