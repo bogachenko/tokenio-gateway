@@ -1372,7 +1372,41 @@ negative token or amount values
 
 Любое такое значение является store contract violation. Adapter не default-ит missing values и не выполняет silent repair.
 
-После decode record проходит canonical `ledger.ValidateRecord`.
+После strict decode infrastructure adapter возвращает exact `domain.UsageRecord` через canonical port.
+
+Infrastructure adapter валидирует только persistence representation и structural storage contract:
+
+```text
+required JSON keys присутствуют
+unknown JSON keys отсутствуют
+JSON types корректны
+timestamps имеют RFC3339Nano UTC representation
+enum/scalar values могут быть отображены в canonical domain types
+числовые значения помещаются в canonical Go types
+order/cardinality persisted command не нарушены
+```
+
+Infrastructure adapter:
+
+```text
+не импортирует internal/application/**
+не вызывает ledger.ValidateRecord
+не копирует application validator в infrastructure
+не принимает business/state-transition decisions
+```
+
+Canonical business validation выполняется application layer после получения entity через port и до use-case side effects. Для billing charge snapshot application использует `billing.ValidateChargeSnapshot`, который включает canonical validation batch, allocations и expected usage records. Для остальных port reads соответствующий application use case применяет принадлежащий ему canonical validator.
+
+Если strict decoder не может построить exact canonical entity или обнаруживает structural storage corruption, adapter возвращает normalized store contract error без raw SQL/driver/JSON details. Application layer преобразует такой результат в свой safe contract error.
+
+Layering source of truth:
+
+```text
+infrastructure -> domain + ports
+application -> domain + ports
+infrastructure -/-> application
+```
+
 
 ---
 

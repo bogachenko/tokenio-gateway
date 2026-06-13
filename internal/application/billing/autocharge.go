@@ -141,7 +141,7 @@ func (s *AutoChargeService) Run(ctx context.Context, input AutoChargeInput) (Aut
 		return result, err
 	}
 	remainingRemote := remote.BalanceCents
-	for _, group := range groups {
+	for groupIndex, group := range groups {
 		amount := min64(group.pending, remainingRemote)
 		if amount <= 0 || amount < s.config.MinimumChargeCents {
 			continue
@@ -163,15 +163,17 @@ func (s *AutoChargeService) Run(ctx context.Context, input AutoChargeInput) (Aut
 		if err != nil {
 			return result, err
 		}
-		remainingRemote, err = s.resolveRemainingRemoteBalance(
-			ctx,
-			token,
-			remainingRemote,
-			prepared,
-			processed,
-		)
-		if err != nil {
-			return result, err
+		if groupIndex+1 < len(groups) {
+			remainingRemote, err = s.resolveRemainingRemoteBalance(
+				ctx,
+				token,
+				remainingRemote,
+				prepared,
+				processed,
+			)
+			if err != nil {
+				return result, err
+			}
 		}
 	}
 	if len(result.ProcessedBatchIDs) == 0 {

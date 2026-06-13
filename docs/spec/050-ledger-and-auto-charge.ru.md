@@ -788,7 +788,9 @@ ErrBillingUnavailable
 
 Новые Billing charge calls и новые ledger mutations после такого replay не выполняются до successful refresh.
 
-Для `pending`/`failed` snapshot, который был реально списан текущим вызовом и получил successful Billing response без balance, application вычитает `batch.AmountCents` ровно один раз из balance, загруженного до этого charge.
+После последней provider/model group refresh не выполняется. Если следующей group нет, `succeeded` replay завершается успешно даже при недоступном Billing balance endpoint: пересчитанный `remainingRemote` больше не используется для нового financial decision.
+
+Для `pending`/`failed` snapshot, который был реально списан текущим вызовом и получил successful Billing response без balance, application вычитает `batch.AmountCents` ровно один раз из balance, загруженного до этого charge, только если значение требуется для решения по следующей group.
 
 Любое отличие:
 
