@@ -8,7 +8,12 @@ import (
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 )
 
-var ErrNotFound = errors.New("not found")
+var (
+	ErrNotFound               = errors.New("not found")
+	ErrStoreUnavailable       = errors.New("store unavailable")
+	ErrStoreConflict          = errors.New("store conflict")
+	ErrStoreContractViolation = errors.New("store contract violation")
+)
 
 type APIKeyRepository interface {
 	FindByHash(ctx context.Context, keyHash string) (*domain.APIKeyRecord, error)
