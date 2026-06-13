@@ -1510,20 +1510,3 @@ Ledger and auto-charge layer считается реализованным, ес
 18. Ledger writes выполняются transactional.
 19. Tests покрывают state transitions, pending/effective balance, auto-charge и idempotency.
 ```
-
-## 24.1. Stage 11A persistence contract acceptance
-
-Stage 11A ledger contract дополнительно принимается только если:
-
-```text
-1. PrepareChargeBatch commit предшествует внешнему Billing call.
-2. Plan ExpectedRecords являются pre-claim, persisted snapshots — post-claim.
-3. Existing replay исключает runtime-generated batch/allocation timestamps из immutable equality.
-4. Persisted timestamps первой preparation возвращаются без замены.
-5. Automatic MarkChargeBatchFailed already-failed replay является no-op.
-6. Explicit admin retry failure является отдельным audited failed -> failed transition.
-7. Retry audit before_state и after_state совпадают с exact pre/post committed entities.
-8. Same outcome audit ID имеет explicit idempotency/conflict contract.
-9. Active failed claim и historical succeeded reference различаются однозначно.
-10. Code и migrations не изменяются на Stage 11A.
-```

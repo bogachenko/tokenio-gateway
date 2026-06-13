@@ -890,4 +890,3 @@ Model rewrite acceptance criteria:
 3. model rewrite never changes messages/content/tools/multimodal payload.
 4. model rewrite never allows fallback to another API family.
 ```
-

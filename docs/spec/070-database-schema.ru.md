@@ -2034,20 +2034,3 @@ Database schema считается реализованной, если:
 20. API key provisioning idempotency имеет unique constraint.
 21. Terminal provisioning states не содержат encrypted raw key material.
 ```
-
-## 22.1. Stage 11A persistence acceptance
-
-Stage 11A database contract дополнительно принимается только если:
-
-```text
-1. Immutable charge command round-trip не требует synthetic reconstruction.
-2. Existing replay сравнивает explicit canonical field sets.
-3. Batch CreatedAt/UpdatedAt и allocation CreatedAt не вызывают conflict legitimate replay.
-4. Persisted first-write timestamps являются authoritative.
-5. Explicit retry failure atomарно обновляет failed_at/updated_at и audit after_state.
-6. Automatic identical failed replay не изменяет timestamps.
-7. markup_coefficient хранится как finite positive DOUBLE PRECISION.
-8. NUMERIC fixed-scale quantization для canonical float64 запрещена.
-9. RoutePrice, CAS result и audit after_state round-trip без semantic value loss.
-10. Production code и migrations не изменяются на Stage 11A.
-```
