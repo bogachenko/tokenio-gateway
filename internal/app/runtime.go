@@ -15,6 +15,7 @@ type Runtime struct {
 	Config       config.Config
 	Primitives   RuntimePrimitives
 	Security     SecurityGraph
+	Billing      BillingInfrastructureGraph
 	Repositories RepositoryGraph
 	Handler      http.Handler
 
@@ -32,6 +33,14 @@ func NewRuntime(
 	}
 
 	security, err := NewSecurityGraph(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	billingInfrastructure, err := NewBillingInfrastructureGraph(
+		cfg,
+		primitives.Clock,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -82,6 +91,7 @@ func NewRuntime(
 		Config:       cfg,
 		Primitives:   primitives,
 		Security:     security,
+		Billing:      billingInfrastructure,
 		Repositories: repositories,
 		Handler:      httptransport.NewRouter(),
 		database:     database,

@@ -10,11 +10,14 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
 
 const currencyRUB = "RUB"
+
+const DefaultMaxResponseBodyBytes int64 = 1 << 20
 
 var (
 	ErrInvalidConfig     = errors.New("invalid billing http client config")
@@ -28,6 +31,7 @@ type Config struct {
 	BaseURL              string
 	ServiceToken         string
 	RoundTripper         http.RoundTripper
+	Timeout              time.Duration
 	MaxResponseBodyBytes int64
 }
 
@@ -35,6 +39,7 @@ type Client struct {
 	baseURL              *url.URL
 	serviceToken         string
 	roundTripper         http.RoundTripper
+	timeout              time.Duration
 	maxResponseBodyBytes int64
 }
 
@@ -49,11 +54,20 @@ func New(cfg Config) (*Client, error) {
 	if cfg.RoundTripper == nil {
 		return nil, fmt.Errorf("%w: round tripper is required", ErrInvalidConfig)
 	}
+	if cfg.Timeout <= 0 {
+		return nil, fmt.Errorf("%w: timeout is required", ErrInvalidConfig)
+	}
 	limit := cfg.MaxResponseBodyBytes
 	if limit <= 0 {
 		return nil, fmt.Errorf("%w: max response body bytes is required", ErrInvalidConfig)
 	}
-	return &Client{baseURL: base, serviceToken: cfg.ServiceToken, roundTripper: cfg.RoundTripper, maxResponseBodyBytes: limit}, nil
+	return &Client{
+		baseURL:              base,
+		serviceToken:         cfg.ServiceToken,
+		roundTripper:         cfg.RoundTripper,
+		timeout:              cfg.Timeout,
+		maxResponseBodyBytes: limit,
+	}, nil
 }
 
 func (c *Client) String() string { return "billing http client" }
@@ -65,7 +79,14 @@ func (c *Client) GetBalance(ctx context.Context, billingToken string) (ports.Bil
 	if strings.TrimSpace(billingToken) == "" {
 		return out, fmt.Errorf("%w: billing token is required", ErrInvalidRequest)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.endpoint("/api/v1/wallet/balance"), nil)
+	requestContext, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(
+		requestContext,
+		http.MethodGet,
+		c.endpoint("/api/v1/wallet/balance"),
+		nil,
+	)
 	if err != nil {
 		return out, err
 	}
@@ -115,7 +136,14 @@ func (c *Client) Charge(ctx context.Context, request ports.BillingChargeRequest)
 	if err != nil {
 		return out, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint("/api/v1/usage/charge"), bytes.NewReader(body))
+	requestContext, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(
+		requestContext,
+		http.MethodPost,
+		c.endpoint("/api/v1/usage/charge"),
+		bytes.NewReader(body),
+	)
 	if err != nil {
 		return out, err
 	}

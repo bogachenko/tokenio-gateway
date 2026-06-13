@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 )
 
 type stage10MajorRoundTripFunc func(*http.Request) (*http.Response, error)
@@ -26,6 +27,7 @@ func TestStage10MajorBillingHTTPErrorDoesNotExposeRawResponseBody(t *testing.T) 
 				Header:     make(http.Header),
 			}, nil
 		}),
+		Timeout:              time.Second,
 		MaxResponseBodyBytes: 1024,
 	})
 	if err != nil {

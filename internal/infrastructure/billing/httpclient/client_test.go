@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
@@ -34,6 +35,111 @@ func (rt *captureRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 		return rt.response, nil
 	}
 	return jsonResp(200, `{"currency":"RUB","balance_cents":100}`), nil
+}
+
+type deadlineCaptureRoundTripper struct {
+	hasDeadline bool
+	remaining   time.Duration
+	response    *http.Response
+}
+
+func (r *deadlineCaptureRoundTripper) RoundTrip(
+	request *http.Request,
+) (*http.Response, error) {
+	deadline, ok := request.Context().Deadline()
+	r.hasDeadline = ok
+	if ok {
+		r.remaining = time.Until(deadline)
+	}
+	return r.response, nil
+}
+
+func TestBillingRequestsUseConfiguredTimeout(t *testing.T) {
+	const timeout = 250 * time.Millisecond
+
+	tests := []struct {
+		name     string
+		response *http.Response
+		call     func(*Client) error
+	}{
+		{
+			name: "balance",
+			response: jsonResp(
+				http.StatusOK,
+				`{"currency":"RUB","balance_cents":100}`,
+			),
+			call: func(client *Client) error {
+				_, err := client.GetBalance(t.Context(), "billing-jwt")
+				return err
+			},
+		},
+		{
+			name: "charge",
+			response: jsonResp(
+				http.StatusOK,
+				`{"balance_cents":90}`,
+			),
+			call: func(client *Client) error {
+				_, err := client.Charge(
+					t.Context(),
+					ports.BillingChargeRequest{
+						RequestID:   validChargeID,
+						UserID:      "billing-user",
+						Model:       "openai:gpt",
+						AmountCents: 10,
+						Currency:    "RUB",
+					},
+				)
+				return err
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			roundTripper := &deadlineCaptureRoundTripper{
+				response: test.response,
+			}
+			client, err := New(Config{
+				BaseURL:              "https://billing.example",
+				ServiceToken:         "service-token",
+				RoundTripper:         roundTripper,
+				Timeout:              timeout,
+				MaxResponseBodyBytes: 1024,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if err := test.call(client); err != nil {
+				t.Fatalf("billing call: %v", err)
+			}
+			if !roundTripper.hasDeadline {
+				t.Fatal("billing request context has no deadline")
+			}
+			if roundTripper.remaining <= 0 ||
+				roundTripper.remaining > timeout {
+				t.Fatalf(
+					"remaining timeout = %v, want (0, %v]",
+					roundTripper.remaining,
+					timeout,
+				)
+			}
+		})
+	}
+}
+
+func TestBillingClientRejectsNonPositiveTimeout(t *testing.T) {
+	_, err := New(Config{
+		BaseURL:              "https://billing.example",
+		ServiceToken:         "service-token",
+		RoundTripper:         &captureRoundTripper{},
+		Timeout:              0,
+		MaxResponseBodyBytes: 1024,
+	})
+	if !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("error = %v, want ErrInvalidConfig", err)
+	}
 }
 
 func TestBalanceCredentialBoundaryAndSingleRoundTrip(t *testing.T) {
@@ -99,7 +205,7 @@ func TestChargeCredentialBoundaryAndBody(t *testing.T) {
 
 func TestBaseURLValidation(t *testing.T) {
 	for _, raw := range []string{"", "http://", "ftp://billing", "https://billing?x=1", "https://billing#frag", "https://user:password@billing.example"} {
-		if _, err := New(Config{BaseURL: raw, ServiceToken: "token", RoundTripper: &captureRoundTripper{}, MaxResponseBodyBytes: 100}); !errors.Is(err, ErrInvalidConfig) {
+		if _, err := New(Config{BaseURL: raw, ServiceToken: "token", RoundTripper: &captureRoundTripper{}, Timeout: time.Second, MaxResponseBodyBytes: 100}); !errors.Is(err, ErrInvalidConfig) {
 			t.Fatalf("%q err=%v", raw, err)
 		}
 	}
@@ -147,7 +253,7 @@ func TestBalanceResponseValidation(t *testing.T) {
 
 func newTestClient(t *testing.T, rt *captureRoundTripper) *Client {
 	t.Helper()
-	client, err := New(Config{BaseURL: "https://billing.example/root/", ServiceToken: "svc-secret", RoundTripper: rt, MaxResponseBodyBytes: 1024})
+	client, err := New(Config{BaseURL: "https://billing.example/root/", ServiceToken: "svc-secret", RoundTripper: rt, Timeout: time.Second, MaxResponseBodyBytes: 1024})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +266,7 @@ func jsonResp(status int, body string) *http.Response {
 
 func TestClientFormattingDoesNotLeakServiceToken(t *testing.T) {
 	secret := "svc-format-secret"
-	client, err := New(Config{BaseURL: "https://billing.example", ServiceToken: secret, RoundTripper: &captureRoundTripper{}, MaxResponseBodyBytes: 100})
+	client, err := New(Config{BaseURL: "https://billing.example", ServiceToken: secret, RoundTripper: &captureRoundTripper{}, Timeout: time.Second, MaxResponseBodyBytes: 100})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +301,7 @@ func TestRoundTripErrorClosesResponseBodies(t *testing.T) {
 	} {
 		t.Run(call.name, func(t *testing.T) {
 			body := &closeTrackingBody{}
-			client, err := New(Config{BaseURL: "https://billing.example", ServiceToken: "token", RoundTripper: &responseErrorRoundTripper{body: body}, MaxResponseBodyBytes: 100})
+			client, err := New(Config{BaseURL: "https://billing.example", ServiceToken: "token", RoundTripper: &responseErrorRoundTripper{body: body}, Timeout: time.Second, MaxResponseBodyBytes: 100})
 			if err != nil {
 				t.Fatal(err)
 			}

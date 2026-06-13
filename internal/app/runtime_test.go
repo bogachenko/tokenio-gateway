@@ -86,6 +86,11 @@ func TestNewRuntimeIntegration(t *testing.T) {
 		DatabaseDSN:           dsn,
 		AdminToken:            "integration-admin-token",
 		APIKeyHashSecret:      "integration-api-key-hash-secret",
+		BillingBaseURL:        "https://billing.example",
+		BillingServiceToken:   "integration-billing-service-token",
+		BillingJWTSigningKey:  "integration-billing-jwt-signing-key",
+		BillingJWTTTL:         15 * time.Minute,
+		BillingTimeout:        30 * time.Second,
 		GatewayAddr:           "127.0.0.1:0",
 		HTTPReadHeaderTimeout: time.Second,
 		HTTPReadTimeout:       2 * time.Second,
@@ -105,6 +110,9 @@ func TestNewRuntimeIntegration(t *testing.T) {
 	}
 	if err := runtime.Security.Validate(); err != nil {
 		t.Fatalf("security graph: %v", err)
+	}
+	if err := runtime.Billing.Validate(); err != nil {
+		t.Fatalf("billing infrastructure graph: %v", err)
 	}
 	if err := runtime.Repositories.Validate(); err != nil {
 		t.Fatalf("repository graph: %v", err)
