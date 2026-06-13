@@ -163,7 +163,13 @@ func (s *AutoChargeService) Run(ctx context.Context, input AutoChargeInput) (Aut
 		if err != nil {
 			return result, err
 		}
-		remainingRemote, err = nextRemoteBalance(remainingRemote, amount, processed.BillingBalanceCents)
+		remainingRemote, err = s.resolveRemainingRemoteBalance(
+			ctx,
+			token,
+			remainingRemote,
+			prepared,
+			processed,
+		)
 		if err != nil {
 			return result, err
 		}
@@ -178,6 +184,12 @@ func (s *AutoChargeService) processPreparedBatch(ctx context.Context, input Auto
 	result := AutoChargeResult{ProcessedBatchID: snapshot.Batch.ID, ProcessedBatchIDs: []string{snapshot.Batch.ID}}
 	if err := ValidateChargeSnapshot(input, snapshot); err != nil {
 		return result, ErrBillingStoreContractViolation
+	}
+	if snapshot.Batch.Status == domain.BillingChargeStatusSucceeded {
+		result.BillingBalanceCents = snapshot.Batch.BillingResponseBalanceCents
+		result.ChargedAmountCents = snapshot.Batch.AmountCents
+		result.UsedBillingBalanceCents = snapshot.Batch.BillingResponseBalanceCents != nil
+		return result, nil
 	}
 	chargeResult, err := s.charge.Charge(ctx, ports.BillingChargeRequest{
 		RequestID:    snapshot.Batch.ID,
@@ -205,6 +217,32 @@ func (s *AutoChargeService) processPreparedBatch(ctx context.Context, input Auto
 	result.ChargedAmountCents = snapshot.Batch.AmountCents
 	result.UsedBillingBalanceCents = chargeResult.BalanceCents != nil
 	return result, nil
+}
+
+func (s *AutoChargeService) resolveRemainingRemoteBalance(
+	ctx context.Context,
+	billingToken string,
+	previous int64,
+	prepared ports.BillingChargeBatchSnapshot,
+	processed AutoChargeResult,
+) (int64, error) {
+	if prepared.Batch.Status == domain.BillingChargeStatusSucceeded &&
+		processed.BillingBalanceCents == nil {
+		refreshed, err := s.balance.GetBalance(ctx, billingToken)
+		if err != nil {
+			return 0, ErrBillingUnavailable
+		}
+		if err := validateBillingBalance(refreshed); err != nil {
+			return 0, err
+		}
+		return refreshed.BalanceCents, nil
+	}
+
+	return nextRemoteBalance(
+		previous,
+		prepared.Batch.AmountCents,
+		processed.BillingBalanceCents,
+	)
 }
 
 func validateBillingChargeResult(result ports.BillingChargeResult) error {
@@ -322,7 +360,9 @@ func ValidateChargeSnapshot(input AutoChargeInput, snapshot ports.BillingChargeB
 	if batch.UserID != input.UserID || batch.BillingSubjectUserID != input.BillingSubjectUserID || batch.Currency != normalizedCurrency(input.Currency) {
 		return fmt.Errorf("%w: batch owner", ErrInvalidChargePlan)
 	}
-	if batch.Status != domain.BillingChargeStatusPending && batch.Status != domain.BillingChargeStatusFailed {
+	switch batch.Status {
+	case domain.BillingChargeStatusPending, domain.BillingChargeStatusFailed, domain.BillingChargeStatusSucceeded:
+	default:
 		return fmt.Errorf("%w: batch status", ErrInvalidChargePlan)
 	}
 	if err := ledger.ValidateChargeBatch(batch); err != nil {

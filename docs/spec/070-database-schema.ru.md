@@ -1638,6 +1638,19 @@ Exact replay:
 возвращает exact persisted snapshot
 ```
 
+Persisted lifecycle status также возвращается без подмены. Exact `succeeded` snapshot является допустимым результатом `PrepareChargeBatch` replay.
+
+Persistence adapter не имеет права:
+
+```text
+возвращать synthetic pending/failed status
+скрывать succeeded command как state conflict
+повторно применять claim
+повторно вызывать Billing
+```
+
+Application layer распознаёт exact succeeded snapshot как already reconciled idempotent success и не выполняет новый financial side effect.
+
 Любое отличие canonical identity, position, cardinality или expected record является state/contract conflict.
 
 ## 17.4. ApplyChargeSuccess persistence boundary

@@ -744,6 +744,52 @@ idempotent success
 return exact persisted BillingChargeBatchSnapshot
 ```
 
+Если exact persisted snapshot имеет:
+
+```text
+Status = succeeded
+```
+
+это legitimate concurrent replay уже reconciled financial command, а не store corruption.
+
+`PrepareChargeBatch` возвращает exact persisted succeeded snapshot. Application caller обязан:
+
+```text
+не вызывать BillingChargeClient.Charge повторно
+не вызывать MarkChargeBatchFailed
+не вызывать ApplyChargeSuccess
+вернуть idempotent processed result из persisted batch
+использовать persisted BillingResponseBalanceCents, если он присутствует
+```
+
+`AutoChargeService.processPreparedBatch` принимает `pending`, `failed` и `succeeded` snapshots. Для `succeeded` он завершает operation до любого внешнего Billing side effect или ledger mutation.
+
+Если persisted `succeeded` snapshot не содержит:
+
+```text
+BillingResponseBalanceCents
+```
+
+application не имеет права вычитать `batch.AmountCents` из ранее загруженного remote balance. Ранее загруженный balance мог быть получен как до, так и после concurrent successful charge, поэтому локальное вычитание неоднозначно и может повторно применить уже совершённый financial effect.
+
+Перед подготовкой следующей provider/model group application обязана:
+
+```text
+1. Повторно вызвать BillingBalanceClient.GetBalance.
+2. Валидировать currency и non-negative balance.
+3. Использовать refreshed balance как remaining remote balance.
+```
+
+Если refresh недоступен или возвращает invalid balance:
+
+```text
+ErrBillingUnavailable
+```
+
+Новые Billing charge calls и новые ledger mutations после такого replay не выполняются до successful refresh.
+
+Для `pending`/`failed` snapshot, который был реально списан текущим вызовом и получил successful Billing response без balance, application вычитает `batch.AmountCents` ровно один раз из balance, загруженного до этого charge.
+
 Любое отличие:
 
 ```text

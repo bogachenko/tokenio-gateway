@@ -369,6 +369,61 @@ func TestPartialChargeClaimsOnlyAllocatedRecordsAndPartialCanBeCandidate(t *test
 	}
 }
 
+func TestProcessPreparedBatchTreatsSucceededPrepareReplayAsIdempotentSuccess(t *testing.T) {
+	record := rec("succeeded-prepare-replay", domain.ProviderOpenAI, "m", 100, 0, 100, 1)
+	plan, err := BuildChargePlan("billing", []domain.UsageRecord{record}, 100, time.Unix(1, 0).UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	chargedAt := time.Unix(2, 0).UTC()
+	balance := int64(900)
+	snapshot := ports.BillingChargeBatchSnapshot{
+		Batch:           plan.Batch,
+		Allocations:     plan.Allocations,
+		ExpectedRecords: claimedExpected(plan),
+	}
+	snapshot.Batch.Status = domain.BillingChargeStatusSucceeded
+	snapshot.Batch.BillingResponseBalanceCents = &balance
+	snapshot.Batch.ChargedAt = &chargedAt
+	snapshot.Batch.UpdatedAt = chargedAt
+
+	charge := &fakeCharge{}
+	usageLedger := newFakeLedger(nil)
+	service, err := NewAutoChargeService(
+		&fakeIdentity{token: "jwt"},
+		&fakeBalance{balance: ports.BillingBalance{Currency: "RUB", BalanceCents: 1000}},
+		charge,
+		usageLedger,
+		testClock{chargedAt},
+		AutoChargeConfig{ThresholdCents: 100, MinimumChargeCents: 1},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := service.processPreparedBatch(
+		t.Context(),
+		AutoChargeInput{UserID: "u", BillingSubjectUserID: "billing", Currency: "RUB"},
+		snapshot,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(charge.requests) != 0 {
+		t.Fatalf("succeeded replay called Billing: %+v", charge.requests)
+	}
+	if usageLedger.applyCalls != 0 || usageLedger.markFailedCalls != 0 {
+		t.Fatalf("succeeded replay mutated ledger: apply=%d failed=%d", usageLedger.applyCalls, usageLedger.markFailedCalls)
+	}
+	if result.ProcessedBatchID != snapshot.Batch.ID || len(result.ProcessedBatchIDs) != 1 || result.ProcessedBatchIDs[0] != snapshot.Batch.ID {
+		t.Fatalf("processed result=%+v", result)
+	}
+	if result.ChargedAmountCents != snapshot.Batch.AmountCents || !result.UsedBillingBalanceCents || result.BillingBalanceCents == nil || *result.BillingBalanceCents != balance {
+		t.Fatalf("billing result=%+v", result)
+	}
+}
+
 func TestValidateChargeSnapshotRejectsStableIDMismatch(t *testing.T) {
 	r := rec("stable-mismatch", domain.ProviderOpenAI, "m", 100, 0, 100, 1)
 	plan, err := BuildChargePlan("billing", []domain.UsageRecord{r}, 100, time.Unix(1, 0).UTC())
