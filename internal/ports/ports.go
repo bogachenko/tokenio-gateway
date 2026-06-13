@@ -23,6 +23,10 @@ type UserRepository interface {
 	FindByID(ctx context.Context, userID string) (*domain.User, error)
 }
 
+type ResellerQueryRepository interface {
+	FindByIDs(ctx context.Context, resellerIDs []string) (map[string]domain.Reseller, error)
+}
+
 type RouteQuery struct {
 	APIFamily    domain.APIFamily
 	EndpointKind domain.EndpointKind
