@@ -475,6 +475,75 @@ Authorization: Bearer sk_...
 если нет доступного route, модель возвращается с active=false
 ```
 
+## 7.4.1. Детерминированная агрегация catalog
+
+В первой версии один `client_model` обязан относиться ровно к одному
+`endpoint_kind` внутри одной `api_family`. Смешение `chat`,
+`embeddings` и `images_generation` под одним client-facing model ID
+является registry contract violation.
+
+Catalog route считается доступным, если:
+
+```text
+route.enabled = true
+reseller.enabled = true
+route cooldown отсутствует или истёк
+reseller credential существует
+route price существует и enabled
+route price currency совпадает с configured cost currency
+available reseller balance > 0
+model rewrite policy поддерживается adapter registry
+route поддерживает capability своего endpoint_kind
+```
+
+`GET /v1/models` не резервирует reseller balance и не захватывает
+rate/concurrency capacity. Полная route availability повторно
+проверяется request pipeline непосредственно перед forwarding.
+
+Для выбора route, чья public pricing projection попадёт в catalog,
+используется explicit reference cost:
+
+```text
+chat:
+  sell price за 1M input tokens
+  + sell price за 1M output tokens
+
+embeddings:
+  sell price за 1M input tokens
+
+images_generation:
+  sell price за 1 generated image
+```
+
+Sell prices рассчитываются с route markup. `float64`
+`markup_coefficient` интерпретируется через canonical shortest decimal
+representation, round-trippable обратно в тот же `float64`. Прямое
+binary-float multiplication перед `ceil` и epsilon correction запрещены.
+
+При равном reference cost порядок:
+
+```text
+priority ASC
+route_id ASC
+```
+
+`pricing` всегда принадлежит одному реально доступному выбранному
+route. Смешивать цены разных routes в одной pricing projection
+запрещено.
+
+`capabilities` являются union capabilities всех доступных routes
+модели. Они описывают отдельно поддерживаемые возможности и не
+гарантируют, что произвольная комбинация capabilities поддерживается
+одним route; request pipeline обязан проверять полный requested set.
+
+Если доступного route нет:
+
+```text
+active = false
+pricing отсутствует
+все capabilities = false
+```
+
 ## 7.5. Запрещённые поля
 
 `/v1/models` не должен раскрывать:

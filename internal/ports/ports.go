@@ -52,6 +52,13 @@ type SecretResolver interface {
 	Resolve(ctx context.Context, name string) (string, error)
 }
 
+type ModelIdentifierRewriteSupport interface {
+	SupportsModelIdentifierRewrite(
+		domain.APIFamily,
+		domain.ProviderType,
+	) bool
+}
+
 type Clock interface {
 	Now() time.Time
 }
