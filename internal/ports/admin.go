@@ -58,6 +58,31 @@ type BillingChargeBatchListFilter struct {
 	CreatedFrom, CreatedTo *time.Time
 	Page                   PageRequest
 }
+
+type APIKeyProvisioningListFilter struct {
+	ExternalBillingUserID  string
+	UserID                 string
+	APIKeyID               string
+	Status                 domain.APIKeyProvisioningStatus
+	ResultType             domain.APIKeyProvisioningResultType
+	CreatedFrom, CreatedTo *time.Time
+	Page                   PageRequest
+}
+
+type APIKeyProvisioningAdminRecord struct {
+	ID                    string
+	ExternalBillingUserID string
+	UserID                string
+	APIKeyID              string
+	KeyPrefix             string
+	ResultType            domain.APIKeyProvisioningResultType
+	Status                domain.APIKeyProvisioningStatus
+	SourceReferenceHash   string
+	CreatedAt             time.Time
+	ExpiresAt             *time.Time
+	DeliveredAt           *time.Time
+	ExpiredAt             *time.Time
+}
 type AuditListFilter struct {
 	AdminSubject           string
 	Action                 domain.AuditAction
@@ -115,6 +140,13 @@ type AdminUsageLedger interface {
 	RecordChargeRetryAttemptWithAudit(context.Context, BillingChargeBatchSnapshot, domain.AuditContext) error
 	ApplyChargeRetrySuccessWithAudit(context.Context, UsageChargeSuccess, domain.AuditContext) error
 	MarkChargeRetryFailedWithAudit(context.Context, string, domain.BillingChargeStatus, string, time.Time, domain.AuditContext) error
+}
+
+type AdminAPIKeyProvisioningRepository interface {
+	ListAPIKeyProvisionings(
+		context.Context,
+		APIKeyProvisioningListFilter,
+	) (Page[APIKeyProvisioningAdminRecord], error)
 }
 
 type AdminAuditStore interface {
