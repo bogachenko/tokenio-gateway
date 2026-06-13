@@ -1,0 +1,5 @@
+DROP TABLE tokenio_billing_charge_expected_records;
+DROP TABLE tokenio_billing_charge_allocations;
+DROP TABLE tokenio_billing_charge_batches;
+DROP TABLE tokenio_billing_sessions;
+DROP TABLE tokenio_usage_records;
