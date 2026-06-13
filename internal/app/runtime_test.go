@@ -31,6 +31,23 @@ func TestRepositoryGraphValidateRejectsMissingCapability(
 	}
 }
 
+func TestNewRuntimePrimitives(t *testing.T) {
+	primitives, err := NewRuntimePrimitives()
+	if err != nil {
+		t.Fatalf("NewRuntimePrimitives: %v", err)
+	}
+	if err := primitives.Validate(); err != nil {
+		t.Fatalf("runtime primitives: %v", err)
+	}
+}
+
+func TestRuntimePrimitivesValidateRejectsMissingDependency(t *testing.T) {
+	var primitives RuntimePrimitives
+	if err := primitives.Validate(); err == nil {
+		t.Fatal("expected incomplete primitives validation error")
+	}
+}
+
 type runtimeTestHandler struct{}
 
 func (*runtimeTestHandler) ServeHTTP(
@@ -81,6 +98,9 @@ func TestNewRuntimeIntegration(t *testing.T) {
 	}
 	t.Cleanup(runtime.Close)
 
+	if err := runtime.Primitives.Validate(); err != nil {
+		t.Fatalf("runtime primitives: %v", err)
+	}
 	if err := runtime.Repositories.Validate(); err != nil {
 		t.Fatalf("repository graph: %v", err)
 	}

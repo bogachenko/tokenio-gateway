@@ -19,15 +19,20 @@ type testIDs struct {
 	mu     sync.Mutex
 	events []string
 	value  string
+	err    error
 }
 
-func (f *testIDs) NewLocalRequestID() string         { return "llmreq_unused" }
-func (f *testIDs) NewBillingChargeRequestID() string { return "billchg_unused" }
-func (f *testIDs) NewAdminRequestID() string {
+func (f *testIDs) NewLocalRequestID() (string, error) {
+	return "llmreq_unused", nil
+}
+func (f *testIDs) NewProvisioningRequestID() (string, error) {
+	return "provreq_unused", nil
+}
+func (f *testIDs) NewAdminRequestID() (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.events = append(f.events, "request_id")
-	return f.value
+	return f.value, f.err
 }
 
 type testAuthenticator struct {
@@ -88,6 +93,86 @@ func TestAdminRequestIDIsCreatedBeforeAuthentication(t *testing.T) {
 	}
 	if res.Header().Get(adminRequestIDHeader) != "admreq_1" {
 		t.Fatalf("headers=%v", res.Header())
+	}
+}
+
+func TestAdminRequestIDFailureDoesNotUseSyntheticFallback(t *testing.T) {
+	tests := []struct {
+		name string
+		ids  *testIDs
+	}{
+		{
+			name: "generator error",
+			ids: &testIDs{
+				err: errors.New("entropy unavailable"),
+			},
+		},
+		{
+			name: "invalid generated value",
+			ids: &testIDs{
+				value: "invalid",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			events := []string{}
+			authenticator := &testAuthenticator{
+				events:  &events,
+				subject: "admin_token",
+			}
+			router, err := NewRouter(
+				&testService{},
+				authenticator,
+				test.ids,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			res := httptest.NewRecorder()
+			router.ServeHTTP(
+				res,
+				httptest.NewRequest(
+					http.MethodGet,
+					"/admin/v1/users",
+					nil,
+				),
+			)
+
+			if res.Code != http.StatusInternalServerError {
+				t.Fatalf(
+					"status = %d, body = %s",
+					res.Code,
+					res.Body.String(),
+				)
+			}
+			if got := res.Header().Get(adminRequestIDHeader); got != "" {
+				t.Fatalf("request ID header = %q, want empty", got)
+			}
+			if strings.Contains(res.Body.String(), "request_id") {
+				t.Fatalf(
+					"body must omit unavailable request ID: %s",
+					res.Body.String(),
+				)
+			}
+			if strings.Contains(
+				res.Body.String(),
+				"admreq_invalid_generator",
+			) {
+				t.Fatalf(
+					"body contains synthetic fallback: %s",
+					res.Body.String(),
+				)
+			}
+			if len(events) != 0 {
+				t.Fatalf(
+					"authentication ran after ID failure: %v",
+					events,
+				)
+			}
+		})
 	}
 }
 

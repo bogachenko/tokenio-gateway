@@ -19,7 +19,6 @@ import (
 const (
 	basePath             = "/admin/v1"
 	adminRequestIDHeader = "X-Admin-Request-ID"
-	fallbackRequestID    = "admreq_invalid_generator"
 )
 
 type Authenticator interface{ Authenticate(string) (string, error) }
@@ -62,10 +61,10 @@ type Service interface {
 type Router struct {
 	service Service
 	auth    Authenticator
-	ids     ports.IDGenerator
+	ids     ports.RequestIDGenerator
 }
 
-func NewRouter(service Service, authenticator Authenticator, ids ports.IDGenerator) (*Router, error) {
+func NewRouter(service Service, authenticator Authenticator, ids ports.RequestIDGenerator) (*Router, error) {
 	if service == nil || authenticator == nil || ids == nil {
 		return nil, errors.New("admin router dependency is required")
 	}
@@ -77,10 +76,9 @@ func (h *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeError(w, "", http.StatusNotFound, domain.ErrorCodeNotFound, "Endpoint not found")
 		return
 	}
-	requestID := h.ids.NewAdminRequestID()
-	if !validAdminRequestID(requestID) {
-		requestID = fallbackRequestID
-		writeError(w, requestID, http.StatusInternalServerError, domain.ErrorCodeInternalError, "Internal error")
+	requestID, err := h.ids.NewAdminRequestID()
+	if err != nil || !validAdminRequestID(requestID) {
+		writeError(w, "", http.StatusInternalServerError, domain.ErrorCodeInternalError, "Internal error")
 		return
 	}
 	w.Header().Set(adminRequestIDHeader, requestID)
@@ -854,10 +852,15 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	_ = json.NewEncoder(w).Encode(value)
 }
 func writeError(w http.ResponseWriter, requestID string, status int, code domain.ErrorCode, message string) {
+	errorBody := map[string]any{
+		"code":    code,
+		"message": message,
+	}
 	if requestID != "" {
 		w.Header().Set(adminRequestIDHeader, requestID)
+		errorBody["request_id"] = requestID
 	}
-	writeJSON(w, status, map[string]any{"error": map[string]any{"code": code, "message": message, "request_id": requestID}})
+	writeJSON(w, status, map[string]any{"error": errorBody})
 }
 func methodNotAllowed(w http.ResponseWriter, requestID, allow string) {
 	w.Header().Set("Allow", allow)

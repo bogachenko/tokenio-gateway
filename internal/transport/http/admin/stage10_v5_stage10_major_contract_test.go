@@ -21,14 +21,16 @@ type stage10V5RouterIDsFake struct {
 	id string
 }
 
-func (f *stage10V5RouterIDsFake) NewLocalRequestID() string { return "llmreq_test" }
-func (f *stage10V5RouterIDsFake) NewBillingChargeRequestID() string {
-	return "billchg_test"
+func (f *stage10V5RouterIDsFake) NewLocalRequestID() (string, error) {
+	return "llmreq_test", nil
 }
-func (f *stage10V5RouterIDsFake) NewAdminRequestID() string {
+func (f *stage10V5RouterIDsFake) NewProvisioningRequestID() (string, error) {
+	return "provreq_test", nil
+}
+func (f *stage10V5RouterIDsFake) NewAdminRequestID() (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return f.id
+	return f.id, nil
 }
 
 type stage10V5RouterServiceFake struct {

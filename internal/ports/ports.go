@@ -49,10 +49,10 @@ type Clock interface {
 	Now() time.Time
 }
 
-type IDGenerator interface {
-	NewLocalRequestID() string
-	NewAdminRequestID() string
-	NewBillingChargeRequestID() string
+type RequestIDGenerator interface {
+	NewLocalRequestID() (string, error)
+	NewAdminRequestID() (string, error)
+	NewProvisioningRequestID() (string, error)
 }
 
 type BillingIdentityService interface {

@@ -48,9 +48,15 @@ func (clockFake) Now() time.Time { return time.Time{} }
 
 type idGeneratorFake struct{}
 
-func (idGeneratorFake) NewLocalRequestID() string         { return "" }
-func (idGeneratorFake) NewAdminRequestID() string         { return "" }
-func (idGeneratorFake) NewBillingChargeRequestID() string { return "" }
+func (idGeneratorFake) NewLocalRequestID() (string, error) {
+	return "", nil
+}
+func (idGeneratorFake) NewAdminRequestID() (string, error) {
+	return "", nil
+}
+func (idGeneratorFake) NewProvisioningRequestID() (string, error) {
+	return "", nil
+}
 
 type billingIdentityServiceFake struct{}
 
@@ -125,7 +131,7 @@ var (
 	_ ports.RoutePriceRepository   = routePriceRepositoryFake{}
 	_ ports.SecretResolver         = secretResolverFake{}
 	_ ports.Clock                  = clockFake{}
-	_ ports.IDGenerator            = idGeneratorFake{}
+	_ ports.RequestIDGenerator     = idGeneratorFake{}
 	_ ports.BillingIdentityService = billingIdentityServiceFake{}
 	_ ports.BillingBalanceClient   = billingBalanceClientFake{}
 	_ ports.BillingChargeClient    = billingChargeClientFake{}

@@ -13,6 +13,7 @@ import (
 
 type Runtime struct {
 	Config       config.Config
+	Primitives   RuntimePrimitives
 	Repositories RepositoryGraph
 	Handler      http.Handler
 
@@ -24,6 +25,11 @@ func NewRuntime(
 	ctx context.Context,
 	cfg config.Config,
 ) (*Runtime, error) {
+	primitives, err := NewRuntimePrimitives()
+	if err != nil {
+		return nil, err
+	}
+
 	database, err := postgres.Open(ctx, cfg.DatabaseDSN)
 	if err != nil {
 		return nil, fmt.Errorf("open PostgreSQL: %w", err)
@@ -68,6 +74,7 @@ func NewRuntime(
 
 	runtime := &Runtime{
 		Config:       cfg,
+		Primitives:   primitives,
 		Repositories: repositories,
 		Handler:      httptransport.NewRouter(),
 		database:     database,
