@@ -14,6 +14,7 @@ type Runtime struct {
 	Config       config.Config
 	Primitives   RuntimePrimitives
 	Security     SecurityGraph
+	Provisioning ProvisioningInfrastructureGraph
 	Billing      BillingInfrastructureGraph
 	Repositories RepositoryGraph
 	Applications ApplicationGraph
@@ -34,6 +35,12 @@ func NewRuntime(
 	}
 
 	security, err := NewSecurityGraph(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	provisioningInfrastructure, err :=
+		NewProvisioningInfrastructureGraph(cfg, security)
 	if err != nil {
 		return nil, err
 	}
@@ -92,6 +99,7 @@ func NewRuntime(
 		cfg,
 		primitives,
 		security,
+		provisioningInfrastructure,
 		billingInfrastructure,
 		repositories,
 	)
@@ -114,6 +122,7 @@ func NewRuntime(
 		Config:       cfg,
 		Primitives:   primitives,
 		Security:     security,
+		Provisioning: provisioningInfrastructure,
 		Billing:      billingInfrastructure,
 		Repositories: repositories,
 		Applications: applications,

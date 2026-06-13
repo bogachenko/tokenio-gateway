@@ -7,11 +7,14 @@ import (
 	authenticateapp "github.com/bogachenko/tokenio-gateway/internal/application/authenticate"
 	billingapp "github.com/bogachenko/tokenio-gateway/internal/application/billing"
 	ledgerapp "github.com/bogachenko/tokenio-gateway/internal/application/ledger"
+	provisioningapp "github.com/bogachenko/tokenio-gateway/internal/application/provisioning"
 	"github.com/bogachenko/tokenio-gateway/internal/config"
 )
 
 type ApplicationGraph struct {
 	PublicAuthentication *authenticateapp.UseCase
+	ProvisioningEnabled  bool
+	Provisioning         *provisioningapp.Service
 	Ledger               *ledgerapp.Service
 	AutoCharge           *billingapp.AutoChargeService
 	FailedBatchRetry     *billingapp.FailedBatchRetryService
@@ -22,6 +25,7 @@ func NewApplicationGraph(
 	cfg config.Config,
 	primitives RuntimePrimitives,
 	security SecurityGraph,
+	provisioningInfrastructure ProvisioningInfrastructureGraph,
 	billingInfrastructure BillingInfrastructureGraph,
 	repositories RepositoryGraph,
 ) (ApplicationGraph, error) {
@@ -34,6 +38,12 @@ func NewApplicationGraph(
 	if err := security.Validate(); err != nil {
 		return ApplicationGraph{}, fmt.Errorf(
 			"validate security graph: %w",
+			err,
+		)
+	}
+	if err := provisioningInfrastructure.Validate(); err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"validate provisioning infrastructure graph: %w",
 			err,
 		)
 	}
@@ -61,6 +71,25 @@ func NewApplicationGraph(
 			"construct public authentication use case: %w",
 			err,
 		)
+	}
+
+	var provisioningService *provisioningapp.Service
+	if provisioningInfrastructure.Enabled {
+		provisioningService, err = provisioningapp.NewService(
+			provisioningapp.Dependencies{
+				Store:             repositories.APIKeyProvisioning,
+				MaterialFactory:   provisioningInfrastructure.MaterialFactory,
+				MaterialDecryptor: provisioningInfrastructure.MaterialDecryptor,
+				Clock:             primitives.Clock,
+				TTL:               cfg.APIKeyProvisioningTTL,
+			},
+		)
+		if err != nil {
+			return ApplicationGraph{}, fmt.Errorf(
+				"construct provisioning service: %w",
+				err,
+			)
+		}
 	}
 
 	ledgerService, err := ledgerapp.NewService(
@@ -127,6 +156,8 @@ func NewApplicationGraph(
 
 	graph := ApplicationGraph{
 		PublicAuthentication: publicAuthentication,
+		ProvisioningEnabled:  provisioningInfrastructure.Enabled,
+		Provisioning:         provisioningService,
 		Ledger:               ledgerService,
 		AutoCharge:           autoCharge,
 		FailedBatchRetry:     failedBatchRetry,
@@ -145,6 +176,10 @@ func (g ApplicationGraph) Validate() error {
 	switch {
 	case g.PublicAuthentication == nil:
 		return fmt.Errorf("public authentication use case is nil")
+	case g.ProvisioningEnabled && g.Provisioning == nil:
+		return fmt.Errorf("enabled provisioning service is nil")
+	case !g.ProvisioningEnabled && g.Provisioning != nil:
+		return fmt.Errorf("disabled provisioning service is non-nil")
 	case g.Ledger == nil:
 		return fmt.Errorf("ledger service is nil")
 	case g.AutoCharge == nil:

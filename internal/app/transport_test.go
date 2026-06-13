@@ -8,8 +8,12 @@ import (
 )
 
 func TestNewTransportGraphWiresAdminControlPlane(t *testing.T) {
-	cfg, _, security, billingInfrastructure, repositories :=
-		validApplicationGraphInputs(t)
+	cfg,
+		_,
+		security,
+		provisioningInfrastructure,
+		billingInfrastructure,
+		repositories := validApplicationGraphInputs(t)
 
 	primitives, err := NewRuntimePrimitives()
 	if err != nil {
@@ -19,6 +23,7 @@ func TestNewTransportGraphWiresAdminControlPlane(t *testing.T) {
 		cfg,
 		primitives,
 		security,
+		provisioningInfrastructure,
 		billingInfrastructure,
 		repositories,
 	)

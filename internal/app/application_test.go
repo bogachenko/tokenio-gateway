@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"testing"
 	"time"
 
@@ -22,20 +23,35 @@ func validApplicationGraphInputs(
 	config.Config,
 	RuntimePrimitives,
 	SecurityGraph,
+	ProvisioningInfrastructureGraph,
 	BillingInfrastructureGraph,
 	RepositoryGraph,
 ) {
 	t.Helper()
 
 	cfg := config.Config{
-		AdminToken:               "admin-token",
-		APIKeyHashSecret:         "api-key-hash-secret",
-		AutoChargeThresholdCents: 1000,
-		MinChargeAmountCents:     100,
+		AdminToken:       "admin-token",
+		APIKeyHashSecret: "api-key-hash-secret",
+		APIKeyProvisioningEncryptionKey: bytes.Repeat(
+			[]byte{0x42},
+			32,
+		),
+		APIKeyProvisioningKeyVersion: "v1",
+		APIKeyProvisioningTTL:        24 * time.Hour,
+		AutoChargeThresholdCents:     1000,
+		MinChargeAmountCents:         100,
 	}
 	security, err := NewSecurityGraph(cfg)
 	if err != nil {
 		t.Fatalf("NewSecurityGraph: %v", err)
+	}
+	provisioningInfrastructure, err :=
+		NewProvisioningInfrastructureGraph(cfg, security)
+	if err != nil {
+		t.Fatalf(
+			"NewProvisioningInfrastructureGraph: %v",
+			err,
+		)
 	}
 
 	primitives := RuntimePrimitives{
@@ -122,17 +138,27 @@ func validApplicationGraphInputs(
 		}{},
 	}
 
-	return cfg, primitives, security, billingInfrastructure, repositories
+	return cfg,
+		primitives,
+		security,
+		provisioningInfrastructure,
+		billingInfrastructure,
+		repositories
 }
 
 func TestNewApplicationGraphWiresExistingPorts(t *testing.T) {
-	cfg, primitives, security, billingInfrastructure, repositories :=
-		validApplicationGraphInputs(t)
+	cfg,
+		primitives,
+		security,
+		provisioningInfrastructure,
+		billingInfrastructure,
+		repositories := validApplicationGraphInputs(t)
 
 	graph, err := NewApplicationGraph(
 		cfg,
 		primitives,
 		security,
+		provisioningInfrastructure,
 		billingInfrastructure,
 		repositories,
 	)
@@ -142,24 +168,99 @@ func TestNewApplicationGraphWiresExistingPorts(t *testing.T) {
 	if err := graph.Validate(); err != nil {
 		t.Fatalf("application graph: %v", err)
 	}
+	if !graph.ProvisioningEnabled ||
+		graph.Provisioning == nil {
+		t.Fatal("provisioning service is not wired")
+	}
 }
 
 func TestNewApplicationGraphRejectsInvalidAutoChargeConfig(
 	t *testing.T,
 ) {
-	cfg, primitives, security, billingInfrastructure, repositories :=
-		validApplicationGraphInputs(t)
+	cfg,
+		primitives,
+		security,
+		provisioningInfrastructure,
+		billingInfrastructure,
+		repositories := validApplicationGraphInputs(t)
 	cfg.AutoChargeThresholdCents = 0
 
 	graph, err := NewApplicationGraph(
 		cfg,
 		primitives,
 		security,
+		provisioningInfrastructure,
 		billingInfrastructure,
 		repositories,
 	)
 	if err == nil {
 		t.Fatal("expected auto-charge configuration error")
+	}
+	if err := graph.Validate(); err == nil {
+		t.Fatal("invalid graph unexpectedly validated")
+	}
+}
+
+func TestNewApplicationGraphAllowsProvisioningDisabled(
+	t *testing.T,
+) {
+	cfg,
+		primitives,
+		security,
+		_,
+		billingInfrastructure,
+		repositories := validApplicationGraphInputs(t)
+	cfg.APIKeyProvisioningEncryptionKey = nil
+
+	provisioningInfrastructure, err :=
+		NewProvisioningInfrastructureGraph(cfg, security)
+	if err != nil {
+		t.Fatalf(
+			"NewProvisioningInfrastructureGraph: %v",
+			err,
+		)
+	}
+	graph, err := NewApplicationGraph(
+		cfg,
+		primitives,
+		security,
+		provisioningInfrastructure,
+		billingInfrastructure,
+		repositories,
+	)
+	if err != nil {
+		t.Fatalf("NewApplicationGraph: %v", err)
+	}
+	if err := graph.Validate(); err != nil {
+		t.Fatalf("application graph: %v", err)
+	}
+	if graph.ProvisioningEnabled ||
+		graph.Provisioning != nil {
+		t.Fatal("disabled provisioning service was constructed")
+	}
+}
+
+func TestNewApplicationGraphRejectsInvalidProvisioningTTL(
+	t *testing.T,
+) {
+	cfg,
+		primitives,
+		security,
+		provisioningInfrastructure,
+		billingInfrastructure,
+		repositories := validApplicationGraphInputs(t)
+	cfg.APIKeyProvisioningTTL = 0
+
+	graph, err := NewApplicationGraph(
+		cfg,
+		primitives,
+		security,
+		provisioningInfrastructure,
+		billingInfrastructure,
+		repositories,
+	)
+	if err == nil {
+		t.Fatal("expected provisioning TTL error")
 	}
 	if err := graph.Validate(); err == nil {
 		t.Fatal("invalid graph unexpectedly validated")

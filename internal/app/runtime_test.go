@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"net/http"
@@ -83,22 +84,28 @@ func TestNewRuntimeIntegration(t *testing.T) {
 	}
 
 	cfg := config.Config{
-		DatabaseDSN:              dsn,
-		AdminToken:               "integration-admin-token",
-		APIKeyHashSecret:         "integration-api-key-hash-secret",
-		BillingBaseURL:           "https://billing.example",
-		BillingServiceToken:      "integration-billing-service-token",
-		BillingJWTSigningKey:     "integration-billing-jwt-signing-key",
-		BillingJWTTTL:            15 * time.Minute,
-		BillingTimeout:           30 * time.Second,
-		AutoChargeThresholdCents: 1000,
-		MinChargeAmountCents:     100,
-		GatewayAddr:              "127.0.0.1:0",
-		HTTPReadHeaderTimeout:    time.Second,
-		HTTPReadTimeout:          2 * time.Second,
-		HTTPWriteTimeout:         3 * time.Second,
-		HTTPIdleTimeout:          4 * time.Second,
-		HTTPShutdownTimeout:      5 * time.Second,
+		DatabaseDSN:      dsn,
+		AdminToken:       "integration-admin-token",
+		APIKeyHashSecret: "integration-api-key-hash-secret",
+		APIKeyProvisioningEncryptionKey: bytes.Repeat(
+			[]byte{0x42},
+			32,
+		),
+		APIKeyProvisioningKeyVersion: "v1",
+		APIKeyProvisioningTTL:        24 * time.Hour,
+		BillingBaseURL:               "https://billing.example",
+		BillingServiceToken:          "integration-billing-service-token",
+		BillingJWTSigningKey:         "integration-billing-jwt-signing-key",
+		BillingJWTTTL:                15 * time.Minute,
+		BillingTimeout:               30 * time.Second,
+		AutoChargeThresholdCents:     1000,
+		MinChargeAmountCents:         100,
+		GatewayAddr:                  "127.0.0.1:0",
+		HTTPReadHeaderTimeout:        time.Second,
+		HTTPReadTimeout:              2 * time.Second,
+		HTTPWriteTimeout:             3 * time.Second,
+		HTTPIdleTimeout:              4 * time.Second,
+		HTTPShutdownTimeout:          5 * time.Second,
 	}
 
 	runtime, err := NewRuntime(t.Context(), cfg)
@@ -112,6 +119,15 @@ func TestNewRuntimeIntegration(t *testing.T) {
 	}
 	if err := runtime.Security.Validate(); err != nil {
 		t.Fatalf("security graph: %v", err)
+	}
+	if err := runtime.Provisioning.Validate(); err != nil {
+		t.Fatalf(
+			"provisioning infrastructure graph: %v",
+			err,
+		)
+	}
+	if !runtime.Provisioning.Enabled {
+		t.Fatal("runtime provisioning graph is disabled")
 	}
 	if err := runtime.Billing.Validate(); err != nil {
 		t.Fatalf("billing infrastructure graph: %v", err)
