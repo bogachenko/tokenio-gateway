@@ -26,7 +26,14 @@ func NewProvisioningInfrastructureGraph(
 		)
 	}
 
-	if len(cfg.APIKeyProvisioningEncryptionKey) == 0 {
+	encryptionEnabled := len(cfg.APIKeyProvisioningEncryptionKey) > 0
+	if encryptionEnabled != security.ProvisioningEnabled {
+		return ProvisioningInfrastructureGraph{}, fmt.Errorf(
+			"provisioning service token and encryption key must be configured together",
+		)
+	}
+
+	if !encryptionEnabled {
 		graph := ProvisioningInfrastructureGraph{}
 		if err := graph.Validate(); err != nil {
 			return ProvisioningInfrastructureGraph{}, fmt.Errorf(
@@ -66,11 +73,8 @@ func NewProvisioningInfrastructureGraph(
 
 func (g ProvisioningInfrastructureGraph) Validate() error {
 	if !g.Enabled {
-		if g.MaterialFactory != nil ||
-			g.MaterialDecryptor != nil {
-			return fmt.Errorf(
-				"disabled provisioning graph contains crypto capabilities",
-			)
+		if g.MaterialFactory != nil || g.MaterialDecryptor != nil {
+			return fmt.Errorf("disabled provisioning graph contains crypto capabilities")
 		}
 		return nil
 	}

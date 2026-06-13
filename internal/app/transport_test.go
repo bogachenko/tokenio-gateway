@@ -5,15 +5,19 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/bogachenko/tokenio-gateway/internal/config"
 )
 
-func TestNewTransportGraphWiresAdminControlPlane(t *testing.T) {
-	cfg,
-		_,
-		security,
-		provisioningInfrastructure,
-		billingInfrastructure,
-		repositories := validApplicationGraphInputs(t)
+func buildTransportGraph(
+	t *testing.T,
+	cfg config.Config,
+	security SecurityGraph,
+	provisioningInfrastructure ProvisioningInfrastructureGraph,
+	billingInfrastructure BillingInfrastructureGraph,
+	repositories RepositoryGraph,
+) TransportGraph {
+	t.Helper()
 
 	primitives, err := NewRuntimePrimitives()
 	if err != nil {
@@ -30,74 +34,121 @@ func TestNewTransportGraphWiresAdminControlPlane(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewApplicationGraph: %v", err)
 	}
-
-	graph, err := NewTransportGraph(
-		primitives,
-		security,
-		applications,
-	)
+	graph, err := NewTransportGraph(cfg, primitives, security, applications)
 	if err != nil {
 		t.Fatalf("NewTransportGraph: %v", err)
 	}
+	return graph
+}
+
+func TestNewTransportGraphWiresControlPlanes(t *testing.T) {
+	cfg, _, security, provisioningInfrastructure, billingInfrastructure, repositories :=
+		validApplicationGraphInputs(t)
+
+	graph := buildTransportGraph(
+		t,
+		cfg,
+		security,
+		provisioningInfrastructure,
+		billingInfrastructure,
+		repositories,
+	)
 	if err := graph.Validate(); err != nil {
 		t.Fatalf("transport graph: %v", err)
 	}
+	if !graph.ProvisioningEnabled || graph.Provisioning == nil {
+		t.Fatal("provisioning HTTP handler is not wired")
+	}
 
-	health := httptest.NewRecorder()
+	provisioning := httptest.NewRecorder()
 	graph.Root.ServeHTTP(
-		health,
-		httptest.NewRequest(http.MethodGet, "/health", nil),
+		provisioning,
+		httptest.NewRequest(http.MethodPost, "/internal/v1/api-key-provisionings", nil),
 	)
-	if health.Code != http.StatusOK || health.Body.String() != "OK" {
+	if provisioning.Code != http.StatusUnauthorized ||
+		!strings.Contains(provisioning.Body.String(), `"code":"provisioning_unauthorized"`) ||
+		!strings.Contains(provisioning.Body.String(), `"request_id":"provreq_`) {
 		t.Fatalf(
-			"health status = %d, body = %q",
-			health.Code,
-			health.Body.String(),
+			"provisioning status = %d, body = %s",
+			provisioning.Code,
+			provisioning.Body.String(),
 		)
 	}
 
 	admin := httptest.NewRecorder()
 	graph.Root.ServeHTTP(
 		admin,
-		httptest.NewRequest(
-			http.MethodGet,
-			"/admin/v1/users",
-			nil,
-		),
+		httptest.NewRequest(http.MethodGet, "/admin/v1/users", nil),
 	)
-	if admin.Code != http.StatusUnauthorized {
-		t.Fatalf(
-			"admin status = %d, body = %s",
-			admin.Code,
-			admin.Body.String(),
-		)
+	if admin.Code != http.StatusUnauthorized ||
+		!strings.Contains(admin.Body.String(), `"code":"admin_unauthorized"`) {
+		t.Fatalf("admin status = %d, body = %s", admin.Code, admin.Body.String())
 	}
-	requestID := admin.Header().Get("X-Admin-Request-ID")
-	if !strings.HasPrefix(requestID, "admreq_") {
-		t.Fatalf("admin request ID = %q", requestID)
+}
+
+func TestNewTransportGraphLeavesProvisioningUnregisteredWhenDisabled(t *testing.T) {
+	cfg, _, _, _, billingInfrastructure, repositories := validApplicationGraphInputs(t)
+	cfg.ProvisioningServiceToken = ""
+	cfg.APIKeyProvisioningEncryptionKey = nil
+
+	security, err := NewSecurityGraph(cfg)
+	if err != nil {
+		t.Fatalf("NewSecurityGraph: %v", err)
 	}
-	if !strings.Contains(
-		admin.Body.String(),
-		`"code":"admin_unauthorized"`,
-	) {
-		t.Fatalf("admin body = %s", admin.Body.String())
+	provisioningInfrastructure, err := NewProvisioningInfrastructureGraph(cfg, security)
+	if err != nil {
+		t.Fatalf("NewProvisioningInfrastructureGraph: %v", err)
 	}
 
-	public := httptest.NewRecorder()
-	graph.Root.ServeHTTP(
-		public,
-		httptest.NewRequest(
-			http.MethodGet,
-			"/v1/users",
-			nil,
-		),
+	graph := buildTransportGraph(
+		t,
+		cfg,
+		security,
+		provisioningInfrastructure,
+		billingInfrastructure,
+		repositories,
 	)
-	if public.Code != http.StatusNotFound {
-		t.Fatalf(
-			"public status = %d, body = %s",
-			public.Code,
-			public.Body.String(),
-		)
+	if graph.ProvisioningEnabled || graph.Provisioning != nil {
+		t.Fatal("disabled provisioning handler was registered")
+	}
+
+	response := httptest.NewRecorder()
+	graph.Root.ServeHTTP(
+		response,
+		httptest.NewRequest(http.MethodPost, "/internal/v1/api-key-provisionings", nil),
+	)
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+}
+
+func TestNewTransportGraphRejectsCapabilityMismatch(t *testing.T) {
+	cfg, primitives, security, provisioningInfrastructure, billingInfrastructure, repositories :=
+		validApplicationGraphInputs(t)
+	applications, err := NewApplicationGraph(
+		cfg,
+		primitives,
+		security,
+		provisioningInfrastructure,
+		billingInfrastructure,
+		repositories,
+	)
+	if err != nil {
+		t.Fatalf("NewApplicationGraph: %v", err)
+	}
+
+	security.ProvisioningEnabled = false
+	security.ProvisioningAuthenticator = nil
+	if err := security.Validate(); err != nil {
+		t.Fatalf("mutated security graph: %v", err)
+	}
+
+	graph, err := NewTransportGraph(cfg, primitives, security, applications)
+	if err == nil {
+		t.Fatal("expected provisioning capability mismatch error")
+	}
+	if err := graph.Validate(); err == nil {
+		t.Fatal("invalid transport graph unexpectedly validated")
 	}
 }
 

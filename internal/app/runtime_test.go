@@ -84,9 +84,10 @@ func TestNewRuntimeIntegration(t *testing.T) {
 	}
 
 	cfg := config.Config{
-		DatabaseDSN:      dsn,
-		AdminToken:       "integration-admin-token",
-		APIKeyHashSecret: "integration-api-key-hash-secret",
+		DatabaseDSN:              dsn,
+		AdminToken:               "integration-admin-token",
+		APIKeyHashSecret:         "integration-api-key-hash-secret",
+		ProvisioningServiceToken: "integration-provisioning-service-token",
 		APIKeyProvisioningEncryptionKey: bytes.Repeat(
 			[]byte{0x42},
 			32,
@@ -100,6 +101,7 @@ func TestNewRuntimeIntegration(t *testing.T) {
 		BillingTimeout:               30 * time.Second,
 		AutoChargeThresholdCents:     1000,
 		MinChargeAmountCents:         100,
+		RequestBodyMaxBytes:          1024,
 		GatewayAddr:                  "127.0.0.1:0",
 		HTTPReadHeaderTimeout:        time.Second,
 		HTTPReadTimeout:              2 * time.Second,
@@ -119,6 +121,10 @@ func TestNewRuntimeIntegration(t *testing.T) {
 	}
 	if err := runtime.Security.Validate(); err != nil {
 		t.Fatalf("security graph: %v", err)
+	}
+	if !runtime.Security.ProvisioningEnabled ||
+		runtime.Security.ProvisioningAuthenticator == nil {
+		t.Fatal("runtime provisioning authenticator is disabled")
 	}
 	if err := runtime.Provisioning.Validate(); err != nil {
 		t.Fatalf(
@@ -140,6 +146,10 @@ func TestNewRuntimeIntegration(t *testing.T) {
 	}
 	if err := runtime.Transports.Validate(); err != nil {
 		t.Fatalf("transport graph: %v", err)
+	}
+	if !runtime.Transports.ProvisioningEnabled ||
+		runtime.Transports.Provisioning == nil {
+		t.Fatal("runtime provisioning transport is disabled")
 	}
 	if runtime.Handler == nil {
 		t.Fatal("runtime handler is nil")

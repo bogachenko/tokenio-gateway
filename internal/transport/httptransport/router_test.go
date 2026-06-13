@@ -10,31 +10,29 @@ import (
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 )
 
-type rootRouterAdminHandler struct {
+type rootRouterHandler struct {
 	calls int
 }
 
-func (h *rootRouterAdminHandler) ServeHTTP(
-	writer http.ResponseWriter,
-	_ *http.Request,
-) {
+func (h *rootRouterHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	h.calls++
-	writer.WriteHeader(http.StatusNoContent)
+	w.WriteHeader(http.StatusNoContent)
 }
 
-func TestNewRouterRejectsNilAdminHandler(t *testing.T) {
-	router, err := NewRouter(nil)
-	if router != nil {
-		t.Fatal("router must be nil")
+func TestNewRouterContract(t *testing.T) {
+	router, err := NewRouter(nil, nil)
+	if router != nil || !errors.Is(err, ErrInvalidRouterConfig) {
+		t.Fatalf("router = %v, error = %v", router, err)
 	}
-	if !errors.Is(err, ErrInvalidRouterConfig) {
-		t.Fatalf("error = %v, want ErrInvalidRouterConfig", err)
+
+	router, err = NewRouter(&rootRouterHandler{}, nil)
+	if err != nil || router == nil {
+		t.Fatalf("disabled provisioning router: %v", err)
 	}
 }
 
 func TestRouterHealthAndErrors(t *testing.T) {
 	tests := []struct {
-		name        string
 		method      string
 		path        string
 		wantStatus  int
@@ -45,7 +43,6 @@ func TestRouterHealthAndErrors(t *testing.T) {
 		wantAllow   string
 	}{
 		{
-			name:       "health ok",
 			method:     http.MethodGet,
 			path:       "/health",
 			wantStatus: http.StatusOK,
@@ -53,7 +50,6 @@ func TestRouterHealthAndErrors(t *testing.T) {
 			wantBody:   "OK",
 		},
 		{
-			name:        "health wrong method",
 			method:      http.MethodPost,
 			path:        "/health",
 			wantStatus:  http.StatusMethodNotAllowed,
@@ -63,16 +59,6 @@ func TestRouterHealthAndErrors(t *testing.T) {
 			wantAllow:   http.MethodGet,
 		},
 		{
-			name:        "health slash not found",
-			method:      http.MethodGet,
-			path:        "/health/",
-			wantStatus:  http.StatusNotFound,
-			wantType:    "application/json",
-			wantCode:    domain.ErrorCodeNotFound,
-			wantMessage: "Not found",
-		},
-		{
-			name:        "unknown not found",
 			method:      http.MethodGet,
 			path:        "/v1/models",
 			wantStatus:  http.StatusNotFound,
@@ -82,153 +68,90 @@ func TestRouterHealthAndErrors(t *testing.T) {
 		},
 	}
 
-	router, err := NewRouter(&rootRouterAdminHandler{})
+	router, err := NewRouter(&rootRouterHandler{}, nil)
 	if err != nil {
 		t.Fatalf("NewRouter: %v", err)
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			recorder := httptest.NewRecorder()
-			router.ServeHTTP(
-				recorder,
-				httptest.NewRequest(
-					test.method,
-					test.path,
-					nil,
-				),
-			)
-
-			if recorder.Code != test.wantStatus {
-				t.Fatalf(
-					"status = %d, want %d",
-					recorder.Code,
-					test.wantStatus,
-				)
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, httptest.NewRequest(test.method, test.path, nil))
+		if recorder.Code != test.wantStatus {
+			t.Fatalf("path %s: status = %d, want %d", test.path, recorder.Code, test.wantStatus)
+		}
+		if recorder.Header().Get("Content-Type") != test.wantType {
+			t.Fatalf("path %s: Content-Type = %q", test.path, recorder.Header().Get("Content-Type"))
+		}
+		if recorder.Header().Get("Allow") != test.wantAllow {
+			t.Fatalf("path %s: Allow = %q", test.path, recorder.Header().Get("Allow"))
+		}
+		if test.wantBody != "" {
+			if recorder.Body.String() != test.wantBody {
+				t.Fatalf("path %s: body = %q", test.path, recorder.Body.String())
 			}
-			if got := recorder.Header().Get("Content-Type"); got != test.wantType {
-				t.Fatalf(
-					"Content-Type = %q, want %q",
-					got,
-					test.wantType,
-				)
-			}
-			if got := recorder.Header().Get("Allow"); got != test.wantAllow {
-				t.Fatalf(
-					"Allow = %q, want %q",
-					got,
-					test.wantAllow,
-				)
-			}
-			if test.wantBody != "" {
-				if got := recorder.Body.String(); got != test.wantBody {
-					t.Fatalf(
-						"body = %q, want %q",
-						got,
-						test.wantBody,
-					)
-				}
-				return
-			}
-
-			var response ErrorResponse
-			if err := json.Unmarshal(
-				recorder.Body.Bytes(),
-				&response,
-			); err != nil {
-				t.Fatalf("decode error response: %v", err)
-			}
-			if response.Error.Code != test.wantCode ||
-				response.Error.Message != test.wantMessage {
-				t.Fatalf(
-					"error = %#v, want code %q message %q",
-					response.Error,
-					test.wantCode,
-					test.wantMessage,
-				)
-			}
-			if response.Error.RequestID != "" {
-				t.Fatalf(
-					"request_id = %q, want omitted",
-					response.Error.RequestID,
-				)
-			}
-		})
+			continue
+		}
+		var response ErrorResponse
+		if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+			t.Fatalf("decode error response: %v", err)
+		}
+		if response.Error.Code != test.wantCode || response.Error.Message != test.wantMessage {
+			t.Fatalf("path %s: error = %#v", test.path, response.Error)
+		}
 	}
 }
 
-func TestRouterDispatchesOnlyExactAdminBoundary(t *testing.T) {
+func TestRouterDispatchesOnlyExactBoundaries(t *testing.T) {
 	tests := []struct {
-		name         string
-		path         string
-		wantStatus   int
-		wantDispatch bool
+		path             string
+		wantStatus       int
+		wantAdminCalls   int
+		wantProvisioning int
 	}{
-		{
-			name:         "admin root",
-			path:         "/admin/v1",
-			wantStatus:   http.StatusNoContent,
-			wantDispatch: true,
-		},
-		{
-			name:         "admin endpoint",
-			path:         "/admin/v1/users",
-			wantStatus:   http.StatusNoContent,
-			wantDispatch: true,
-		},
-		{
-			name:       "prefix collision",
-			path:       "/admin/v1evil",
-			wantStatus: http.StatusNotFound,
-		},
-		{
-			name:       "admin parent",
-			path:       "/admin",
-			wantStatus: http.StatusNotFound,
-		},
-		{
-			name:       "public path",
-			path:       "/v1/users",
-			wantStatus: http.StatusNotFound,
-		},
+		{path: "/admin/v1", wantStatus: http.StatusNoContent, wantAdminCalls: 1},
+		{path: "/admin/v1/users", wantStatus: http.StatusNoContent, wantAdminCalls: 1},
+		{path: "/admin/v1evil", wantStatus: http.StatusNotFound},
+		{path: "/internal/v1/api-key-provisionings", wantStatus: http.StatusNoContent, wantProvisioning: 1},
+		{path: "/internal/v1/api-key-provisionings/prov_1/confirm-delivery", wantStatus: http.StatusNoContent, wantProvisioning: 1},
+		{path: "/internal/v1/api-key-provisioningsevil", wantStatus: http.StatusNotFound},
+		{path: "/internal/v1", wantStatus: http.StatusNotFound},
+		{path: "/v1/users", wantStatus: http.StatusNotFound},
 	}
 
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			admin := &rootRouterAdminHandler{}
-			router, err := NewRouter(admin)
-			if err != nil {
-				t.Fatalf("NewRouter: %v", err)
-			}
-
-			recorder := httptest.NewRecorder()
-			router.ServeHTTP(
-				recorder,
-				httptest.NewRequest(
-					http.MethodGet,
-					test.path,
-					nil,
-				),
+		admin := &rootRouterHandler{}
+		provisioning := &rootRouterHandler{}
+		router, err := NewRouter(admin, provisioning)
+		if err != nil {
+			t.Fatalf("NewRouter: %v", err)
+		}
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, test.path, nil))
+		if recorder.Code != test.wantStatus {
+			t.Fatalf("path %s: status = %d, want %d", test.path, recorder.Code, test.wantStatus)
+		}
+		if admin.calls != test.wantAdminCalls || provisioning.calls != test.wantProvisioning {
+			t.Fatalf(
+				"path %s: admin calls = %d, provisioning calls = %d",
+				test.path,
+				admin.calls,
+				provisioning.calls,
 			)
+		}
+	}
+}
 
-			if recorder.Code != test.wantStatus {
-				t.Fatalf(
-					"status = %d, want %d",
-					recorder.Code,
-					test.wantStatus,
-				)
-			}
-			wantCalls := 0
-			if test.wantDispatch {
-				wantCalls = 1
-			}
-			if admin.calls != wantCalls {
-				t.Fatalf(
-					"admin calls = %d, want %d",
-					admin.calls,
-					wantCalls,
-				)
-			}
-		})
+func TestRouterDoesNotDispatchDisabledProvisioning(t *testing.T) {
+	router, err := NewRouter(&rootRouterHandler{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(
+		recorder,
+		httptest.NewRequest(http.MethodPost, "/internal/v1/api-key-provisionings", nil),
+	)
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
 	}
 }

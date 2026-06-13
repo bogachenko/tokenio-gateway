@@ -10,11 +10,16 @@ import (
 )
 
 type SecurityGraph struct {
-	APIKeyHasher       *auth.APIKeyHasher
-	APIKeyGenerator    ports.APIKeyGenerator
+	APIKeyHasher    *auth.APIKeyHasher
+	APIKeyGenerator ports.APIKeyGenerator
+
 	AdminAuthenticator *auth.AdminAuthenticator
-	Secrets            ports.SecretResolver
-	SecretPresence     ports.SecretPresenceChecker
+
+	ProvisioningEnabled       bool
+	ProvisioningAuthenticator *auth.ProvisioningAuthenticator
+
+	Secrets        ports.SecretResolver
+	SecretPresence ports.SecretPresenceChecker
 }
 
 func NewSecurityGraph(cfg config.Config) (SecurityGraph, error) {
@@ -36,13 +41,30 @@ func NewSecurityGraph(cfg config.Config) (SecurityGraph, error) {
 		)
 	}
 
+	provisioningEnabled := cfg.ProvisioningServiceToken != ""
+	var provisioningAuthenticator *auth.ProvisioningAuthenticator
+	if provisioningEnabled {
+		provisioningAuthenticator, err =
+			auth.NewProvisioningAuthenticator(
+				cfg.ProvisioningServiceToken,
+			)
+		if err != nil {
+			return SecurityGraph{}, fmt.Errorf(
+				"construct provisioning authenticator: %w",
+				err,
+			)
+		}
+	}
+
 	secretResolver := envresolver.New()
 	graph := SecurityGraph{
-		APIKeyHasher:       hasher,
-		APIKeyGenerator:    auth.NewSecureAPIKeyGenerator(),
-		AdminAuthenticator: adminAuthenticator,
-		Secrets:            secretResolver,
-		SecretPresence:     secretResolver,
+		APIKeyHasher:              hasher,
+		APIKeyGenerator:           auth.NewSecureAPIKeyGenerator(),
+		AdminAuthenticator:        adminAuthenticator,
+		ProvisioningEnabled:       provisioningEnabled,
+		ProvisioningAuthenticator: provisioningAuthenticator,
+		Secrets:                   secretResolver,
+		SecretPresence:            secretResolver,
 	}
 	if err := graph.Validate(); err != nil {
 		return SecurityGraph{}, fmt.Errorf(
@@ -61,6 +83,16 @@ func (g SecurityGraph) Validate() error {
 		return fmt.Errorf("API-key generator is nil")
 	case g.AdminAuthenticator == nil:
 		return fmt.Errorf("admin authenticator is nil")
+	case g.ProvisioningEnabled &&
+		g.ProvisioningAuthenticator == nil:
+		return fmt.Errorf(
+			"enabled provisioning authenticator is nil",
+		)
+	case !g.ProvisioningEnabled &&
+		g.ProvisioningAuthenticator != nil:
+		return fmt.Errorf(
+			"disabled provisioning authenticator is non-nil",
+		)
 	case g.Secrets == nil:
 		return fmt.Errorf("secret resolver is nil")
 	case g.SecretPresence == nil:

@@ -109,6 +109,7 @@ func NewRuntime(
 	}
 
 	transports, err := NewTransportGraph(
+		cfg,
 		primitives,
 		security,
 		applications,

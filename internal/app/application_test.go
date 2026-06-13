@@ -30,8 +30,9 @@ func validApplicationGraphInputs(
 	t.Helper()
 
 	cfg := config.Config{
-		AdminToken:       "admin-token",
-		APIKeyHashSecret: "api-key-hash-secret",
+		AdminToken:               "admin-token",
+		APIKeyHashSecret:         "api-key-hash-secret",
+		ProvisioningServiceToken: "provisioning-service-token",
 		APIKeyProvisioningEncryptionKey: bytes.Repeat(
 			[]byte{0x42},
 			32,
@@ -40,6 +41,7 @@ func validApplicationGraphInputs(
 		APIKeyProvisioningTTL:        24 * time.Hour,
 		AutoChargeThresholdCents:     1000,
 		MinChargeAmountCents:         100,
+		RequestBodyMaxBytes:          1024,
 	}
 	security, err := NewSecurityGraph(cfg)
 	if err != nil {
@@ -210,8 +212,13 @@ func TestNewApplicationGraphAllowsProvisioningDisabled(
 		_,
 		billingInfrastructure,
 		repositories := validApplicationGraphInputs(t)
+	cfg.ProvisioningServiceToken = ""
 	cfg.APIKeyProvisioningEncryptionKey = nil
 
+	security, err := NewSecurityGraph(cfg)
+	if err != nil {
+		t.Fatalf("NewSecurityGraph: %v", err)
+	}
 	provisioningInfrastructure, err :=
 		NewProvisioningInfrastructureGraph(cfg, security)
 	if err != nil {
