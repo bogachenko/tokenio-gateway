@@ -8,7 +8,16 @@ import (
 	"github.com/bogachenko/tokenio-gateway/internal/config"
 )
 
-func TestNewServerUsesConfigAndTransportRouter(t *testing.T) {
+type appTestHandler struct{}
+
+func (*appTestHandler) ServeHTTP(
+	writer http.ResponseWriter,
+	_ *http.Request,
+) {
+	writer.WriteHeader(http.StatusNoContent)
+}
+
+func TestNewServerUsesConfigAndExactHandler(t *testing.T) {
 	cfg := config.Config{
 		GatewayAddr:           "127.0.0.1:0",
 		HTTPReadHeaderTimeout: time.Second,
@@ -16,16 +25,29 @@ func TestNewServerUsesConfigAndTransportRouter(t *testing.T) {
 		HTTPWriteTimeout:      3 * time.Second,
 		HTTPIdleTimeout:       4 * time.Second,
 	}
-	server := NewServer(cfg)
+	handler := &appTestHandler{}
+
+	server := NewServer(cfg, handler)
 
 	if server.Addr != cfg.GatewayAddr {
 		t.Fatalf("Addr = %q", server.Addr)
 	}
-	if server.Handler == nil {
-		t.Fatal("Handler is nil")
+	if server.Handler != handler {
+		t.Fatal("server did not preserve exact composed handler")
 	}
-	if server.ReadHeaderTimeout != cfg.HTTPReadHeaderTimeout || server.ReadTimeout != cfg.HTTPReadTimeout || server.WriteTimeout != cfg.HTTPWriteTimeout || server.IdleTimeout != cfg.HTTPIdleTimeout {
+	if server.ReadHeaderTimeout != cfg.HTTPReadHeaderTimeout ||
+		server.ReadTimeout != cfg.HTTPReadTimeout ||
+		server.WriteTimeout != cfg.HTTPWriteTimeout ||
+		server.IdleTimeout != cfg.HTTPIdleTimeout {
 		t.Fatalf("timeouts not copied: %#v", server)
 	}
-	_ = http.Handler(server.Handler)
+}
+
+func TestNewServerRejectsNilHandler(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected nil handler panic")
+		}
+	}()
+	NewServer(config.Config{}, nil)
 }

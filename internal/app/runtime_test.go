@@ -67,7 +67,7 @@ func TestNewServerWithHandlerUsesExactHandler(t *testing.T) {
 		HTTPIdleTimeout:       4 * time.Second,
 	}
 
-	server := NewServerWithHandler(cfg, handler)
+	server := NewServer(cfg, handler)
 	if server.Handler == nil {
 		t.Fatal("Handler is nil")
 	}
@@ -122,8 +122,14 @@ func TestNewRuntimeIntegration(t *testing.T) {
 	if err := runtime.Applications.Validate(); err != nil {
 		t.Fatalf("application graph: %v", err)
 	}
+	if err := runtime.Transports.Validate(); err != nil {
+		t.Fatalf("transport graph: %v", err)
+	}
 	if runtime.Handler == nil {
 		t.Fatal("runtime handler is nil")
+	}
+	if runtime.Handler != runtime.Transports.Root {
+		t.Fatal("runtime handler is not transport graph root")
 	}
 	if err := runtime.Ping(context.Background()); err != nil {
 		t.Fatalf("runtime ping: %v", err)

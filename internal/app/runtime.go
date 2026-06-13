@@ -8,7 +8,6 @@ import (
 
 	"github.com/bogachenko/tokenio-gateway/internal/config"
 	"github.com/bogachenko/tokenio-gateway/internal/infrastructure/postgres"
-	"github.com/bogachenko/tokenio-gateway/internal/transport/httptransport"
 )
 
 type Runtime struct {
@@ -18,6 +17,7 @@ type Runtime struct {
 	Billing      BillingInfrastructureGraph
 	Repositories RepositoryGraph
 	Applications ApplicationGraph
+	Transports   TransportGraph
 	Handler      http.Handler
 
 	database  *postgres.DB
@@ -100,6 +100,16 @@ func NewRuntime(
 		return nil, err
 	}
 
+	transports, err := NewTransportGraph(
+		primitives,
+		security,
+		applications,
+	)
+	if err != nil {
+		closeDatabase()
+		return nil, err
+	}
+
 	runtime := &Runtime{
 		Config:       cfg,
 		Primitives:   primitives,
@@ -107,7 +117,8 @@ func NewRuntime(
 		Billing:      billingInfrastructure,
 		Repositories: repositories,
 		Applications: applications,
-		Handler:      httptransport.NewRouter(),
+		Transports:   transports,
+		Handler:      transports.Root,
 		database:     database,
 	}
 	return runtime, nil

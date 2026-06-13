@@ -12,17 +12,9 @@ import (
 	"time"
 
 	"github.com/bogachenko/tokenio-gateway/internal/config"
-	"github.com/bogachenko/tokenio-gateway/internal/transport/httptransport"
 )
 
-func NewServer(cfg config.Config) *http.Server {
-	return NewServerWithHandler(
-		cfg,
-		httptransport.NewRouter(),
-	)
-}
-
-func NewServerWithHandler(
+func NewServer(
 	cfg config.Config,
 	handler http.Handler,
 ) *http.Server {
@@ -65,7 +57,7 @@ func RunWithConfig(
 	}
 	defer runtime.Close()
 
-	server := NewServerWithHandler(cfg, runtime.Handler)
+	server := NewServer(cfg, runtime.Handler)
 	log.Printf(
 		"tokenio-gateway listening on %s",
 		cfg.GatewayAddr,
