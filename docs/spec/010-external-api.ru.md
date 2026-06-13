@@ -680,6 +680,86 @@ Capability detection должна быть structural, а не semantic.
 
 Запрещено определять capability по смыслу текста prompt.
 
+## 8.4.1. Structural parser contract
+
+Parser принимает:
+
+```text
+endpoint_kind
+original request body bytes
+```
+
+И возвращает:
+
+```text
+независимую byte-for-byte копию original body
+routing key
+requested capabilities
+```
+
+Parser не выполняет JSON reserialization, schema normalization,
+default insertion, field deletion или semantic payload conversion.
+
+До извлечения routing metadata parser обязан отклонить:
+
+```text
+invalid UTF-8
+invalid JSON
+top-level value, отличный от object
+trailing JSON value
+duplicate key на любом уровне JSON
+nesting depth > 128
+```
+
+Duplicate keys запрещены, потому что parser и upstream parser могут
+выбрать разные значения одного routing-relevant поля.
+
+Structural field rules:
+
+```text
+model:
+  отсутствует или blank string -> model_required
+  значение другого JSON type -> invalid_json
+
+stream:
+  отсутствует или false -> non-streaming request
+  true -> streaming_unsupported
+  значение другого JSON type -> invalid_json
+```
+
+Base requested capability определяется endpoint:
+
+```text
+chat/completions   -> chat
+embeddings         -> embeddings
+images/generations -> images_generation
+```
+
+Для chat дополнительные capabilities определяются только точными
+структурными признаками:
+
+```text
+top-level tools present            -> tools
+top-level tool_choice present       -> tool_choice
+top-level response_format present   -> response_format
+response_format.type=json_schema
+  или json_schema field present     -> json_schema
+top-level reasoning_effort present  -> reasoning
+```
+
+Media capabilities определяются только внутри `messages[*].content`
+по exact part type или exact field name:
+
+```text
+image_url | input_image             -> image_input
+input_audio | audio                 -> audio_input
+file | file_id | input_file |
+document                            -> file_input
+video_url | input_video             -> video_input
+```
+
+Substring matching, keyword matching и анализ текста prompt запрещены.
+
 ## 8.5. Routing
 
 Gateway должен найти routes по ключу:
