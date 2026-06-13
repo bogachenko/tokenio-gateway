@@ -20,12 +20,16 @@ func (h *rootRouterHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 }
 
 func TestNewRouterContract(t *testing.T) {
-	router, err := NewRouter(nil, nil)
+	router, err := NewRouter(nil, nil, nil)
 	if router != nil || !errors.Is(err, ErrInvalidRouterConfig) {
 		t.Fatalf("router = %v, error = %v", router, err)
 	}
 
-	router, err = NewRouter(&rootRouterHandler{}, nil)
+	router, err = NewRouter(
+		&rootRouterHandler{},
+		&rootRouterHandler{},
+		nil,
+	)
 	if err != nil || router == nil {
 		t.Fatalf("disabled provisioning router: %v", err)
 	}
@@ -60,15 +64,19 @@ func TestRouterHealthAndErrors(t *testing.T) {
 		},
 		{
 			method:      http.MethodGet,
-			path:        "/v1/models",
+			path:        "/v1/unknown",
 			wantStatus:  http.StatusNotFound,
 			wantType:    "application/json",
 			wantCode:    domain.ErrorCodeNotFound,
-			wantMessage: "Not found",
+			wantMessage: "Endpoint not found",
 		},
 	}
 
-	router, err := NewRouter(&rootRouterHandler{}, nil)
+	router, err := NewRouter(
+		&rootRouterHandler{},
+		&rootRouterHandler{},
+		nil,
+	)
 	if err != nil {
 		t.Fatalf("NewRouter: %v", err)
 	}
@@ -105,9 +113,13 @@ func TestRouterDispatchesOnlyExactBoundaries(t *testing.T) {
 	tests := []struct {
 		path             string
 		wantStatus       int
+		wantPublicCalls  int
 		wantAdminCalls   int
 		wantProvisioning int
 	}{
+		{path: "/v1/models", wantStatus: http.StatusNoContent, wantPublicCalls: 1},
+		{path: "/v1/models/", wantStatus: http.StatusNotFound},
+		{path: "/v1/modelsevil", wantStatus: http.StatusNotFound},
 		{path: "/admin/v1", wantStatus: http.StatusNoContent, wantAdminCalls: 1},
 		{path: "/admin/v1/users", wantStatus: http.StatusNoContent, wantAdminCalls: 1},
 		{path: "/admin/v1evil", wantStatus: http.StatusNotFound},
@@ -119,9 +131,14 @@ func TestRouterDispatchesOnlyExactBoundaries(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		public := &rootRouterHandler{}
 		admin := &rootRouterHandler{}
 		provisioning := &rootRouterHandler{}
-		router, err := NewRouter(admin, provisioning)
+		router, err := NewRouter(
+			public,
+			admin,
+			provisioning,
+		)
 		if err != nil {
 			t.Fatalf("NewRouter: %v", err)
 		}
@@ -130,10 +147,13 @@ func TestRouterDispatchesOnlyExactBoundaries(t *testing.T) {
 		if recorder.Code != test.wantStatus {
 			t.Fatalf("path %s: status = %d, want %d", test.path, recorder.Code, test.wantStatus)
 		}
-		if admin.calls != test.wantAdminCalls || provisioning.calls != test.wantProvisioning {
+		if public.calls != test.wantPublicCalls ||
+			admin.calls != test.wantAdminCalls ||
+			provisioning.calls != test.wantProvisioning {
 			t.Fatalf(
-				"path %s: admin calls = %d, provisioning calls = %d",
+				"path %s: public calls = %d, admin calls = %d, provisioning calls = %d",
 				test.path,
+				public.calls,
 				admin.calls,
 				provisioning.calls,
 			)
@@ -142,7 +162,11 @@ func TestRouterDispatchesOnlyExactBoundaries(t *testing.T) {
 }
 
 func TestRouterDoesNotDispatchDisabledProvisioning(t *testing.T) {
-	router, err := NewRouter(&rootRouterHandler{}, nil)
+	router, err := NewRouter(
+		&rootRouterHandler{},
+		&rootRouterHandler{},
+		nil,
+	)
 	if err != nil {
 		t.Fatal(err)
 	}

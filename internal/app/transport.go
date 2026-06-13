@@ -7,11 +7,13 @@ import (
 	"github.com/bogachenko/tokenio-gateway/internal/config"
 	adminhttp "github.com/bogachenko/tokenio-gateway/internal/transport/http/admin"
 	provisioninghttp "github.com/bogachenko/tokenio-gateway/internal/transport/http/provisioning"
+	publicapi "github.com/bogachenko/tokenio-gateway/internal/transport/http/publicapi"
 	"github.com/bogachenko/tokenio-gateway/internal/transport/httptransport"
 )
 
 type TransportGraph struct {
-	Admin http.Handler
+	Public http.Handler
+	Admin  http.Handler
 
 	ProvisioningEnabled bool
 	Provisioning        http.Handler
@@ -37,6 +39,18 @@ func NewTransportGraph(
 	if security.ProvisioningEnabled != applications.ProvisioningEnabled {
 		return TransportGraph{}, fmt.Errorf(
 			"provisioning security and application capabilities disagree",
+		)
+	}
+
+	publicRouter, err := publicapi.NewRouter(
+		applications.PublicAuthentication,
+		applications.ModelCatalog,
+		primitives.RequestIDs,
+	)
+	if err != nil {
+		return TransportGraph{}, fmt.Errorf(
+			"construct public API HTTP router: %w",
+			err,
 		)
 	}
 
@@ -66,12 +80,17 @@ func NewTransportGraph(
 		provisioningRouter = router
 	}
 
-	rootRouter, err := httptransport.NewRouter(adminRouter, provisioningRouter)
+	rootRouter, err := httptransport.NewRouter(
+		publicRouter,
+		adminRouter,
+		provisioningRouter,
+	)
 	if err != nil {
 		return TransportGraph{}, fmt.Errorf("construct root HTTP router: %w", err)
 	}
 
 	graph := TransportGraph{
+		Public:              publicRouter,
 		Admin:               adminRouter,
 		ProvisioningEnabled: applications.ProvisioningEnabled,
 		Provisioning:        provisioningRouter,
@@ -85,6 +104,8 @@ func NewTransportGraph(
 
 func (g TransportGraph) Validate() error {
 	switch {
+	case g.Public == nil:
+		return fmt.Errorf("public API HTTP handler is nil")
 	case g.Admin == nil:
 		return fmt.Errorf("admin HTTP handler is nil")
 	case g.ProvisioningEnabled && g.Provisioning == nil:

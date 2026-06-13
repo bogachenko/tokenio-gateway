@@ -59,8 +59,43 @@ func TestNewTransportGraphWiresControlPlanes(t *testing.T) {
 	if err := graph.Validate(); err != nil {
 		t.Fatalf("transport graph: %v", err)
 	}
+	if graph.Public == nil {
+		t.Fatal("public API HTTP handler is not wired")
+	}
 	if !graph.ProvisioningEnabled || graph.Provisioning == nil {
 		t.Fatal("provisioning HTTP handler is not wired")
+	}
+
+	public := httptest.NewRecorder()
+	graph.Root.ServeHTTP(
+		public,
+		httptest.NewRequest(
+			http.MethodGet,
+			"/v1/models",
+			nil,
+		),
+	)
+	if public.Code != http.StatusUnauthorized ||
+		!strings.Contains(
+			public.Body.String(),
+			`"code":"unauthorized"`,
+		) ||
+		!strings.Contains(
+			public.Body.String(),
+			`"request_id":"llmreq_`,
+		) ||
+		!strings.HasPrefix(
+			public.Header().Get(
+				"X-Local-Request-ID",
+			),
+			"llmreq_",
+		) {
+		t.Fatalf(
+			"public status = %d, headers = %v, body = %s",
+			public.Code,
+			public.Header(),
+			public.Body.String(),
+		)
 	}
 
 	provisioning := httptest.NewRecorder()

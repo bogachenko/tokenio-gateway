@@ -554,6 +554,45 @@ pricing отсутствует
 все capabilities = false
 ```
 
+## 7.4.2. HTTP boundary contract
+
+`GET /v1/models` обрабатывается отдельным public transport adapter.
+
+Порядок boundary enforcement:
+
+```text
+1. создать llmreq_<random>
+2. установить X-Local-Request-ID
+3. проверить Authorization syntax
+4. вызвать public authentication use case
+5. проверить method = GET
+6. вызвать model catalog с api_family = openai_compatible
+7. вернуть catalog JSON без дополнительного envelope
+```
+
+Transport проверяет только форму:
+
+```text
+Authorization: Bearer sk_...
+```
+
+Hash lookup, API-key state и user state проверяются application use case.
+HTTP handler не обращается к API-key/user repositories напрямую.
+
+Error mapping:
+
+```text
+missing/malformed Authorization -> 401 unauthorized
+unknown/disabled/revoked/expired key -> 401 invalid_api_key
+disabled user -> 403 user_disabled
+wrong method -> 405 method_not_allowed + Allow: GET
+catalog dependency/contract unavailable -> 503 store_unavailable
+unexpected error -> 500 internal_error
+```
+
+Raw API key, repository error и secret diagnostics не включаются в
+response body.
+
 ## 7.5. Запрещённые поля
 
 `/v1/models` не должен раскрывать:
