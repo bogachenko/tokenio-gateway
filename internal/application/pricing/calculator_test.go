@@ -102,13 +102,8 @@ func TestMarkupValidationAndSingleRounding(t *testing.T) {
 	p := testPrice()
 	p.InputPricePer1MTokensCents = 333_333
 	p.OutputPricePer1MTokensCents = 333_333
-	p.MarkupCoefficient = 0
-	got := actual(t, domain.TokenUsage{InputTokens: 1, OutputTokens: 1}, p)
-	if got.UpstreamCostCents != 1 || got.ClientAmountCents != 1 {
-		t.Fatalf("default markup got %d/%d", got.UpstreamCostCents, got.ClientAmountCents)
-	}
 	p.MarkupCoefficient = 1
-	got = actual(t, domain.TokenUsage{InputTokens: 1, OutputTokens: 1}, p)
+	got := actual(t, domain.TokenUsage{InputTokens: 1, OutputTokens: 1}, p)
 	if got.UpstreamCostCents != 1 || got.ClientAmountCents != 1 {
 		t.Fatalf("markup 1 got %d/%d", got.UpstreamCostCents, got.ClientAmountCents)
 	}
@@ -127,7 +122,7 @@ func TestMarkupValidationAndSingleRounding(t *testing.T) {
 	if got.UpstreamCostCents != 2 || got.ClientAmountCents != 3 {
 		t.Fatalf("image unit raw basis got %d/%d", got.UpstreamCostCents, got.ClientAmountCents)
 	}
-	for _, bad := range []float64{-1, math.NaN(), math.Inf(1), math.Inf(-1)} {
+	for _, bad := range []float64{0, -1, math.NaN(), math.Inf(1), math.Inf(-1)} {
 		p := testPrice()
 		p.MarkupCoefficient = bad
 		_, err := newTestCalculator(t).CalculateActual(ActualCalculationInput{Usage: domain.TokenUsage{InputTokens: 1}, Price: p})

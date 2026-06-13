@@ -130,7 +130,7 @@ func ValidateRoutePrice(price domain.RoutePrice) error {
 			return fmt.Errorf("%w: %s is negative", ErrInvalidPricingInput, field.name)
 		}
 	}
-	if math.IsNaN(price.MarkupCoefficient) || math.IsInf(price.MarkupCoefficient, 0) || price.MarkupCoefficient < 0 {
+	if math.IsNaN(price.MarkupCoefficient) || math.IsInf(price.MarkupCoefficient, 0) || price.MarkupCoefficient <= 0 {
 		return fmt.Errorf("%w: invalid markup coefficient", ErrInvalidMarkup)
 	}
 	return nil
@@ -306,10 +306,7 @@ func positiveFiniteRat(value float64, name string) (*big.Rat, error) {
 }
 
 func markupRat(value float64) (*big.Rat, error) {
-	if value == 0 {
-		return big.NewRat(1, 1), nil
-	}
-	if value < 0 || math.IsNaN(value) || math.IsInf(value, 0) {
+	if value <= 0 || math.IsNaN(value) || math.IsInf(value, 0) {
 		return nil, fmt.Errorf("%w: markup coefficient", ErrInvalidMarkup)
 	}
 	return floatToRat(value)
