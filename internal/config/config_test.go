@@ -110,6 +110,62 @@ func TestLoadProvisioningConfig(t *testing.T) {
 			24*time.Hour,
 		)
 	}
+	if cfg.APIKeyProvisioningExpirationInterval != time.Minute {
+		t.Fatalf(
+			"APIKeyProvisioningExpirationInterval = %s, want %s",
+			cfg.APIKeyProvisioningExpirationInterval,
+			time.Minute,
+		)
+	}
+	if cfg.APIKeyProvisioningExpirationBatchSize != 100 {
+		t.Fatalf(
+			"APIKeyProvisioningExpirationBatchSize = %d, want 100",
+			cfg.APIKeyProvisioningExpirationBatchSize,
+		)
+	}
+}
+
+func TestLoadRejectsInvalidProvisioningExpirationWorkerConfig(
+	t *testing.T,
+) {
+	tests := []struct {
+		name  string
+		key   string
+		value string
+		want  string
+	}{
+		{
+			name:  "non-positive interval",
+			key:   "TOKENIO_API_KEY_PROVISIONING_EXPIRATION_INTERVAL",
+			value: "0s",
+			want:  "TOKENIO_API_KEY_PROVISIONING_EXPIRATION_INTERVAL must be positive",
+		},
+		{
+			name:  "non-positive batch size",
+			key:   "TOKENIO_API_KEY_PROVISIONING_EXPIRATION_BATCH_SIZE",
+			value: "0",
+			want:  "TOKENIO_API_KEY_PROVISIONING_EXPIRATION_BATCH_SIZE must be >= 1",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			setValidRequiredEnv(t)
+			t.Setenv(test.key, test.value)
+
+			_, err := Load()
+			if err == nil {
+				t.Fatal("expected Load() error")
+			}
+			if !strings.Contains(err.Error(), test.want) {
+				t.Fatalf(
+					"expected %q, got %v",
+					test.want,
+					err,
+				)
+			}
+		})
+	}
 }
 
 func TestLoadRejectsInvalidBillingBaseURL(t *testing.T) {

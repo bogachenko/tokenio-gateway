@@ -26,10 +26,12 @@ type Config struct {
 	AdminToken       string
 	APIKeyHashSecret string
 
-	ProvisioningServiceToken        string
-	APIKeyProvisioningEncryptionKey []byte
-	APIKeyProvisioningKeyVersion    string
-	APIKeyProvisioningTTL           time.Duration
+	ProvisioningServiceToken              string
+	APIKeyProvisioningEncryptionKey       []byte
+	APIKeyProvisioningKeyVersion          string
+	APIKeyProvisioningTTL                 time.Duration
+	APIKeyProvisioningExpirationInterval  time.Duration
+	APIKeyProvisioningExpirationBatchSize int
 
 	CostCurrency                string
 	AutoChargeThresholdCents    int64
@@ -89,6 +91,14 @@ func Load() (Config, error) {
 		APIKeyProvisioningEncryptionKey: l.optionalBase64Bytes("TOKENIO_API_KEY_PROVISIONING_ENCRYPTION_KEY", 32),
 		APIKeyProvisioningKeyVersion:    env("TOKENIO_API_KEY_PROVISIONING_KEY_VERSION", "v1"),
 		APIKeyProvisioningTTL:           l.duration("TOKENIO_API_KEY_PROVISIONING_TTL", 24*time.Hour),
+		APIKeyProvisioningExpirationInterval: l.duration(
+			"TOKENIO_API_KEY_PROVISIONING_EXPIRATION_INTERVAL",
+			time.Minute,
+		),
+		APIKeyProvisioningExpirationBatchSize: l.int(
+			"TOKENIO_API_KEY_PROVISIONING_EXPIRATION_BATCH_SIZE",
+			100,
+		),
 
 		CostCurrency:                env("TOKENIO_COST_CURRENCY", "RUB"),
 		AutoChargeThresholdCents:    l.int64("TOKENIO_AUTO_CHARGE_THRESHOLD_CENTS", 1000),
@@ -234,6 +244,16 @@ func validate(cfg Config) error {
 	}
 	if cfg.APIKeyProvisioningTTL <= 0 {
 		return fmt.Errorf("TOKENIO_API_KEY_PROVISIONING_TTL must be positive")
+	}
+	if cfg.APIKeyProvisioningExpirationInterval <= 0 {
+		return fmt.Errorf(
+			"TOKENIO_API_KEY_PROVISIONING_EXPIRATION_INTERVAL must be positive",
+		)
+	}
+	if cfg.APIKeyProvisioningExpirationBatchSize < 1 {
+		return fmt.Errorf(
+			"TOKENIO_API_KEY_PROVISIONING_EXPIRATION_BATCH_SIZE must be >= 1",
+		)
 	}
 	if keyLength := len(cfg.APIKeyProvisioningEncryptionKey); keyLength != 0 && keyLength != 32 {
 		return fmt.Errorf("TOKENIO_API_KEY_PROVISIONING_ENCRYPTION_KEY must decode to exactly 32 bytes")

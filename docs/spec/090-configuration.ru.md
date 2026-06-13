@@ -1209,8 +1209,10 @@ TOKENIO_ADMIN_TOKEN                      required
 TOKENIO_API_KEY_HASH_SECRET                    required
 TOKENIO_PROVISIONING_SERVICE_TOKEN             required
 TOKENIO_API_KEY_PROVISIONING_ENCRYPTION_KEY    required, base64-encoded 32 bytes
-TOKENIO_API_KEY_PROVISIONING_KEY_VERSION       default v1
-TOKENIO_API_KEY_PROVISIONING_TTL               default 24h
+TOKENIO_API_KEY_PROVISIONING_KEY_VERSION             default v1
+TOKENIO_API_KEY_PROVISIONING_TTL                     default 24h
+TOKENIO_API_KEY_PROVISIONING_EXPIRATION_INTERVAL     default 1m
+TOKENIO_API_KEY_PROVISIONING_EXPIRATION_BATCH_SIZE   default 100
 ```
 
 Provisioning encryption key must differ from API key HMAC secret.
@@ -1222,6 +1224,15 @@ AES-256-GCM
 ```
 
 Rotation to a new provisioning encryption key is allowed only when no pending delivery record requires the old key version.
+
+Provisioning expiration worker contract:
+
+```text
+TOKENIO_API_KEY_PROVISIONING_EXPIRATION_INTERVAL must be positive duration
+TOKENIO_API_KEY_PROVISIONING_EXPIRATION_BATCH_SIZE must be >= 1
+worker executes one cycle immediately at startup and then by interval
+worker calls the provisioning application service, not Postgres directly
+```
 
 ## 23.5. Pricing and balance
 
@@ -1299,6 +1310,8 @@ export TOKENIO_PROVISIONING_SERVICE_TOKEN='...'
 export TOKENIO_API_KEY_PROVISIONING_ENCRYPTION_KEY='<base64-encoded-32-byte-key>'
 export TOKENIO_API_KEY_PROVISIONING_KEY_VERSION='v1'
 export TOKENIO_API_KEY_PROVISIONING_TTL='24h'
+export TOKENIO_API_KEY_PROVISIONING_EXPIRATION_INTERVAL='1m'
+export TOKENIO_API_KEY_PROVISIONING_EXPIRATION_BATCH_SIZE='100'
 
 export TOKENIO_COST_CURRENCY='RUB'
 export TOKENIO_AUTO_CHARGE_THRESHOLD_CENTS='1000'
