@@ -25,6 +25,7 @@ func validApplicationGraphInputs(
 	SecurityGraph,
 	ProvisioningInfrastructureGraph,
 	BillingInfrastructureGraph,
+	ForwardingInfrastructureGraph,
 	RepositoryGraph,
 ) {
 	t.Helper()
@@ -39,6 +40,7 @@ func validApplicationGraphInputs(
 		),
 		APIKeyProvisioningKeyVersion: "v1",
 		APIKeyProvisioningTTL:        24 * time.Hour,
+		CostCurrency:                 "RUB",
 		AutoChargeThresholdCents:     1000,
 		MinChargeAmountCents:         100,
 		RequestBodyMaxBytes:          1024,
@@ -86,6 +88,15 @@ func validApplicationGraphInputs(
 		}{},
 	}
 
+	forwardingInfrastructure, err :=
+		NewForwardingInfrastructureGraph()
+	if err != nil {
+		t.Fatalf(
+			"NewForwardingInfrastructureGraph: %v",
+			err,
+		)
+	}
+
 	repositories := RepositoryGraph{
 		Users: &struct {
 			ports.UserRepository
@@ -98,6 +109,9 @@ func validApplicationGraphInputs(
 		}{},
 		Routes: &struct {
 			ports.RouteRepository
+		}{},
+		ModelCatalogRoutes: &struct {
+			ports.ModelCatalogRouteRepository
 		}{},
 		RoutePrices: &struct {
 			ports.RoutePriceRepository
@@ -148,6 +162,7 @@ func validApplicationGraphInputs(
 		security,
 		provisioningInfrastructure,
 		billingInfrastructure,
+		forwardingInfrastructure,
 		repositories
 }
 
@@ -157,6 +172,7 @@ func TestNewApplicationGraphWiresExistingPorts(t *testing.T) {
 		security,
 		provisioningInfrastructure,
 		billingInfrastructure,
+		forwardingInfrastructure,
 		repositories := validApplicationGraphInputs(t)
 
 	graph, err := NewApplicationGraph(
@@ -165,6 +181,7 @@ func TestNewApplicationGraphWiresExistingPorts(t *testing.T) {
 		security,
 		provisioningInfrastructure,
 		billingInfrastructure,
+		forwardingInfrastructure,
 		repositories,
 	)
 	if err != nil {
@@ -172,6 +189,9 @@ func TestNewApplicationGraphWiresExistingPorts(t *testing.T) {
 	}
 	if err := graph.Validate(); err != nil {
 		t.Fatalf("application graph: %v", err)
+	}
+	if graph.ModelCatalog == nil {
+		t.Fatal("model catalog service is not wired")
 	}
 	if !graph.ProvisioningEnabled ||
 		graph.Provisioning == nil {
@@ -187,6 +207,7 @@ func TestNewApplicationGraphRejectsInvalidAutoChargeConfig(
 		security,
 		provisioningInfrastructure,
 		billingInfrastructure,
+		forwardingInfrastructure,
 		repositories := validApplicationGraphInputs(t)
 	cfg.AutoChargeThresholdCents = 0
 
@@ -196,6 +217,7 @@ func TestNewApplicationGraphRejectsInvalidAutoChargeConfig(
 		security,
 		provisioningInfrastructure,
 		billingInfrastructure,
+		forwardingInfrastructure,
 		repositories,
 	)
 	if err == nil {
@@ -214,6 +236,7 @@ func TestNewApplicationGraphAllowsProvisioningDisabled(
 		security,
 		_,
 		billingInfrastructure,
+		forwardingInfrastructure,
 		repositories := validApplicationGraphInputs(t)
 	cfg.ProvisioningServiceToken = ""
 	cfg.APIKeyProvisioningEncryptionKey = nil
@@ -236,6 +259,7 @@ func TestNewApplicationGraphAllowsProvisioningDisabled(
 		security,
 		provisioningInfrastructure,
 		billingInfrastructure,
+		forwardingInfrastructure,
 		repositories,
 	)
 	if err != nil {
@@ -258,6 +282,7 @@ func TestNewApplicationGraphRejectsInvalidProvisioningTTL(
 		security,
 		provisioningInfrastructure,
 		billingInfrastructure,
+		forwardingInfrastructure,
 		repositories := validApplicationGraphInputs(t)
 	cfg.APIKeyProvisioningTTL = 0
 
@@ -267,6 +292,7 @@ func TestNewApplicationGraphRejectsInvalidProvisioningTTL(
 		security,
 		provisioningInfrastructure,
 		billingInfrastructure,
+		forwardingInfrastructure,
 		repositories,
 	)
 	if err == nil {

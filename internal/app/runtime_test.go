@@ -118,6 +118,7 @@ func TestNewRuntimeIntegration(t *testing.T) {
 		BillingJWTSigningKey:                  "integration-billing-jwt-signing-key",
 		BillingJWTTTL:                         15 * time.Minute,
 		BillingTimeout:                        30 * time.Second,
+		CostCurrency:                          "RUB",
 		AutoChargeThresholdCents:              1000,
 		MinChargeAmountCents:                  100,
 		RequestBodyMaxBytes:                   1024,
@@ -177,11 +178,20 @@ func TestNewRuntimeIntegration(t *testing.T) {
 			err,
 		)
 	}
+	if err := runtime.Forwarding.Validate(); err != nil {
+		t.Fatalf(
+			"forwarding infrastructure graph: %v",
+			err,
+		)
+	}
 	if err := runtime.Repositories.Validate(); err != nil {
 		t.Fatalf("repository graph: %v", err)
 	}
 	if err := runtime.Applications.Validate(); err != nil {
 		t.Fatalf("application graph: %v", err)
+	}
+	if runtime.Applications.ModelCatalog == nil {
+		t.Fatal("runtime model catalog service is nil")
 	}
 	if err := runtime.Workers.Validate(); err != nil {
 		t.Fatalf("worker graph: %v", err)

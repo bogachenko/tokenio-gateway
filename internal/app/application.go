@@ -7,12 +7,14 @@ import (
 	authenticateapp "github.com/bogachenko/tokenio-gateway/internal/application/authenticate"
 	billingapp "github.com/bogachenko/tokenio-gateway/internal/application/billing"
 	ledgerapp "github.com/bogachenko/tokenio-gateway/internal/application/ledger"
+	modelcatalogapp "github.com/bogachenko/tokenio-gateway/internal/application/modelcatalog"
 	provisioningapp "github.com/bogachenko/tokenio-gateway/internal/application/provisioning"
 	"github.com/bogachenko/tokenio-gateway/internal/config"
 )
 
 type ApplicationGraph struct {
 	PublicAuthentication *authenticateapp.UseCase
+	ModelCatalog         *modelcatalogapp.Service
 	ProvisioningEnabled  bool
 	Provisioning         *provisioningapp.Service
 	Ledger               *ledgerapp.Service
@@ -27,6 +29,7 @@ func NewApplicationGraph(
 	security SecurityGraph,
 	provisioningInfrastructure ProvisioningInfrastructureGraph,
 	billingInfrastructure BillingInfrastructureGraph,
+	forwardingInfrastructure ForwardingInfrastructureGraph,
 	repositories RepositoryGraph,
 ) (ApplicationGraph, error) {
 	if err := primitives.Validate(); err != nil {
@@ -53,6 +56,12 @@ func NewApplicationGraph(
 			err,
 		)
 	}
+	if err := forwardingInfrastructure.Validate(); err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"validate forwarding infrastructure graph: %w",
+			err,
+		)
+	}
 	if err := repositories.Validate(); err != nil {
 		return ApplicationGraph{}, fmt.Errorf(
 			"validate repository graph: %w",
@@ -69,6 +78,24 @@ func NewApplicationGraph(
 	if err != nil {
 		return ApplicationGraph{}, fmt.Errorf(
 			"construct public authentication use case: %w",
+			err,
+		)
+	}
+
+	modelCatalog, err := modelcatalogapp.NewService(
+		modelcatalogapp.Dependencies{
+			Routes:         repositories.ModelCatalogRoutes,
+			Resellers:      repositories.Resellers,
+			Prices:         repositories.RoutePrices,
+			Secrets:        security.SecretPresence,
+			RewriteSupport: forwardingInfrastructure.ModelRewriteSupport,
+			Clock:          primitives.Clock,
+			Currency:       cfg.CostCurrency,
+		},
+	)
+	if err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"construct model catalog service: %w",
 			err,
 		)
 	}
@@ -157,6 +184,7 @@ func NewApplicationGraph(
 
 	graph := ApplicationGraph{
 		PublicAuthentication: publicAuthentication,
+		ModelCatalog:         modelCatalog,
 		ProvisioningEnabled:  provisioningInfrastructure.Enabled,
 		Provisioning:         provisioningService,
 		Ledger:               ledgerService,
@@ -177,6 +205,8 @@ func (g ApplicationGraph) Validate() error {
 	switch {
 	case g.PublicAuthentication == nil:
 		return fmt.Errorf("public authentication use case is nil")
+	case g.ModelCatalog == nil:
+		return fmt.Errorf("model catalog service is nil")
 	case g.ProvisioningEnabled && g.Provisioning == nil:
 		return fmt.Errorf("enabled provisioning service is nil")
 	case !g.ProvisioningEnabled && g.Provisioning != nil:

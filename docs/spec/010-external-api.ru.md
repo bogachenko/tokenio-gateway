@@ -496,6 +496,16 @@ model rewrite policy поддерживается adapter registry
 route поддерживает capability своего endpoint_kind
 ```
 
+Adapter capability contract:
+
+```text
+concrete adapter package объявляет собственную rewrite capability
+generic registry только объединяет adapter capabilities
+composition root регистрирует конкретные adapter descriptors
+application layer не выводит rewrite support из provider name
+неизвестная пара api_family + provider_type не поддерживается
+```
+
 `GET /v1/models` не резервирует reseller balance и не захватывает
 rate/concurrency capacity. Полная route availability повторно
 проверяется request pipeline непосредственно перед forwarding.

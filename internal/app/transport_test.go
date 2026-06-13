@@ -15,6 +15,7 @@ func buildTransportGraph(
 	security SecurityGraph,
 	provisioningInfrastructure ProvisioningInfrastructureGraph,
 	billingInfrastructure BillingInfrastructureGraph,
+	forwardingInfrastructure ForwardingInfrastructureGraph,
 	repositories RepositoryGraph,
 ) TransportGraph {
 	t.Helper()
@@ -29,6 +30,7 @@ func buildTransportGraph(
 		security,
 		provisioningInfrastructure,
 		billingInfrastructure,
+		forwardingInfrastructure,
 		repositories,
 	)
 	if err != nil {
@@ -42,7 +44,7 @@ func buildTransportGraph(
 }
 
 func TestNewTransportGraphWiresControlPlanes(t *testing.T) {
-	cfg, _, security, provisioningInfrastructure, billingInfrastructure, repositories :=
+	cfg, _, security, provisioningInfrastructure, billingInfrastructure, forwardingInfrastructure, repositories :=
 		validApplicationGraphInputs(t)
 
 	graph := buildTransportGraph(
@@ -51,6 +53,7 @@ func TestNewTransportGraphWiresControlPlanes(t *testing.T) {
 		security,
 		provisioningInfrastructure,
 		billingInfrastructure,
+		forwardingInfrastructure,
 		repositories,
 	)
 	if err := graph.Validate(); err != nil {
@@ -87,7 +90,7 @@ func TestNewTransportGraphWiresControlPlanes(t *testing.T) {
 }
 
 func TestNewTransportGraphLeavesProvisioningUnregisteredWhenDisabled(t *testing.T) {
-	cfg, _, _, _, billingInfrastructure, repositories := validApplicationGraphInputs(t)
+	cfg, _, _, _, billingInfrastructure, forwardingInfrastructure, repositories := validApplicationGraphInputs(t)
 	cfg.ProvisioningServiceToken = ""
 	cfg.APIKeyProvisioningEncryptionKey = nil
 
@@ -106,6 +109,7 @@ func TestNewTransportGraphLeavesProvisioningUnregisteredWhenDisabled(t *testing.
 		security,
 		provisioningInfrastructure,
 		billingInfrastructure,
+		forwardingInfrastructure,
 		repositories,
 	)
 	if graph.ProvisioningEnabled || graph.Provisioning != nil {
@@ -123,7 +127,7 @@ func TestNewTransportGraphLeavesProvisioningUnregisteredWhenDisabled(t *testing.
 }
 
 func TestNewTransportGraphRejectsCapabilityMismatch(t *testing.T) {
-	cfg, primitives, security, provisioningInfrastructure, billingInfrastructure, repositories :=
+	cfg, primitives, security, provisioningInfrastructure, billingInfrastructure, forwardingInfrastructure, repositories :=
 		validApplicationGraphInputs(t)
 	applications, err := NewApplicationGraph(
 		cfg,
@@ -131,6 +135,7 @@ func TestNewTransportGraphRejectsCapabilityMismatch(t *testing.T) {
 		security,
 		provisioningInfrastructure,
 		billingInfrastructure,
+		forwardingInfrastructure,
 		repositories,
 	)
 	if err != nil {

@@ -8,12 +8,13 @@ import (
 )
 
 type RepositoryGraph struct {
-	Users       ports.UserRepository
-	APIKeys     ports.APIKeyRepository
-	Resellers   ports.ResellerQueryRepository
-	Routes      ports.RouteRepository
-	RoutePrices ports.RoutePriceRepository
-	UsageLedger ports.UsageLedger
+	Users              ports.UserRepository
+	APIKeys            ports.APIKeyRepository
+	Resellers          ports.ResellerQueryRepository
+	Routes             ports.RouteRepository
+	ModelCatalogRoutes ports.ModelCatalogRouteRepository
+	RoutePrices        ports.RoutePriceRepository
+	UsageLedger        ports.UsageLedger
 
 	AdminUsers        ports.AdminUserRepository
 	AdminAPIKeys      ports.AdminAPIKeyRepository
@@ -167,12 +168,13 @@ func NewRepositoryGraph(
 	}
 
 	return RepositoryGraph{
-		Users:       users,
-		APIKeys:     apiKeys,
-		Resellers:   resellers,
-		Routes:      routes,
-		RoutePrices: routePrices,
-		UsageLedger: usageLedger,
+		Users:              users,
+		APIKeys:            apiKeys,
+		Resellers:          resellers,
+		Routes:             routes,
+		ModelCatalogRoutes: routes,
+		RoutePrices:        routePrices,
+		UsageLedger:        usageLedger,
 
 		AdminUsers:        adminUsers,
 		AdminAPIKeys:      adminAPIKeys,
@@ -201,6 +203,10 @@ func (g RepositoryGraph) Validate() error {
 		return fmt.Errorf("reseller query repository is nil")
 	case g.Routes == nil:
 		return fmt.Errorf("route repository is nil")
+	case g.ModelCatalogRoutes == nil:
+		return fmt.Errorf(
+			"model catalog route repository is nil",
+		)
 	case g.RoutePrices == nil:
 		return fmt.Errorf("route-price repository is nil")
 	case g.UsageLedger == nil:

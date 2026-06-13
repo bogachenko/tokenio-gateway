@@ -36,6 +36,7 @@ func TestNewWorkerGraphWiresProvisioningExpiration(
 		security,
 		provisioningInfrastructure,
 		billingInfrastructure,
+		forwardingInfrastructure,
 		repositories := validApplicationGraphInputs(t)
 	cfg.APIKeyProvisioningExpirationInterval =
 		time.Minute
@@ -47,6 +48,7 @@ func TestNewWorkerGraphWiresProvisioningExpiration(
 		security,
 		provisioningInfrastructure,
 		billingInfrastructure,
+		forwardingInfrastructure,
 		repositories,
 	)
 	if err != nil {
@@ -80,6 +82,7 @@ func TestNewWorkerGraphAllowsProvisioningDisabled(
 		security,
 		provisioningInfrastructure,
 		billingInfrastructure,
+		forwardingInfrastructure,
 		repositories := validApplicationGraphInputs(t)
 
 	applications, err := NewApplicationGraph(
@@ -88,6 +91,7 @@ func TestNewWorkerGraphAllowsProvisioningDisabled(
 		security,
 		provisioningInfrastructure,
 		billingInfrastructure,
+		forwardingInfrastructure,
 		repositories,
 	)
 	if err != nil {
@@ -126,6 +130,7 @@ func TestNewWorkerGraphRejectsInvalidWorkerConfig(
 		security,
 		provisioningInfrastructure,
 		billingInfrastructure,
+		forwardingInfrastructure,
 		repositories := validApplicationGraphInputs(t)
 	cfg.APIKeyProvisioningExpirationInterval = 0
 	cfg.APIKeyProvisioningExpirationBatchSize = 100
@@ -136,6 +141,7 @@ func TestNewWorkerGraphRejectsInvalidWorkerConfig(
 		security,
 		provisioningInfrastructure,
 		billingInfrastructure,
+		forwardingInfrastructure,
 		repositories,
 	)
 	if err != nil {

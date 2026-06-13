@@ -17,6 +17,7 @@ type Runtime struct {
 	Security     SecurityGraph
 	Provisioning ProvisioningInfrastructureGraph
 	Billing      BillingInfrastructureGraph
+	Forwarding   ForwardingInfrastructureGraph
 	Repositories RepositoryGraph
 	Applications ApplicationGraph
 	Workers      WorkerGraph
@@ -56,6 +57,12 @@ func NewRuntime(
 			cfg,
 			primitives.Clock,
 		)
+	if err != nil {
+		return nil, err
+	}
+
+	forwardingInfrastructure, err :=
+		NewForwardingInfrastructureGraph()
 	if err != nil {
 		return nil, err
 	}
@@ -114,6 +121,7 @@ func NewRuntime(
 		security,
 		provisioningInfrastructure,
 		billingInfrastructure,
+		forwardingInfrastructure,
 		repositories,
 	)
 	if err != nil {
@@ -148,6 +156,7 @@ func NewRuntime(
 		Security:     security,
 		Provisioning: provisioningInfrastructure,
 		Billing:      billingInfrastructure,
+		Forwarding:   forwardingInfrastructure,
 		Repositories: repositories,
 		Applications: applications,
 		Workers:      workers,
