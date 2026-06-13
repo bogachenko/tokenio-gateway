@@ -581,13 +581,197 @@ Gateway формирует stable billing charge request id:
 billing_charge_request_id
 ```
 
-Он должен быть deterministic для набора records и суммы charge.
-
-Используется в:
+Он deterministic для canonical financial command и используется как:
 
 ```http
 Idempotency-Key: <billing_charge_request_id>
 ```
+
+`StableBatchID` идентифицирует immutable financial command. Runtime-generated timestamps и mutable batch result state не являются частью stable ID.
+
+## 10.5A. Charge batch preparation and usage claim
+
+До внешнего Billing-вызова gateway обязан transactionally подготовить durable charge command.
+
+`ports.UsageChargeBatchPlan.ExpectedRecords` содержит exact `pre-claim` состояния usage records.
+
+`UsageLedger.PrepareChargeBatch` в одной transaction обязан:
+
+```text
+1. Lock allocated usage records в canonical order.
+2. Сравнить каждую строку с соответствующим pre-claim ExpectedRecord.
+3. Проверить отсутствие другого active pending/failed batch claim.
+4. Создать pending billing batch.
+5. Сохранить ordered allocations.
+6. Установить для каждого allocated usage record:
+   billing_charge_request_id = batch.id.
+7. Создать immutable ordered post-claim expected-record snapshots.
+8. Commit.
+```
+
+Post-claim expected record равен pre-claim record, кроме:
+
+```text
+BillingChargeRequestID = batch.ID
+```
+
+Claim не изменяет:
+
+```text
+usage status
+charged_amount_cents
+remaining_amount_cents
+usage timestamps
+```
+
+Claim не является ledger status transition.
+
+`ports.BillingChargeBatchSnapshot.ExpectedRecords` всегда содержит post-claim records.
+
+Allocation с `charged_amount_cents <= 0` является invalid charge plan и не сохраняется.
+
+Billing Service вызывается только после successful commit `PrepareChargeBatch`.
+
+## 10.5B. Existing batch replay
+
+Если batch с `plan.Batch.ID` уже существует, adapter не сравнивает incoming pre-claim records напрямую с persisted post-claim snapshots.
+
+Для каждого incoming record строится canonical comparison form:
+
+```text
+comparison_record[i] =
+    plan.ExpectedRecords[i]
+    with BillingChargeRequestID = plan.Batch.ID
+```
+
+Transformation меняет только `BillingChargeRequestID`.
+
+### Canonical batch replay identity
+
+Exact immutable batch comparison включает только:
+
+```text
+ID
+UserID
+BillingSubjectUserID
+ProviderType
+ClientModel
+BillingModel
+InputTokens
+OutputTokens
+AmountCents
+Currency
+```
+
+Каждый incoming `plan.Batch` до create/replay branching обязан иметь:
+
+```text
+Status = pending
+CreatedAt = UpdatedAt
+CreatedAt и UpdatedAt являются valid UTC timestamps
+```
+
+Следующие поля не входят в existing-command equality:
+
+```text
+Status
+BillingResponseBalanceCents
+BillingErrorCode
+ChargedAt
+FailedAt
+CreatedAt
+UpdatedAt
+```
+
+Причины:
+
+```text
+Status и result fields являются mutable lifecycle state.
+CreatedAt и UpdatedAt создаются текущим clock,
+не входят в StableBatchID и отличаются у legitimate replay,
+построенного в другое время.
+```
+
+Persisted batch timestamps первой successful preparation являются authoritative и возвращаются replay caller без изменения.
+
+### Canonical allocation replay identity
+
+Allocations сравниваются по persisted `position` и полям:
+
+```text
+ID
+BatchID
+LocalRequestID
+ChargedAmountCents
+RemainingAmountCents
+```
+
+Каждая incoming allocation до create/replay branching обязана иметь:
+
+```text
+CreatedAt = plan.Batch.CreatedAt
+CreatedAt является valid UTC timestamp
+```
+
+`BillingChargeAllocation.CreatedAt`:
+
+```text
+валидируется при initial create
+не входит в StableBatchID
+не входит в existing-command equality
+не заменяет persisted CreatedAt при replay
+```
+
+Incoming slice index задаёт canonical position. Persisted allocation timestamps первой successful preparation являются authoritative.
+
+### Canonical expected-record replay identity
+
+`comparison_record[i]` exact-сравнивается с persisted post-claim expected record на той же position по всем canonical `UsageRecord` fields, включая usage timestamps.
+
+Exact replay требует совпадения:
+
+```text
+canonical immutable batch identity
+canonical ordered allocation identity
+comparison records с persisted post-claim snapshots
+record/allocation local_request_id correspondence по position
+```
+
+Exact match:
+
+```text
+idempotent success
+return exact persisted BillingChargeBatchSnapshot
+```
+
+Любое отличие:
+
+```text
+state/contract conflict
+```
+
+При existing batch replay usage claims повторно не обновляются, child rows повторно не вставляются и persisted timestamps не изменяются.
+
+## 10.5C. Active and historical claims
+
+Для usage record:
+
+```text
+billing_charge_request_id referencing pending batch
+    -> active claim
+
+billing_charge_request_id referencing failed batch
+    -> active claim retained for exact retry
+
+billing_charge_request_id referencing succeeded batch
+    -> historical charge reference
+```
+
+Record с active claim нельзя включить в другой batch.
+
+`partially_charged` record с historical succeeded batch reference может участвовать в следующем charge.
+
+При подготовке следующего batch его historical ID заменяется ID нового pending batch, а immutable expected snapshot сохраняет новое post-claim состояние.
 
 ## 10.6. Charge amount
 
@@ -600,6 +784,7 @@ charge_amount_cents = min(pending_chargeable_amount_cents, remote_balance_cents)
 Если `charge_amount_cents <= 0`:
 
 ```text
+batch не создаётся
 auto-charge deferred
 records остаются billable/partially_charged
 ```
@@ -616,26 +801,176 @@ remaining_amount_cents сохраняется
 
 ## 10.8. Successful charge
 
-После successful billing charge gateway должен:
+После successful Billing response gateway transactionally:
 
 ```text
-1. Mark allocated records as charged or partially_charged.
-2. Store billing_charge_request_id.
-3. Store charged_at.
-4. Update local billing session balance from billing response, if provided.
+1. Загружает persisted immutable batch command.
+2. Проверяет caller metadata против persisted command.
+3. Проверяет current usage rows против persisted post-claim expected snapshots.
+4. Применяет allocations ровно один раз.
+5. Обновляет charged_amount_cents и remaining_amount_cents.
+6. Устанавливает status charged или partially_charged.
+7. Устанавливает charged_at.
+8. Сохраняет billing_charge_request_id текущего batch.
+9. Переводит batch в succeeded.
+10. Сохраняет Billing response balance, если он присутствует.
 ```
+
+`billing_charge_request_id` уже установлен на preparation stage; successful reconciliation сохраняет его как historical succeeded batch reference.
+
+Identical succeeded replay является no-op: usage rows, immutable command и batch timestamps не изменяются.
 
 ## 10.9. Failed charge
 
-Если billing charge failed:
+Если Billing charge failed:
 
 ```text
-records остаются billable/partially_charged
-error записывается в ledger/admin diagnostics
-future requests учитывают pending
+batch pending -> failed
+usage records остаются billable/partially_charged
+charged и remaining amounts не изменяются
+active billing_charge_request_id claim сохраняется
+future retry использует тот же batch ID и тот же persisted command
 ```
 
-Gateway не должен удалять pending records.
+Новый batch для этих records не создаётся, пока failed batch не reconciled либо не разрешён отдельной explicit recovery operation.
+
+Gateway не удаляет pending usage и не сохраняет raw Billing response body.
+
+## 10.10. MarkChargeBatchFailed CAS
+
+Этот контракт относится к:
+
+```text
+UsageLedger.MarkChargeBatchFailed
+```
+
+и описывает initial automatic charge failure либо idempotent replay той же automatic failure operation.
+
+Первый переход:
+
+```text
+persisted status = pending
+expectedStatus = pending
+-> pending -> failed
+```
+
+Сохраняются:
+
+```text
+billing_error_code
+failed_at
+updated_at = failed_at
+```
+
+Если persisted status уже `failed`, idempotent replay разрешён только когда:
+
+```text
+expectedStatus = failed
+billingErrorCode точно совпадает с persisted billing_error_code
+```
+
+Caller `failedAt` при already-failed replay:
+
+```text
+не участвует в equality
+не сохраняется
+не изменяет failed_at
+не изменяет updated_at
+```
+
+Другой error code или другой expected status возвращает:
+
+```text
+state conflict
+```
+
+`succeeded -> failed` запрещён.
+
+`MarkChargeBatchFailed` не создаёт admin retry outcome audit и не моделирует новую явную попытку retry.
+
+## 10.11. Explicit failed-batch retry and audit
+
+Явный admin retry failed batch является новой operation, а не idempotent replay `MarkChargeBatchFailed`.
+
+До внешнего Billing-вызова:
+
+```text
+AdminUsageLedger.RecordChargeRetryAttemptWithAudit
+```
+
+атомарно:
+
+```text
+1. Проверяет, что exact persisted failed snapshot всё ещё current.
+2. Не изменяет BillingChargeBatch.
+3. Сохраняет attempt audit:
+   before_state = exact current batch
+   after_state = exact current batch.
+4. Commit до внешнего financial side effect.
+```
+
+Если явный retry снова завершился Billing error, вызывается:
+
+```text
+AdminUsageLedger.MarkChargeRetryFailedWithAudit
+```
+
+с:
+
+```text
+expectedStatus = failed
+billingErrorCode = normalized retry error code
+retryFailedAt = valid UTC operation time
+outcome audit before_state = exact pre-operation batch
+outcome audit after_state = exact requested post-operation batch
+```
+
+Одна transaction обязана:
+
+```text
+1. Lock current batch.
+2. Проверить current status = expectedStatus = failed.
+3. Построить committed next batch:
+   Status = failed
+   BillingErrorCode = billingErrorCode
+   FailedAt = retryFailedAt
+   UpdatedAt = retryFailedAt.
+4. Не изменять immutable command, ChargedAt или BillingResponseBalanceCents.
+5. Exact-сравнить audit before_state с current batch.
+6. Exact-сравнить audit after_state с next batch.
+7. Сохранить next batch и outcome audit атомарно.
+8. Commit.
+```
+
+Это допустимый audited transition:
+
+```text
+failed -> failed
+```
+
+который фиксирует outcome новой внешней retry attempt.
+
+Инвариант audit:
+
+```text
+persisted audit before_state = exact pre-transaction entity
+persisted audit after_state = exact committed entity
+returned failed entity = exact committed entity
+```
+
+Idempotency определяется outcome audit ID:
+
+```text
+same outcome audit ID + exact same operation payload
+    -> idempotent no-op returning the already committed state
+
+same outcome audit ID + different payload
+    -> state/contract conflict
+```
+
+Новая retry attempt имеет новые deterministic phase audit IDs и может обновить `failed_at`/`updated_at`.
+
+Если current batch уже `succeeded`, retry failure outcome возвращает state conflict и не создаёт ложный audit.
 
 ---
 
@@ -858,7 +1193,7 @@ X-Billing-Auto-Charge-Status: deferred
 
 # 16. Ledger records
 
-Минимальная usage record model:
+Минимальная canonical usage record model:
 
 ```text
 local_request_id
@@ -873,9 +1208,18 @@ selected_reseller_id
 selected_route_id
 provider_type
 provider_model
+provider_request_id
+provider_response_model
 
 estimated_input_tokens
+estimated_cached_input_tokens
 estimated_output_tokens
+estimated_reasoning_tokens
+estimated_image_input_tokens
+estimated_audio_input_tokens
+estimated_audio_output_tokens
+estimated_file_input_tokens
+estimated_video_input_tokens
 estimated_image_generation_units
 estimated_client_amount_cents
 estimated_upstream_cost_cents
@@ -890,6 +1234,7 @@ audio_output_tokens
 file_input_tokens
 video_input_tokens
 image_generation_units
+usage_completeness
 
 client_amount_cents
 charged_amount_cents
@@ -909,6 +1254,8 @@ charged_at
 failed_at
 updated_at
 ```
+
+Все десять dimensions `EstimatedUsage` и `Usage` являются частью exact persistence round-trip.
 
 ---
 
@@ -1114,4 +1461,21 @@ Ledger and auto-charge layer считается реализованным, ес
 17. Partial charge корректно обновляет remaining_amount_cents.
 18. Ledger writes выполняются transactional.
 19. Tests покрывают state transitions, pending/effective balance, auto-charge и idempotency.
+```
+
+## 24.1. Stage 11A persistence contract acceptance
+
+Stage 11A ledger contract дополнительно принимается только если:
+
+```text
+1. PrepareChargeBatch commit предшествует внешнему Billing call.
+2. Plan ExpectedRecords являются pre-claim, persisted snapshots — post-claim.
+3. Existing replay исключает runtime-generated batch/allocation timestamps из immutable equality.
+4. Persisted timestamps первой preparation возвращаются без замены.
+5. Automatic MarkChargeBatchFailed already-failed replay является no-op.
+6. Explicit admin retry failure является отдельным audited failed -> failed transition.
+7. Retry audit before_state и after_state совпадают с exact pre/post committed entities.
+8. Same outcome audit ID имеет explicit idempotency/conflict contract.
+9. Active failed claim и historical succeeded reference различаются однозначно.
+10. Code и migrations не изменяются на Stage 11A.
 ```

@@ -23,6 +23,7 @@ usage_records
 billing_sessions
 billing_charge_batches
 billing_charge_allocations
+billing_charge_expected_records
 route_events
 telegram_alerts
 admin_audit_log
@@ -598,7 +599,7 @@ CREATE TABLE tokenio_route_prices (
     image_generation_price_per_unit_cents BIGINT NOT NULL DEFAULT 0,
     image_generation_unit_kind TEXT NOT NULL DEFAULT 'none',
 
-    markup_coefficient NUMERIC(12, 6) NOT NULL DEFAULT 1.0,
+    markup_coefficient DOUBLE PRECISION NOT NULL DEFAULT 1.0,
 
     enabled BOOLEAN NOT NULL DEFAULT TRUE,
 
@@ -617,7 +618,10 @@ CREATE TABLE tokenio_route_prices (
     CHECK (video_input_price_per_1m_tokens_cents >= 0),
     CHECK (image_generation_price_per_unit_cents >= 0),
     CHECK (image_generation_unit_kind IN ('none', 'generated_image')),
-    CHECK (markup_coefficient > 0)
+    CHECK (
+        markup_coefficient > 0
+        AND markup_coefficient < 'Infinity'::double precision
+    )
 );
 ```
 
@@ -630,6 +634,62 @@ RUB cents per 1,000,000 tokens
 ```
 
 `markup_coefficient` применяется к client amount, но не меняет upstream cost.
+
+## 9.4. Canonical float64 persistence
+
+Canonical application type:
+
+```text
+domain.RoutePrice.MarkupCoefficient = Go float64
+```
+
+Application validation принимает любой finite positive `float64`.
+
+Поэтому physical type обязан быть:
+
+```sql
+DOUBLE PRECISION
+```
+
+а не fixed-scale `NUMERIC(p, s)`.
+
+`NUMERIC(12, 6)` запрещён, потому что округляет valid values с более чем шестью fractional digits и ограничивает допустимый finite `float64` range.
+
+Constraint:
+
+```sql
+CHECK (
+    markup_coefficient > 0
+    AND markup_coefficient < 'Infinity'::double precision
+)
+```
+
+отклоняет:
+
+```text
+0
+negative values
+-Infinity
+Infinity
+NaN
+```
+
+PostgreSQL adapter обязан bind/scan значение как binary64-compatible `double precision` без decimal quantization.
+
+Round-trip invariant:
+
+```text
+persisted MarkupCoefficient
+    == canonical input float64
+
+returned RoutePrice
+    == exact committed RoutePrice
+
+audit after_state
+    == exact committed RoutePrice
+```
+
+CAS и audit comparison используют decoded canonical `float64`, а не округлённую decimal representation.
 
 ---
 
@@ -666,7 +726,14 @@ CREATE TABLE tokenio_usage_records (
     provider_response_model TEXT,
 
     estimated_input_tokens BIGINT NOT NULL DEFAULT 0,
+    estimated_cached_input_tokens BIGINT NOT NULL DEFAULT 0,
     estimated_output_tokens BIGINT NOT NULL DEFAULT 0,
+    estimated_reasoning_tokens BIGINT NOT NULL DEFAULT 0,
+    estimated_image_input_tokens BIGINT NOT NULL DEFAULT 0,
+    estimated_audio_input_tokens BIGINT NOT NULL DEFAULT 0,
+    estimated_audio_output_tokens BIGINT NOT NULL DEFAULT 0,
+    estimated_file_input_tokens BIGINT NOT NULL DEFAULT 0,
+    estimated_video_input_tokens BIGINT NOT NULL DEFAULT 0,
     estimated_image_generation_units BIGINT NOT NULL DEFAULT 0,
     estimated_client_amount_cents BIGINT NOT NULL DEFAULT 0,
     estimated_upstream_cost_cents BIGINT NOT NULL DEFAULT 0,
@@ -707,7 +774,14 @@ CREATE TABLE tokenio_usage_records (
     CHECK (currency = 'RUB'),
 
     CHECK (estimated_input_tokens >= 0),
+    CHECK (estimated_cached_input_tokens >= 0),
     CHECK (estimated_output_tokens >= 0),
+    CHECK (estimated_reasoning_tokens >= 0),
+    CHECK (estimated_image_input_tokens >= 0),
+    CHECK (estimated_audio_input_tokens >= 0),
+    CHECK (estimated_audio_output_tokens >= 0),
+    CHECK (estimated_file_input_tokens >= 0),
+    CHECK (estimated_video_input_tokens >= 0),
     CHECK (estimated_image_generation_units >= 0),
     CHECK (estimated_client_amount_cents >= 0),
     CHECK (estimated_upstream_cost_cents >= 0),
@@ -729,6 +803,35 @@ CREATE TABLE tokenio_usage_records (
     CHECK (actual_upstream_cost_cents >= 0)
 );
 ```
+
+## 10.2A. Complete EstimatedUsage mapping
+
+Все десять dimensions `domain.UsageRecord.EstimatedUsage` сохраняются без потерь:
+
+```text
+EstimatedUsage.InputTokens
+    -> estimated_input_tokens
+EstimatedUsage.CachedInputTokens
+    -> estimated_cached_input_tokens
+EstimatedUsage.OutputTokens
+    -> estimated_output_tokens
+EstimatedUsage.ReasoningTokens
+    -> estimated_reasoning_tokens
+EstimatedUsage.ImageInputTokens
+    -> estimated_image_input_tokens
+EstimatedUsage.AudioInputTokens
+    -> estimated_audio_input_tokens
+EstimatedUsage.AudioOutputTokens
+    -> estimated_audio_output_tokens
+EstimatedUsage.FileInputTokens
+    -> estimated_file_input_tokens
+EstimatedUsage.VideoInputTokens
+    -> estimated_video_input_tokens
+EstimatedUsage.ImageGenerationUnits
+    -> estimated_image_generation_units
+```
+
+Synthetic zero reconstruction для отсутствующей dimension запрещён.
 
 ## 10.3. Status constraint
 
@@ -872,7 +975,9 @@ remote_balance_cents - pending amount from usage ledger
 
 ## 12.1. Purpose
 
-`tokenio_billing_charge_batches` хранит каждый вызов billing service charge.
+`tokenio_billing_charge_batches` хранит durable billing charge command state и результат reconciliation.
+
+Raw Billing response body не хранится.
 
 ## 12.2. Columns
 
@@ -890,25 +995,53 @@ CREATE TABLE tokenio_billing_charge_batches (
     input_tokens BIGINT NOT NULL DEFAULT 0,
     output_tokens BIGINT NOT NULL DEFAULT 0,
 
-    amount_cents BIGINT NOT NULL DEFAULT 0,
+    amount_cents BIGINT NOT NULL,
     currency TEXT NOT NULL DEFAULT 'RUB',
 
     billing_status TEXT NOT NULL,
 
     billing_response_balance_cents BIGINT,
-    billing_error_code TEXT,
-    billing_error_body TEXT,
+    billing_error_code TEXT NOT NULL DEFAULT '',
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     charged_at TIMESTAMPTZ,
     failed_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     CHECK (currency = 'RUB'),
     CHECK (input_tokens >= 0),
     CHECK (output_tokens >= 0),
-    CHECK (amount_cents >= 0)
+    CHECK (amount_cents > 0),
+    CHECK (
+        billing_response_balance_cents IS NULL
+        OR billing_response_balance_cents >= 0
+    ),
+    CHECK (
+        (
+            billing_status = 'pending'
+            AND charged_at IS NULL
+            AND failed_at IS NULL
+            AND billing_error_code = ''
+        )
+        OR
+        (
+            billing_status = 'failed'
+            AND charged_at IS NULL
+            AND failed_at IS NOT NULL
+            AND billing_error_code <> ''
+        )
+        OR
+        (
+            billing_status = 'succeeded'
+            AND charged_at IS NOT NULL
+            AND failed_at IS NULL
+            AND billing_error_code = ''
+        )
+    )
 );
 ```
+
+Column `billing_error_body` запрещён. Adapter сохраняет только normalized `billing_error_code`, необходимый canonical contract.
 
 ## 12.3. Billing status constraint
 
@@ -936,15 +1069,66 @@ CREATE INDEX tokenio_billing_charge_batches_model_idx
     ON tokenio_billing_charge_batches (provider_type, client_model, created_at);
 ```
 
+## 12.5. UpdatedAt persistence
+
+`updated_at` хранит exact `domain.BillingChargeBatch.UpdatedAt` и не вычисляется при чтении из `created_at`, `charged_at` или `failed_at`.
+
+Rules определены ledger semantics из `docs/spec/050-ledger-and-auto-charge.ru.md`:
+
+```text
+create:
+    updated_at = created_at
+
+automatic pending -> failed:
+    updated_at = failed_at
+
+automatic identical failed replay через MarkChargeBatchFailed:
+    failed_at unchanged
+    updated_at unchanged
+
+explicit failed retry outcome через MarkChargeRetryFailedWithAudit:
+    failed_at = retry_failed_at
+    updated_at = retry_failed_at
+
+pending|failed -> succeeded:
+    updated_at = charged_at
+
+succeeded identical replay:
+    updated_at unchanged
+```
+
+## 12.6. Initial timestamps and existing replay
+
+Для initial insert:
+
+```text
+incoming Status = pending
+incoming CreatedAt = incoming UpdatedAt
+created_at = incoming CreatedAt
+updated_at = incoming UpdatedAt
+```
+
+Для existing batch replay incoming `Status`, `CreatedAt` и `UpdatedAt` сначала проходят structural validation из spec 050, но не сравниваются с persisted lifecycle state/timestamps, потому что timestamps создаются текущим clock и не входят в `StableBatchID`.
+
+Persisted timestamps первой successful preparation:
+
+```text
+не заменяются replay command
+являются authoritative
+возвращаются в exact persisted snapshot
+```
+
+Mutable status/result fields также не входят в immutable existing-command equality.
+
 ---
 
 # 13. Table: tokenio_billing_charge_allocations
 
 ## 13.1. Purpose
 
-`tokenio_billing_charge_allocations` связывает charge batch с usage records.
+`tokenio_billing_charge_allocations` хранит immutable ordered allocations durable billing command.
 
-Нужна для partial charge и audit.
+Таблица нужна для partial charge, exact replay и audit.
 
 ## 13.2. Columns
 
@@ -954,26 +1138,241 @@ CREATE TABLE tokenio_billing_charge_allocations (
 
     batch_id TEXT NOT NULL REFERENCES tokenio_billing_charge_batches(id),
     local_request_id TEXT NOT NULL REFERENCES tokenio_usage_records(local_request_id),
+    position INTEGER NOT NULL,
 
     charged_amount_cents BIGINT NOT NULL,
     remaining_amount_cents BIGINT NOT NULL,
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-    CHECK (charged_amount_cents >= 0),
+    CHECK (position >= 0),
+    CHECK (charged_amount_cents > 0),
     CHECK (remaining_amount_cents >= 0)
 );
 ```
 
-## 13.3. Constraints
+## 13.3. Constraints and indexes
 
 ```sql
 CREATE UNIQUE INDEX tokenio_billing_charge_allocations_batch_usage_uq
     ON tokenio_billing_charge_allocations (batch_id, local_request_id);
 
+CREATE UNIQUE INDEX tokenio_billing_charge_allocations_batch_position_uq
+    ON tokenio_billing_charge_allocations (batch_id, position);
+
 CREATE INDEX tokenio_billing_charge_allocations_usage_idx
     ON tokenio_billing_charge_allocations (local_request_id);
 ```
+
+`charged_amount_cents <= 0` является invalid charge plan и не может быть persisted.
+
+## 13.4. Initial timestamp and replay equality
+
+Для initial insert `created_at` сохраняет canonical `BillingChargeAllocation.CreatedAt`.
+
+Каждая incoming allocation обязана иметь valid UTC `CreatedAt`, равный `plan.Batch.CreatedAt`.
+
+Для existing batch replay allocation equality включает:
+
+```text
+id
+batch_id
+local_request_id
+position
+charged_amount_cents
+remaining_amount_cents
+```
+
+`created_at` не входит в replay equality, потому что создаётся текущим clock и не входит в `StableBatchID`.
+
+Persisted `created_at` первой successful preparation является authoritative, не заменяется incoming replay timestamp и возвращается в loaded snapshot.
+
+---
+
+# 13A. Table: tokenio_billing_charge_expected_records
+
+## 13A.1. Purpose
+
+`tokenio_billing_charge_expected_records` хранит immutable canonical post-claim `domain.UsageRecord` snapshots durable billing command.
+
+Snapshot:
+
+```text
+immutable
+не обновляется при reconciliation
+не удаляется после success
+не пересобирается из mutable tokenio_usage_records
+```
+
+Pre-claim records в эту таблицу не сохраняются.
+
+## 13A.2. Columns
+
+```sql
+CREATE TABLE tokenio_billing_charge_expected_records (
+    batch_id TEXT NOT NULL
+        REFERENCES tokenio_billing_charge_batches(id),
+
+    local_request_id TEXT NOT NULL
+        REFERENCES tokenio_usage_records(local_request_id),
+
+    position INTEGER NOT NULL,
+
+    expected_record JSONB NOT NULL,
+
+    created_at TIMESTAMPTZ NOT NULL,
+
+    PRIMARY KEY (batch_id, local_request_id),
+
+    UNIQUE (batch_id, position),
+
+    CHECK (position >= 0),
+    CHECK (jsonb_typeof(expected_record) = 'object')
+);
+```
+
+`ON DELETE CASCADE` не используется.
+
+## 13A.3. Index
+
+```sql
+CREATE INDEX tokenio_billing_charge_expected_records_request_idx
+    ON tokenio_billing_charge_expected_records (local_request_id);
+```
+
+## 13A.4. Position, order and cardinality
+
+Для каждого batch:
+
+```text
+одна allocation на каждый expected record
+один expected record на каждую allocation
+одинаковый local_request_id на одинаковой position
+positions составляют непрерывный диапазон 0..N-1
+```
+
+Allocations и expected records загружаются отдельно:
+
+```sql
+ORDER BY position ASC
+```
+
+После загрузки adapter обязан проверить:
+
+```text
+len(ExpectedRecords) = len(Allocations)
+ExpectedRecords[i].LocalRequestID = Allocations[i].LocalRequestID
+```
+
+Нарушение order/cardinality является store contract violation и не исправляется сортировкой, пропуском или synthetic reconstruction.
+
+## 13A.5. Explicit expected-record JSON representation
+
+Database JSON schema не определяется JSON tags или `omitempty` domain struct.
+
+Будущий PostgreSQL adapter использует отдельный explicit persistence DTO и strict encoder/decoder.
+
+Каждый `expected_record` всегда содержит keys:
+
+```text
+local_request_id
+idempotency_key
+user_id
+api_key_id
+api_family
+endpoint_kind
+client_model
+billing_model
+selected_route_id
+selected_reseller_id
+provider_type
+provider_model
+provider_request_id
+provider_response_model
+estimated_usage
+usage
+usage_completeness
+estimated_client_amount_cents
+estimated_upstream_cost_cents
+client_amount_cents
+charged_amount_cents
+remaining_amount_cents
+actual_upstream_cost_cents
+currency
+status
+failure_reason
+billing_charge_request_id
+created_at
+reserved_at
+released_at
+billable_at
+charged_at
+failed_at
+updated_at
+```
+
+Optional strings всегда представлены explicit JSON string. При отсутствии значения используется `""`.
+
+Это относится как минимум к:
+
+```text
+idempotency_key
+provider_request_id
+provider_response_model
+failure_reason
+billing_charge_request_id
+```
+
+Optional timestamps всегда представлены:
+
+```text
+null
+или RFC3339Nano UTC string
+```
+
+Это относится к:
+
+```text
+reserved_at
+released_at
+billable_at
+charged_at
+failed_at
+```
+
+Required `created_at` и `updated_at` всегда являются непустыми RFC3339Nano UTC strings.
+
+`estimated_usage` и `usage` всегда являются objects с десятью keys:
+
+```text
+input_tokens
+cached_input_tokens
+output_tokens
+reasoning_tokens
+image_input_tokens
+audio_input_tokens
+audio_output_tokens
+file_input_tokens
+video_input_tokens
+image_generation_units
+```
+
+Все десять keys присутствуют даже при значении `0`.
+
+Strict decoder обязан отклонять:
+
+```text
+unknown keys
+missing required keys
+invalid JSON types
+invalid or non-UTC timestamps
+invalid enum values
+negative token or amount values
+```
+
+Любое такое значение является store contract violation. Adapter не default-ит missing values и не выполняет silent repair.
+
+После decode record проходит canonical `ledger.ValidateRecord`.
 
 ---
 
@@ -1132,49 +1531,201 @@ stuck reserved resolution
 
 # 17. Transactions
 
-## 17.1. Required transaction boundaries
+## 17.1. Responsibility boundary
 
-Transactions required for:
+`docs/spec/050-ledger-and-auto-charge.ru.md` является source of truth для:
 
 ```text
-create usage reserve
-commit reserved to billable
-release reserved
-mark pricing_failed
-create billing charge batch
-mark charge allocations
-update reseller reserved/balance
-admin manual resolution
+pre-claim and post-claim semantics
+existing batch replay
+active, failed and historical claims
+automatic failed replay CAS
+explicit failed retry outcome and audit
+successful reconciliation
 ```
 
-## 17.2. Reseller reserve transaction
+Эта database specification не переопределяет ledger semantics. Она определяет только physical persistence и transactional enforcement принятых contracts.
 
-Route selection + reseller reserve must be atomic enough to prevent overspending.
+## 17.2. PrepareChargeBatch persistence boundary
 
-For single instance, application-level lock may work, but DB row lock is preferred.
+Одна database transaction обязана атомарно сохранить:
 
-Required DB behavior:
-
-```sql
-SELECT ...
-FROM tokenio_resellers
-WHERE id = $1
-FOR UPDATE;
+```text
+billing batch
+ordered allocations
+ordered post-claim expected snapshots
+usage claims
 ```
 
-Then update:
+Transaction locks allocated usage rows, выполняет exact pre-claim comparison и проверяет отсутствие другого active pending/failed claim до insert/update.
 
-```sql
-UPDATE tokenio_resellers
-SET reserved_cents = reserved_cents + $estimated_upstream_cost_cents
-WHERE id = $reseller_id;
+При ошибке ни одна часть command или claim не сохраняется.
+
+## 17.3. Existing batch load and replay enforcement
+
+Existing command загружается из:
+
+```text
+tokenio_billing_charge_batches
+tokenio_billing_charge_allocations ORDER BY position ASC
+tokenio_billing_charge_expected_records ORDER BY position ASC
 ```
 
-## 17.3. Usage state transition transaction
+### Batch immutable replay comparison
 
-State transition must verify current state.
+Exact comparison включает:
 
-Example:
+```text
+id
+user_id
+billing_subject_user_id
+provider_type
+client_model
+billing_model
+input_tokens
+output_tokens
+amount_cents
+currency
+```
+
+Не сравниваются как immutable command identity:
+
+```text
+billing_status
+billing_response_balance_cents
+billing_error_code
+created_at
+charged_at
+failed_at
+updated_at
+```
+
+### Allocation immutable replay comparison
+
+Каждая allocation сравнивается по canonical position и полям:
+
+```text
+id
+batch_id
+local_request_id
+charged_amount_cents
+remaining_amount_cents
+```
+
+Incoming `BillingChargeAllocation.CreatedAt` не сравнивается с persisted `created_at`.
+
+### Expected-record replay comparison
+
+Incoming pre-claim record преобразуется только так:
+
+```text
+comparison_record =
+    incoming_record
+    with BillingChargeRequestID = batch.ID
+```
+
+`comparison_record` exact-сравнивается с persisted post-claim snapshot на той же position по всем canonical `UsageRecord` fields.
+
+Persisted batch/allocation timestamps первой successful preparation являются authoritative.
+
+Exact replay:
+
+```text
+не изменяет batch
+не изменяет allocations
+не изменяет expected snapshots
+не обновляет usage claims повторно
+возвращает exact persisted snapshot
+```
+
+Любое отличие canonical identity, position, cardinality или expected record является state/contract conflict.
+
+## 17.4. ApplyChargeSuccess persistence boundary
+
+`ApplyChargeSuccess` использует persisted batch, allocations и expected snapshots как source of truth.
+
+Одна transaction обязана:
+
+```text
+lock batch
+load ordered immutable command
+lock corresponding mutable usage rows
+verify each row against persisted post-claim snapshot
+apply every allocation exactly once
+persist usage results
+persist succeeded batch result
+commit
+```
+
+Store contract violation или CAS conflict приводит к rollback без partial reconciliation.
+
+## 17.5. Automatic MarkChargeBatchFailed enforcement
+
+`UsageLedger.MarkChargeBatchFailed` реализует:
+
+```text
+pending -> failed
+```
+
+и idempotent no-op replay уже failed batch только для exact того же `billing_error_code`.
+
+При already-failed no-op incoming `failedAt` не изменяет persisted `failed_at` и `updated_at`.
+
+Эта operation не пишет admin audit.
+
+## 17.6. Explicit retry failure audit transaction
+
+`AdminUsageLedger.MarkChargeRetryFailedWithAudit` является отдельной operation.
+
+Одна transaction обязана:
+
+```text
+1. Lock batch.
+2. Require current status = expectedStatus = failed.
+3. Build next failed batch with:
+   billing_error_code = caller normalized code
+   failed_at = retryFailedAt
+   updated_at = retryFailedAt.
+4. Preserve immutable command, charged_at and billing_response_balance_cents.
+5. Verify audit before_state equals exact current batch.
+6. Verify audit after_state equals exact next batch.
+7. Persist next batch.
+8. Persist retry outcome audit.
+9. Commit atomically.
+```
+
+Audit entry не может описывать состояние, отличное от committed batch.
+
+Idempotency key этой operation — outcome audit ID:
+
+```text
+same audit ID and exact same payload
+    -> no-op success with existing committed state
+
+same audit ID and different payload
+    -> state/contract conflict
+```
+
+## 17.7. RoutePrice float64 enforcement
+
+`tokenio_route_prices.markup_coefficient` сохраняется как `DOUBLE PRECISION`.
+
+Adapter обязан:
+
+```text
+bind canonical Go float64 без fixed-scale decimal conversion
+scan PostgreSQL float8 обратно в Go float64
+reject any decoded non-finite or non-positive value
+verify exact canonical value for CAS and audit
+```
+
+Округление до decimal scale, включая шесть знаков после запятой, запрещено.
+
+## 17.8. Generic usage state transitions
+
+Остальные usage transitions также проверяют expected current state.
+
+Пример:
 
 ```sql
 UPDATE tokenio_usage_records
@@ -1184,7 +1735,7 @@ WHERE local_request_id = $1
   AND status = 'reserved';
 ```
 
-If affected rows = 0, operation must fail with state conflict.
+Если affected rows = 0, operation возвращает state conflict.
 
 ---
 
@@ -1435,4 +1986,21 @@ Database schema считается реализованной, если:
 19. go test or migration tests validate schema creation.
 20. API key provisioning idempotency имеет unique constraint.
 21. Terminal provisioning states не содержат encrypted raw key material.
+```
+
+## 22.1. Stage 11A persistence acceptance
+
+Stage 11A database contract дополнительно принимается только если:
+
+```text
+1. Immutable charge command round-trip не требует synthetic reconstruction.
+2. Existing replay сравнивает explicit canonical field sets.
+3. Batch CreatedAt/UpdatedAt и allocation CreatedAt не вызывают conflict legitimate replay.
+4. Persisted first-write timestamps являются authoritative.
+5. Explicit retry failure atomарно обновляет failed_at/updated_at и audit after_state.
+6. Automatic identical failed replay не изменяет timestamps.
+7. markup_coefficient хранится как finite positive DOUBLE PRECISION.
+8. NUMERIC fixed-scale quantization для canonical float64 запрещена.
+9. RoutePrice, CAS result и audit after_state round-trip без semantic value loss.
+10. Production code и migrations не изменяются на Stage 11A.
 ```

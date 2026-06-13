@@ -6,17 +6,16 @@ import (
 	"path"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/bogachenko/tokenio-gateway/internal/domain"
 )
 
 func parseBaseURL(raw string) (*url.URL, error) {
-	if strings.TrimSpace(raw) == "" {
+	if err := domain.ValidateResellerBaseURL(raw); err != nil {
 		return nil, fmt.Errorf("%w", ErrInvalidAdapterConfig)
 	}
 	parsed, err := url.Parse(raw)
 	if err != nil {
-		return nil, fmt.Errorf("%w", ErrInvalidAdapterConfig)
-	}
-	if !parsed.IsAbs() || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
 		return nil, fmt.Errorf("%w", ErrInvalidAdapterConfig)
 	}
 	return parsed, nil

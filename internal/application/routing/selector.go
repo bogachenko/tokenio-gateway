@@ -2,6 +2,7 @@ package routing
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -151,7 +152,11 @@ func primaryOperationalSkipReason(candidate Candidate, now time.Time) (SkipReaso
 	if candidate.EstimatedUpstreamCostCents < 0 {
 		return SkipReasonInvalidRoutePrice, true
 	}
-	if availableResellerBalanceCents(candidate.Reseller) < candidate.EstimatedUpstreamCostCents {
+	available, err := availableResellerBalanceCents(candidate.Reseller)
+	if err != nil {
+		return SkipReasonInvalidResellerBalance, true
+	}
+	if available < candidate.EstimatedUpstreamCostCents {
 		return SkipReasonInsufficientResellerBalance, true
 	}
 	if !candidate.RateLimitAllowed {
@@ -166,8 +171,22 @@ func primaryOperationalSkipReason(candidate Candidate, now time.Time) (SkipReaso
 	return "", false
 }
 
-func availableResellerBalanceCents(reseller domain.Reseller) int64 {
-	return reseller.BalanceCents - reseller.ReservedCents - reseller.MinimumBalanceCents
+func availableResellerBalanceCents(reseller domain.Reseller) (int64, error) {
+	available, err := checkedSubInt64(reseller.BalanceCents, reseller.ReservedCents)
+	if err != nil {
+		return 0, err
+	}
+	return checkedSubInt64(available, reseller.MinimumBalanceCents)
+}
+
+func checkedSubInt64(left, right int64) (int64, error) {
+	if right > 0 && left < math.MinInt64+right {
+		return 0, ErrInvalidRouteData
+	}
+	if right < 0 && left > math.MaxInt64+right {
+		return 0, ErrInvalidRouteData
+	}
+	return left - right, nil
 }
 
 func modelRewritePolicyAllowed(candidate Candidate) bool {

@@ -198,6 +198,8 @@ type UsageLedger interface {
 	LoadExposure(ctx context.Context, userID string, currency string) (UsageExposureSnapshot, error)
 	// LoadOpenChargeBatches returns durable pending/failed batches that must be
 	// retried before creating new charge batches. Succeeded batches are not open.
+	// Repository order is unspecified; application code must process snapshots by
+	// batch.created_at ASC, then batch.id ASC.
 	LoadOpenChargeBatches(ctx context.Context, userID string, billingSubjectUserID string, currency string) ([]BillingChargeBatchSnapshot, error)
 	// LoadChargeCandidates returns chargeable billable or partially_charged records
 	// with positive remaining amount. Billable records must be unclaimed. Partially

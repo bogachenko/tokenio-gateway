@@ -12,6 +12,7 @@ const (
 	SkipReasonConcurrencyLimitExceeded      SkipReason = "concurrency_limit_exceeded"
 	SkipReasonUnsupportedModelRewritePolicy SkipReason = "unsupported_model_rewrite_policy"
 	SkipReasonInvalidRoutePrice             SkipReason = "invalid_route_price"
+	SkipReasonInvalidResellerBalance        SkipReason = "invalid_reseller_balance"
 	SkipReasonPricingUnavailable            SkipReason = "pricing_unavailable"
 )
 

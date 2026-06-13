@@ -156,13 +156,13 @@ func newServiceForTest(t *testing.T) (*Service, *fakeLedger, *fixedClock) {
 }
 
 func validReserveInput(id string) ReserveInput {
-	return ReserveInput{LocalRequestID: id, UserID: "user_1", APIKeyID: "key_1", APIFamily: domain.APIFamilyOpenAICompatible, EndpointKind: domain.EndpointChat, ClientModel: "gpt-4o", BillingModel: "gpt-4o", SelectedRouteID: "route_1", SelectedResellerID: "reseller_1", ProviderType: domain.ProviderOpenAI, ProviderModel: "gpt-4o", EstimatedUsage: domain.TokenUsage{InputTokens: 10, OutputTokens: 2}, EstimatedClientAmountCents: 50, EstimatedUpstreamCostCents: 30, Currency: "RUB"}
+	return ReserveInput{LocalRequestID: id, UserID: "user_1", APIKeyID: "key_1", APIFamily: domain.APIFamilyOpenAICompatible, EndpointKind: domain.EndpointChat, ClientModel: "gpt-4o", BillingModel: string(domain.ProviderOpenAI) + ":" + "gpt-4o", SelectedRouteID: "route_1", SelectedResellerID: "reseller_1", ProviderType: domain.ProviderOpenAI, ProviderModel: "gpt-4o", EstimatedUsage: domain.TokenUsage{InputTokens: 10, OutputTokens: 2}, EstimatedClientAmountCents: 50, EstimatedUpstreamCostCents: 30, Currency: "RUB"}
 }
 
 func reserveRecord(id string) domain.UsageRecord {
 	now := time.Date(2026, 6, 12, 6, 0, 0, 0, time.UTC)
 	input := validReserveInput(id)
-	return domain.UsageRecord{LocalRequestID: input.LocalRequestID, UserID: input.UserID, APIKeyID: input.APIKeyID, APIFamily: input.APIFamily, EndpointKind: input.EndpointKind, ClientModel: input.ClientModel, BillingModel: input.BillingModel, SelectedRouteID: input.SelectedRouteID, SelectedResellerID: input.SelectedResellerID, ProviderType: input.ProviderType, ProviderModel: input.ProviderModel, EstimatedUsage: input.EstimatedUsage, EstimatedClientAmountCents: input.EstimatedClientAmountCents, EstimatedUpstreamCostCents: input.EstimatedUpstreamCostCents, Currency: "RUB", UsageCompleteness: string(pricing.UsageCompletenessMissing), Status: domain.UsageStatusReserved, CreatedAt: now, ReservedAt: &now, UpdatedAt: now}
+	return domain.UsageRecord{LocalRequestID: input.LocalRequestID, UserID: input.UserID, APIKeyID: input.APIKeyID, APIFamily: input.APIFamily, EndpointKind: input.EndpointKind, ClientModel: input.ClientModel, BillingModel: string(input.ProviderType) + ":" + input.ClientModel, SelectedRouteID: input.SelectedRouteID, SelectedResellerID: input.SelectedResellerID, ProviderType: input.ProviderType, ProviderModel: input.ProviderModel, EstimatedUsage: input.EstimatedUsage, EstimatedClientAmountCents: input.EstimatedClientAmountCents, EstimatedUpstreamCostCents: input.EstimatedUpstreamCostCents, Currency: "RUB", UsageCompleteness: string(pricing.UsageCompletenessMissing), Status: domain.UsageStatusReserved, CreatedAt: now, ReservedAt: &now, UpdatedAt: now}
 }
 
 func billableRecord(id string) domain.UsageRecord {

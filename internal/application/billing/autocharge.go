@@ -64,7 +64,7 @@ func NewAutoChargeService(identity ports.BillingIdentityService, balance ports.B
 	if identity == nil || balance == nil || charge == nil || usageLedger == nil || clock == nil {
 		return nil, fmt.Errorf("%w: dependency", ErrInvalidBillingInput)
 	}
-	if config.ThresholdCents <= 0 || config.MinimumChargeCents <= 0 {
+	if config.ThresholdCents <= 0 || config.MinimumChargeCents < 0 {
 		return nil, fmt.Errorf("%w: config", ErrInvalidBillingInput)
 	}
 	return &AutoChargeService{identity: identity, balance: balance, charge: charge, ledger: usageLedger, clock: clock, config: config}, nil
@@ -87,6 +87,13 @@ func (s *AutoChargeService) Run(ctx context.Context, input AutoChargeInput) (Aut
 	if err != nil {
 		return result, ErrBillingStoreUnavailable
 	}
+	open = append([]ports.BillingChargeBatchSnapshot(nil), open...)
+	sort.Slice(open, func(i, j int) bool {
+		if !open[i].Batch.CreatedAt.Equal(open[j].Batch.CreatedAt) {
+			return open[i].Batch.CreatedAt.Before(open[j].Batch.CreatedAt)
+		}
+		return open[i].Batch.ID < open[j].Batch.ID
+	})
 	for _, snapshot := range open {
 		if snapshot.Batch.Status == domain.BillingChargeStatusSucceeded {
 			return result, ErrBillingStoreContractViolation
@@ -136,7 +143,7 @@ func (s *AutoChargeService) Run(ctx context.Context, input AutoChargeInput) (Aut
 	remainingRemote := remote.BalanceCents
 	for _, group := range groups {
 		amount := min64(group.pending, remainingRemote)
-		if amount < s.config.MinimumChargeCents {
+		if amount <= 0 || amount < s.config.MinimumChargeCents {
 			continue
 		}
 		plan, err := BuildChargePlan(input.BillingSubjectUserID, group.records, amount, s.clock.Now().UTC())
@@ -275,6 +282,10 @@ func BuildChargeGroups(userID string, currency string, records []domain.UsageRec
 }
 
 func validateChargeCandidate(userID string, currency string, record domain.UsageRecord) error {
+	billingModel, err := pricing.BillingModel(record.ProviderType, record.ClientModel)
+	if err != nil || record.BillingModel != billingModel {
+		return fmt.Errorf("%w: billing model", ErrInvalidChargePlan)
+	}
 	if err := ledger.ValidateRecord(record); err != nil {
 		return err
 	}
@@ -295,13 +306,6 @@ func validateChargeCandidate(userID string, currency string, record domain.Usage
 	}
 	if record.Status == domain.UsageStatusPartiallyCharged && record.BillingChargeRequestID == "" {
 		return fmt.Errorf("%w: partially charged candidate claim", ErrInvalidChargePlan)
-	}
-	billingModel, err := pricing.BillingModel(record.ProviderType, record.ClientModel)
-	if err != nil {
-		return err
-	}
-	if record.BillingModel != billingModel {
-		return fmt.Errorf("%w: billing model", ErrInvalidChargePlan)
 	}
 	chargedPlusRemaining, err := checkedAddAmount(record.ChargedAmountCents, record.RemainingAmountCents)
 	if err != nil {

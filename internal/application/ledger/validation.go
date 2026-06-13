@@ -107,6 +107,10 @@ func ValidateRecord(record domain.UsageRecord) error {
 			return fmt.Errorf("%w: pricing failed fields", ErrRecordCorrupt)
 		}
 	}
+	billingModel, err := pricing.BillingModel(record.ProviderType, record.ClientModel)
+	if err != nil || record.BillingModel != billingModel {
+		return fmt.Errorf("%w: billing model", ErrRecordCorrupt)
+	}
 	return nil
 }
 

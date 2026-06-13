@@ -105,6 +105,10 @@ func validateReserveInput(input ReserveInput) error {
 	if isBlank(input.UserID) || isBlank(input.APIKeyID) || input.APIFamily == "" || input.EndpointKind == "" || isBlank(input.ClientModel) || isBlank(input.BillingModel) || isBlank(input.SelectedRouteID) || isBlank(input.SelectedResellerID) || input.ProviderType == "" || isBlank(input.ProviderModel) {
 		return fmt.Errorf("%w: missing reservation field", ErrInvalidLedgerInput)
 	}
+	billingModel, err := pricing.BillingModel(input.ProviderType, input.ClientModel)
+	if err != nil || input.BillingModel != billingModel {
+		return fmt.Errorf("%w: billing model", ErrInvalidLedgerInput)
+	}
 	if err := validateUsage(input.EstimatedUsage); err != nil {
 		return err
 	}

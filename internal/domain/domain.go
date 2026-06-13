@@ -3,18 +3,28 @@ package domain
 import "time"
 
 type APIKeyRecord struct {
-	ID        string     `json:"id"`
-	UserID    string     `json:"user_id"`
-	KeyHash   string     `json:"key_hash"`
-	Enabled   bool       `json:"enabled"`
-	RevokedAt *time.Time `json:"revoked_at,omitempty"`
-	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+	ID         string     `json:"id"`
+	UserID     string     `json:"user_id"`
+	Name       string     `json:"name"`
+	KeyHash    string     `json:"key_hash"`
+	KeyPrefix  string     `json:"key_prefix"`
+	Enabled    bool       `json:"enabled"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
+	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
+	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
 }
 
 type User struct {
-	ID                    string `json:"id"`
-	ExternalBillingUserID string `json:"external_billing_user_id"`
-	Enabled               bool   `json:"enabled"`
+	ID                    string     `json:"id"`
+	ExternalBillingUserID string     `json:"external_billing_user_id"`
+	Email                 string     `json:"email,omitempty"`
+	Name                  string     `json:"name,omitempty"`
+	Enabled               bool       `json:"enabled"`
+	CreatedAt             time.Time  `json:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at"`
+	DisabledAt            *time.Time `json:"disabled_at,omitempty"`
 }
 
 type ProviderType string
@@ -85,6 +95,7 @@ type Reseller struct {
 	MinimumBalanceCents int64        `json:"minimum_balance_cents"`
 	CreatedAt           time.Time    `json:"created_at"`
 	UpdatedAt           time.Time    `json:"updated_at"`
+	DisabledAt          *time.Time   `json:"-"`
 }
 
 type Route struct {
@@ -105,8 +116,11 @@ type Route struct {
 	Capabilities           CapabilitySet      `json:"capabilities"`
 	CooldownUntil          *time.Time         `json:"cooldown_until,omitempty"`
 	CooldownReason         string             `json:"cooldown_reason,omitempty"`
+	LastErrorCode          string             `json:"-"`
+	LastErrorAt            *time.Time         `json:"-"`
 	CreatedAt              time.Time          `json:"created_at"`
 	UpdatedAt              time.Time          `json:"updated_at"`
+	DisabledAt             *time.Time         `json:"-"`
 }
 
 type TokenUsage struct {
@@ -144,6 +158,9 @@ type RoutePrice struct {
 	ImageGenerationPricePerUnitCents     int64                   `json:"image_generation_price_per_unit_cents"`
 	ImageGenerationUnitKind              ImageGenerationUnitKind `json:"image_generation_unit_kind"`
 	MarkupCoefficient                    float64                 `json:"markup_coefficient"`
+	Enabled                              bool                    `json:"enabled"`
+	CreatedAt                            time.Time               `json:"-"`
+	UpdatedAt                            time.Time               `json:"-"`
 }
 
 type UsageStatus string
