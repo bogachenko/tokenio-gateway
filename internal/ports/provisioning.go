@@ -63,6 +63,14 @@ type APIKeyProvisioningMaterialFactory interface {
 	) (APIKeyProvisioningMaterial, error)
 }
 
+type APIKeyProvisioningMaterialDecryptor interface {
+	DecryptProvisioningMaterial(
+		context.Context,
+		domain.APIKeyProvisioning,
+		domain.APIKeyRecord,
+	) (string, error)
+}
+
 type APIKeyProvisioningOutcome string
 
 const (
