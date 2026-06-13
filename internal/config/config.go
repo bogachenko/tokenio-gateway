@@ -52,6 +52,7 @@ type Config struct {
 	HTTPReadTimeout       time.Duration
 	HTTPWriteTimeout      time.Duration
 	HTTPIdleTimeout       time.Duration
+	HTTPShutdownTimeout   time.Duration
 
 	LogLevel  string
 	LogFormat string
@@ -105,6 +106,7 @@ func Load() (Config, error) {
 		HTTPReadTimeout:       l.duration("TOKENIO_HTTP_READ_TIMEOUT", 120*time.Second),
 		HTTPWriteTimeout:      l.duration("TOKENIO_HTTP_WRITE_TIMEOUT", 120*time.Second),
 		HTTPIdleTimeout:       l.duration("TOKENIO_HTTP_IDLE_TIMEOUT", 60*time.Second),
+		HTTPShutdownTimeout:   l.duration("TOKENIO_HTTP_SHUTDOWN_TIMEOUT", 30*time.Second),
 
 		LogLevel:  env("TOKENIO_LOG_LEVEL", "info"),
 		LogFormat: env("TOKENIO_LOG_FORMAT", "text"),
@@ -201,6 +203,9 @@ func validate(cfg Config) error {
 	}
 	if cfg.HTTPIdleTimeout <= 0 {
 		return fmt.Errorf("TOKENIO_HTTP_IDLE_TIMEOUT must be positive")
+	}
+	if cfg.HTTPShutdownTimeout <= 0 {
+		return fmt.Errorf("TOKENIO_HTTP_SHUTDOWN_TIMEOUT must be positive")
 	}
 	if !oneOf(cfg.LogLevel, "debug", "info", "warn", "error") {
 		return fmt.Errorf("TOKENIO_LOG_LEVEL must be one of debug, info, warn, error")

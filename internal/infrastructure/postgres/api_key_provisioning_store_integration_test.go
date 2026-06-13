@@ -1,0 +1,341 @@
+package postgres
+
+import (
+	"context"
+	"errors"
+	"os"
+	"strconv"
+	"testing"
+	"time"
+
+	"github.com/bogachenko/tokenio-gateway/internal/domain"
+	"github.com/bogachenko/tokenio-gateway/internal/ports"
+)
+
+func TestAPIKeyProvisioningStoreIntegration(t *testing.T) {
+	dsn := os.Getenv("TOKENIO_TEST_DATABASE_DSN")
+	if dsn == "" {
+		t.Skip("TOKENIO_TEST_DATABASE_DSN is not set")
+	}
+
+	ctx := t.Context()
+	db, err := Open(ctx, dsn)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer db.Close()
+	if err := db.ApplyMigrations(ctx); err != nil {
+		t.Fatalf("ApplyMigrations: %v", err)
+	}
+
+	store, err := NewAPIKeyProvisioningStore(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	suffix := strconv.FormatInt(time.Now().UnixNano(), 10)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	firstExternalID := "billing-provisioning-" + suffix
+	firstUserID := "provisioning-user-" + suffix
+	firstKeyID := "provisioning-key-" + suffix
+	firstProvisioningID := "provisioning-" + suffix
+
+	expiringExternalID := "billing-expiring-" + suffix
+	expiringUserID := "expiring-user-" + suffix
+	expiringKeyID := "expiring-key-" + suffix
+	expiringProvisioningID := "expiring-provisioning-" + suffix
+
+	t.Cleanup(func() {
+		_, _ = db.Exec(
+			context.Background(),
+			`
+DELETE FROM tokenio_api_key_provisionings
+WHERE external_billing_user_id IN ($1, $2)
+`,
+			firstExternalID,
+			expiringExternalID,
+		)
+		_, _ = db.Exec(
+			context.Background(),
+			"DELETE FROM tokenio_api_keys WHERE id IN ($1, $2)",
+			firstKeyID,
+			expiringKeyID,
+		)
+		_, _ = db.Exec(
+			context.Background(),
+			"DELETE FROM tokenio_users WHERE id IN ($1, $2)",
+			firstUserID,
+			expiringUserID,
+		)
+	})
+
+	factoryCalls := 0
+	factory := provisioningMaterialFactoryFunc(
+		func(
+			_ context.Context,
+			request ports.APIKeyProvisioningMaterialRequest,
+		) (ports.APIKeyProvisioningMaterial, error) {
+			factoryCalls++
+			return ports.APIKeyProvisioningMaterial{
+				APIKey: domain.APIKeyRecord{
+					ID:        request.APIKeyID,
+					UserID:    request.User.ID,
+					Name:      request.KeyName,
+					KeyHash:   "hash-" + request.APIKeyID,
+					KeyPrefix: "sk_live_abcd...",
+					Enabled:   true,
+					CreatedAt: request.CreatedAt,
+					UpdatedAt: request.CreatedAt,
+				},
+				EncryptedRawKey:      []byte("ciphertext-" + request.APIKeyID),
+				EncryptionNonce:      []byte("nonce-" + request.APIKeyID),
+				EncryptionKeyVersion: "v1",
+			}, nil
+		},
+	)
+
+	firstRequest := provisioningRequestForTest(
+		firstExternalID,
+		firstUserID,
+		firstKeyID,
+		firstProvisioningID,
+		"idem-"+suffix,
+		now,
+	)
+	created, err := store.ProvisionAPIKey(
+		ctx,
+		firstRequest,
+		factory,
+	)
+	if err != nil {
+		t.Fatalf("ProvisionAPIKey: %v", err)
+	}
+	if created.Outcome != ports.APIKeyProvisioningOutcomeCreated ||
+		created.Provisioning.Status !=
+			domain.APIKeyProvisioningStatusPendingDelivery ||
+		len(created.Provisioning.EncryptedRawKey) == 0 ||
+		factoryCalls != 1 {
+		t.Fatalf("created result = %+v, calls=%d", created, factoryCalls)
+	}
+
+	replayed, err := store.ProvisionAPIKey(
+		ctx,
+		firstRequest,
+		factory,
+	)
+	if err != nil {
+		t.Fatalf("ProvisionAPIKey replay: %v", err)
+	}
+	if replayed.Outcome !=
+		ports.APIKeyProvisioningOutcomeReplayedPending ||
+		replayed.APIKey.ID != firstKeyID ||
+		factoryCalls != 1 {
+		t.Fatalf("replayed result = %+v, calls=%d", replayed, factoryCalls)
+	}
+
+	conflicting := firstRequest
+	conflicting.SourceReferenceHash = "different-source"
+	if _, err := store.ProvisionAPIKey(
+		ctx,
+		conflicting,
+		factory,
+	); !errors.Is(err, ports.ErrStoreConflict) {
+		t.Fatalf("conflicting replay error = %v", err)
+	}
+
+	attemptedAt := now.Add(time.Minute)
+	attempted, err := store.RecordAPIKeyDeliveryAttempt(
+		ctx,
+		firstProvisioningID,
+		attemptedAt,
+	)
+	if err != nil {
+		t.Fatalf("RecordAPIKeyDeliveryAttempt: %v", err)
+	}
+	if attempted.DeliveryAttempts != 1 {
+		t.Fatalf("delivery attempts = %d", attempted.DeliveryAttempts)
+	}
+
+	deliveredAt := now.Add(2 * time.Minute)
+	delivered, err := store.ConfirmAPIKeyDelivery(
+		ctx,
+		firstProvisioningID,
+		deliveredAt,
+	)
+	if err != nil {
+		t.Fatalf("ConfirmAPIKeyDelivery: %v", err)
+	}
+	if delivered.Status !=
+		domain.APIKeyProvisioningStatusDelivered ||
+		len(delivered.EncryptedRawKey) != 0 ||
+		len(delivered.EncryptionNonce) != 0 {
+		t.Fatalf("delivered = %+v", delivered)
+	}
+
+	repeatedConfirm, err := store.ConfirmAPIKeyDelivery(
+		ctx,
+		firstProvisioningID,
+		deliveredAt.Add(time.Minute),
+	)
+	if err != nil {
+		t.Fatalf("repeated confirm: %v", err)
+	}
+	if !sameProvisioning(repeatedConfirm, delivered) {
+		t.Fatalf("repeated confirm changed state")
+	}
+
+	deliveredReplay, err := store.ProvisionAPIKey(
+		ctx,
+		firstRequest,
+		factory,
+	)
+	if err != nil {
+		t.Fatalf("delivered replay: %v", err)
+	}
+	if deliveredReplay.Outcome !=
+		ports.APIKeyProvisioningOutcomeReplayedDelivered {
+		t.Fatalf("delivered replay = %+v", deliveredReplay)
+	}
+
+	secondRequest := firstRequest
+	secondRequest.IdempotencyKey = "idem-second-" + suffix
+	secondRequest.ProvisioningID = "provisioning-second-" + suffix
+	secondRequest.APIKeyID = "unused-key-" + suffix
+	secondRequest.CreatedAt = now.Add(3 * time.Minute)
+	secondRequest.ExpiresAt =
+		secondRequest.CreatedAt.Add(time.Hour)
+	already, err := store.ProvisionAPIKey(
+		ctx,
+		secondRequest,
+		factory,
+	)
+	if err != nil {
+		t.Fatalf("already provisioned: %v", err)
+	}
+	if already.Outcome !=
+		ports.APIKeyProvisioningOutcomeAlreadyProvisioned ||
+		already.APIKey.ID != firstKeyID ||
+		already.Provisioning.ResultType !=
+			domain.APIKeyProvisioningResultTypeAlreadyProvisioned ||
+		factoryCalls != 1 {
+		t.Fatalf("already result = %+v, calls=%d", already, factoryCalls)
+	}
+
+	expiringRequest := provisioningRequestForTest(
+		expiringExternalID,
+		expiringUserID,
+		expiringKeyID,
+		expiringProvisioningID,
+		"idem-expiring-"+suffix,
+		now.Add(4*time.Minute),
+	)
+	expiringCreated, err := store.ProvisionAPIKey(
+		ctx,
+		expiringRequest,
+		factory,
+	)
+	if err != nil {
+		t.Fatalf("create expiring provisioning: %v", err)
+	}
+
+	due, err := store.ListPendingAPIKeyProvisioningsDue(
+		ctx,
+		expiringRequest.ExpiresAt,
+		10,
+	)
+	if err != nil {
+		t.Fatalf("ListPendingAPIKeyProvisioningsDue: %v", err)
+	}
+	foundDue := false
+	for _, item := range due {
+		if item.ID == expiringProvisioningID {
+			foundDue = true
+		}
+	}
+	if !foundDue {
+		t.Fatalf("expiring provisioning not listed: %+v", due)
+	}
+
+	expired, err := store.ExpireAPIKeyProvisioning(
+		ctx,
+		expiringProvisioningID,
+		expiringRequest.ExpiresAt,
+	)
+	if err != nil {
+		t.Fatalf("ExpireAPIKeyProvisioning: %v", err)
+	}
+	if expired.Status !=
+		domain.APIKeyProvisioningStatusExpired ||
+		len(expired.EncryptedRawKey) != 0 ||
+		len(expired.EncryptionNonce) != 0 {
+		t.Fatalf("expired = %+v", expired)
+	}
+
+	expiredKey, err := scanAPIKey(db.QueryRow(
+		ctx,
+		`
+SELECT
+    id,
+    user_id,
+    name,
+    key_hash,
+    key_prefix,
+    enabled,
+    created_at,
+    updated_at,
+    last_used_at,
+    revoked_at,
+    expires_at
+FROM tokenio_api_keys
+WHERE id = $1
+`,
+		expiringCreated.APIKey.ID,
+	))
+	if err != nil {
+		t.Fatalf("load expired key: %v", err)
+	}
+	if expiredKey.Enabled || expiredKey.RevokedAt == nil {
+		t.Fatalf("expired key remains active: %+v", expiredKey)
+	}
+
+	expiredReplay, err := store.ProvisionAPIKey(
+		ctx,
+		expiringRequest,
+		factory,
+	)
+	if err != nil {
+		t.Fatalf("expired replay: %v", err)
+	}
+	if expiredReplay.Outcome !=
+		ports.APIKeyProvisioningOutcomeExpired {
+		t.Fatalf("expired replay = %+v", expiredReplay)
+	}
+}
+
+func provisioningRequestForTest(
+	externalBillingUserID string,
+	userID string,
+	apiKeyID string,
+	provisioningID string,
+	idempotencyKey string,
+	createdAt time.Time,
+) ports.APIKeyProvisioningRequest {
+	return ports.APIKeyProvisioningRequest{
+		IdempotencyKey:        idempotencyKey,
+		SourceReferenceHash:   "source-" + idempotencyKey,
+		ExternalBillingUserID: externalBillingUserID,
+		NewUser: domain.User{
+			ID:                    userID,
+			ExternalBillingUserID: externalBillingUserID,
+			Enabled:               true,
+			CreatedAt:             createdAt,
+			UpdatedAt:             createdAt,
+		},
+		ProvisioningID: provisioningID,
+		APIKeyID:       apiKeyID,
+		KeyName:        "Telegram payment key",
+		CreatedAt:      createdAt,
+		ExpiresAt:      createdAt.Add(time.Hour),
+	}
+}
