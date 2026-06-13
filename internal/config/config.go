@@ -1,7 +1,10 @@
 package config
 
 import (
+	"bytes"
+	"encoding/base64"
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -22,6 +25,11 @@ type Config struct {
 
 	AdminToken       string
 	APIKeyHashSecret string
+
+	ProvisioningServiceToken        string
+	APIKeyProvisioningEncryptionKey []byte
+	APIKeyProvisioningKeyVersion    string
+	APIKeyProvisioningTTL           time.Duration
 
 	CostCurrency                string
 	AutoChargeThresholdCents    int64
@@ -68,7 +76,7 @@ func Load() (Config, error) {
 		GatewayAddr: env("TOKENIO_GATEWAY_ADDR", ":8880"),
 		DatabaseDSN: l.required("TOKENIO_DATABASE_DSN"),
 
-		BillingBaseURL:       l.required("TOKENIO_BILLING_BASE_URL"),
+		BillingBaseURL:       l.requiredAbsoluteURL("TOKENIO_BILLING_BASE_URL"),
 		BillingServiceToken:  l.required("TOKENIO_BILLING_SERVICE_TOKEN"),
 		BillingJWTSigningKey: l.required("TOKENIO_BILLING_JWT_SIGNING_KEY"),
 		BillingJWTTTL:        l.duration("TOKENIO_BILLING_JWT_TTL", 15*time.Minute),
@@ -76,6 +84,11 @@ func Load() (Config, error) {
 
 		AdminToken:       l.required("TOKENIO_ADMIN_TOKEN"),
 		APIKeyHashSecret: l.required("TOKENIO_API_KEY_HASH_SECRET"),
+
+		ProvisioningServiceToken:        env("TOKENIO_PROVISIONING_SERVICE_TOKEN", ""),
+		APIKeyProvisioningEncryptionKey: l.optionalBase64Bytes("TOKENIO_API_KEY_PROVISIONING_ENCRYPTION_KEY", 32),
+		APIKeyProvisioningKeyVersion:    env("TOKENIO_API_KEY_PROVISIONING_KEY_VERSION", "v1"),
+		APIKeyProvisioningTTL:           l.duration("TOKENIO_API_KEY_PROVISIONING_TTL", 24*time.Hour),
 
 		CostCurrency:                env("TOKENIO_COST_CURRENCY", "RUB"),
 		AutoChargeThresholdCents:    l.int64("TOKENIO_AUTO_CHARGE_THRESHOLD_CENTS", 1000),
@@ -216,7 +229,26 @@ func validate(cfg Config) error {
 	if strings.TrimSpace(cfg.APIKeyHashSecret) == "" {
 		return fmt.Errorf("TOKENIO_API_KEY_HASH_SECRET is required")
 	}
+	if strings.TrimSpace(cfg.APIKeyProvisioningKeyVersion) == "" {
+		return fmt.Errorf("TOKENIO_API_KEY_PROVISIONING_KEY_VERSION must be non-empty")
+	}
+	if cfg.APIKeyProvisioningTTL <= 0 {
+		return fmt.Errorf("TOKENIO_API_KEY_PROVISIONING_TTL must be positive")
+	}
+	if keyLength := len(cfg.APIKeyProvisioningEncryptionKey); keyLength != 0 && keyLength != 32 {
+		return fmt.Errorf("TOKENIO_API_KEY_PROVISIONING_ENCRYPTION_KEY must decode to exactly 32 bytes")
+	}
+	if len(cfg.APIKeyProvisioningEncryptionKey) > 0 &&
+		bytes.Equal(cfg.APIKeyProvisioningEncryptionKey, []byte(cfg.APIKeyHashSecret)) {
+		return fmt.Errorf("TOKENIO_API_KEY_PROVISIONING_ENCRYPTION_KEY and TOKENIO_API_KEY_HASH_SECRET must use different key material")
+	}
 	if cfg.Environment == "production" {
+		if strings.TrimSpace(cfg.ProvisioningServiceToken) == "" {
+			return fmt.Errorf("TOKENIO_PROVISIONING_SERVICE_TOKEN is required in production")
+		}
+		if len(cfg.APIKeyProvisioningEncryptionKey) == 0 {
+			return fmt.Errorf("TOKENIO_API_KEY_PROVISIONING_ENCRYPTION_KEY is required in production")
+		}
 		if len(cfg.AdminToken) < 32 {
 			return fmt.Errorf("TOKENIO_ADMIN_TOKEN must be at least 32 characters in production")
 		}
@@ -237,6 +269,46 @@ func (l *envLoader) required(key string) string {
 		l.errs = append(l.errs, fmt.Sprintf("%s is required", key))
 	}
 	return value
+}
+
+func (l *envLoader) requiredAbsoluteURL(key string) string {
+	rawValue, ok := os.LookupEnv(key)
+	if !ok || strings.TrimSpace(rawValue) == "" {
+		l.errs = append(l.errs, fmt.Sprintf("%s is required", key))
+		return ""
+	}
+
+	value := strings.TrimSpace(rawValue)
+	if value != rawValue {
+		l.errs = append(l.errs, fmt.Sprintf("%s must not contain leading or trailing whitespace", key))
+	}
+
+	parsed, err := url.Parse(value)
+	if err != nil || !parsed.IsAbs() || parsed.Host == "" {
+		l.errs = append(l.errs, fmt.Sprintf("%s must be a valid absolute URL", key))
+	}
+	return value
+}
+
+func (l *envLoader) optionalBase64Bytes(key string, expectedLength int) []byte {
+	value := env(key, "")
+	if value == "" {
+		return nil
+	}
+
+	decoded, err := base64.StdEncoding.Strict().DecodeString(value)
+	if err != nil {
+		l.errs = append(l.errs, fmt.Sprintf("%s must be valid base64", key))
+		return nil
+	}
+	if len(decoded) != expectedLength {
+		l.errs = append(
+			l.errs,
+			fmt.Sprintf("%s must decode to exactly %d bytes", key, expectedLength),
+		)
+		return nil
+	}
+	return decoded
 }
 
 func (l *envLoader) int(key string, fallback int) int {
