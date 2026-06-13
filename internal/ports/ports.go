@@ -37,6 +37,13 @@ type RouteRepository interface {
 	FindRoutes(ctx context.Context, query RouteQuery) ([]domain.Route, error)
 }
 
+type ModelCatalogRouteRepository interface {
+	ListModelCatalogRoutes(
+		context.Context,
+		domain.APIFamily,
+	) ([]domain.Route, error)
+}
+
 type RoutePriceRepository interface {
 	FindByRouteIDs(ctx context.Context, routeIDs []string) (map[string]domain.RoutePrice, error)
 }

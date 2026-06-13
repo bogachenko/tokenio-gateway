@@ -9,6 +9,39 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const listModelCatalogRoutesSQL = `
+SELECT
+    id,
+    reseller_id,
+    provider_type,
+    api_family,
+    endpoint_kind,
+    client_model,
+    provider_model,
+    model_rewrite_policy,
+    enabled,
+    priority,
+    requests_per_minute,
+    tokens_per_minute,
+    concurrent_requests,
+    default_max_output_tokens,
+    capabilities,
+    cooldown_until,
+    cooldown_reason,
+    last_error_code,
+    last_error_at,
+    created_at,
+    updated_at,
+    disabled_at
+FROM tokenio_routes
+WHERE api_family = $1
+ORDER BY
+    client_model ASC,
+    endpoint_kind ASC,
+    priority ASC,
+    id ASC
+`
+
 const findRoutesSQL = `
 SELECT
     id,
@@ -45,12 +78,70 @@ type RouteRepository struct {
 }
 
 var _ ports.RouteRepository = (*RouteRepository)(nil)
+var _ ports.ModelCatalogRouteRepository = (*RouteRepository)(nil)
 
 func NewRouteRepository(db DBTX) (*RouteRepository, error) {
 	if db == nil {
 		return nil, ErrInvalidDatabaseConfig
 	}
 	return &RouteRepository{db: db}, nil
+}
+
+func (r *RouteRepository) ListModelCatalogRoutes(
+	ctx context.Context,
+	apiFamily domain.APIFamily,
+) ([]domain.Route, error) {
+	if !validModelCatalogAPIFamily(apiFamily) {
+		return nil, ports.ErrStoreContractViolation
+	}
+	if r == nil || r.db == nil {
+		return nil, ErrInvalidDatabaseConfig
+	}
+
+	rows, err := r.db.Query(
+		ctx,
+		listModelCatalogRoutesSQL,
+		string(apiFamily),
+	)
+	if err != nil {
+		return nil, normalizeRegistryReadError(err)
+	}
+	defer rows.Close()
+
+	result := make([]domain.Route, 0)
+	seen := make(map[string]struct{})
+	for rows.Next() {
+		value, err := scanRoute(rows)
+		if err != nil {
+			return nil, err
+		}
+		if value.APIFamily != apiFamily {
+			return nil, ports.ErrStoreContractViolation
+		}
+		if _, exists := seen[value.ID]; exists {
+			return nil, ports.ErrStoreContractViolation
+		}
+		seen[value.ID] = struct{}{}
+		result = append(result, value)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, normalizeRegistryReadError(err)
+	}
+	return result, nil
+}
+
+func validModelCatalogAPIFamily(
+	value domain.APIFamily,
+) bool {
+	switch value {
+	case domain.APIFamilyOpenAICompatible,
+		domain.APIFamilyGeminiNative,
+		domain.APIFamilyAnthropicNative,
+		domain.APIFamilyOllamaNative:
+		return true
+	default:
+		return false
+	}
 }
 
 func (r *RouteRepository) FindRoutes(

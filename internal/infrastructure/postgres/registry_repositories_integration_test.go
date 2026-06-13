@@ -271,6 +271,35 @@ VALUES ($1, 'RUB', 100, 200, 'none', $2, TRUE, $3, $3)
 		t.Fatalf("routes = %+v", routes)
 	}
 
+	catalogRoutes, err :=
+		routeRepository.ListModelCatalogRoutes(
+			ctx,
+			domain.APIFamilyOpenAICompatible,
+		)
+	if err != nil {
+		t.Fatalf(
+			"ListModelCatalogRoutes: %v",
+			err,
+		)
+	}
+	var catalogRoute *domain.Route
+	for index := range catalogRoutes {
+		if catalogRoutes[index].ID == routeID {
+			catalogRoute = &catalogRoutes[index]
+			break
+		}
+	}
+	if catalogRoute == nil ||
+		catalogRoute.ClientModel != clientModel ||
+		catalogRoute.EndpointKind !=
+			domain.EndpointChat ||
+		!catalogRoute.Capabilities.Chat {
+		t.Fatalf(
+			"catalog routes = %+v",
+			catalogRoutes,
+		)
+	}
+
 	prices, err := priceRepository.FindByRouteIDs(
 		ctx,
 		[]string{routeID, routeID},

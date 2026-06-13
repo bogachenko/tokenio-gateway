@@ -444,6 +444,12 @@ images_generation
 
 `models` строится из registry/routes, но не forward-ится как обычный LLM request.
 
+Model catalog repository обязан загружать все routes выбранной
+`api_family`, включая disabled routes и routes в cooldown.
+Фильтрация только enabled routes в persistence layer запрещена:
+application layer должен видеть полный registry state, чтобы
+детерминированно вернуть `active=false`, когда доступного route нет.
+
 `health` не использует routing.
 
 ---
