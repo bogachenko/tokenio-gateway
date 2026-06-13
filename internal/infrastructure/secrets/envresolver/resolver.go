@@ -11,6 +11,7 @@ import (
 )
 
 var _ ports.SecretResolver = (*Resolver)(nil)
+var _ ports.SecretPresenceChecker = (*Resolver)(nil)
 
 var (
 	ErrInvalidSecretName  = errors.New("invalid secret name")
@@ -48,4 +49,23 @@ func (r *Resolver) Resolve(ctx context.Context, name string) (string, error) {
 		return "", fmt.Errorf("%w", ErrSecretNotAvailable)
 	}
 	return value, nil
+}
+
+func (r *Resolver) Exists(
+	ctx context.Context,
+	name string,
+) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	if strings.TrimSpace(name) == "" {
+		return false, fmt.Errorf("%w", ErrInvalidSecretName)
+	}
+
+	lookup := os.LookupEnv
+	if r != nil && r.lookup != nil {
+		lookup = r.lookup
+	}
+	value, ok := lookup(name)
+	return ok && value != "", nil
 }

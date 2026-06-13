@@ -66,6 +66,84 @@ func TestResolveCancelledContext(t *testing.T) {
 	}
 }
 
+func TestExistsReportsOnlyNonEmptyConfiguredValue(t *testing.T) {
+	tests := []struct {
+		name        string
+		lookupValue string
+		lookupOK    bool
+		want        bool
+	}{
+		{
+			name:        "present",
+			lookupValue: "secret-value",
+			lookupOK:    true,
+			want:        true,
+		},
+		{
+			name:     "missing",
+			lookupOK: false,
+			want:     false,
+		},
+		{
+			name:        "empty",
+			lookupValue: "",
+			lookupOK:    true,
+			want:        false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			resolver, err := NewWithLookup(
+				func(string) (string, bool) {
+					return test.lookupValue, test.lookupOK
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			got, err := resolver.Exists(
+				context.Background(),
+				"RESELLER_API_KEY",
+			)
+			if err != nil {
+				t.Fatalf("Exists: %v", err)
+			}
+			if got != test.want {
+				t.Fatalf("Exists = %t, want %t", got, test.want)
+			}
+		})
+	}
+}
+
+func TestExistsRejectsInvalidNameAndCancelledContext(t *testing.T) {
+	resolver, err := NewWithLookup(
+		func(string) (string, bool) {
+			return "secret", true
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := resolver.Exists(
+		context.Background(),
+		" \t\n",
+	); !errors.Is(err, ErrInvalidSecretName) {
+		t.Fatalf("invalid name error = %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := resolver.Exists(
+		ctx,
+		"RESELLER_API_KEY",
+	); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled context error = %v", err)
+	}
+}
+
 func TestSecretAbsentFromErrorsAndFormatting(t *testing.T) {
 	resolver, err := NewWithLookup(func(string) (string, bool) { return "super-secret", false })
 	if err != nil {

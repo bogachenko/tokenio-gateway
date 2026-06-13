@@ -84,6 +84,8 @@ func TestNewRuntimeIntegration(t *testing.T) {
 
 	cfg := config.Config{
 		DatabaseDSN:           dsn,
+		AdminToken:            "integration-admin-token",
+		APIKeyHashSecret:      "integration-api-key-hash-secret",
 		GatewayAddr:           "127.0.0.1:0",
 		HTTPReadHeaderTimeout: time.Second,
 		HTTPReadTimeout:       2 * time.Second,
@@ -100,6 +102,9 @@ func TestNewRuntimeIntegration(t *testing.T) {
 
 	if err := runtime.Primitives.Validate(); err != nil {
 		t.Fatalf("runtime primitives: %v", err)
+	}
+	if err := runtime.Security.Validate(); err != nil {
+		t.Fatalf("security graph: %v", err)
 	}
 	if err := runtime.Repositories.Validate(); err != nil {
 		t.Fatalf("repository graph: %v", err)

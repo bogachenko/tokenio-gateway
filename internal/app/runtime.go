@@ -14,6 +14,7 @@ import (
 type Runtime struct {
 	Config       config.Config
 	Primitives   RuntimePrimitives
+	Security     SecurityGraph
 	Repositories RepositoryGraph
 	Handler      http.Handler
 
@@ -26,6 +27,11 @@ func NewRuntime(
 	cfg config.Config,
 ) (*Runtime, error) {
 	primitives, err := NewRuntimePrimitives()
+	if err != nil {
+		return nil, err
+	}
+
+	security, err := NewSecurityGraph(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -75,6 +81,7 @@ func NewRuntime(
 	runtime := &Runtime{
 		Config:       cfg,
 		Primitives:   primitives,
+		Security:     security,
 		Repositories: repositories,
 		Handler:      httptransport.NewRouter(),
 		database:     database,
