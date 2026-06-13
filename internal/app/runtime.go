@@ -8,6 +8,7 @@ import (
 
 	"github.com/bogachenko/tokenio-gateway/internal/config"
 	"github.com/bogachenko/tokenio-gateway/internal/infrastructure/postgres"
+	provisioningexpiration "github.com/bogachenko/tokenio-gateway/internal/worker/provisioningexpiration"
 )
 
 type Runtime struct {
@@ -18,6 +19,7 @@ type Runtime struct {
 	Billing      BillingInfrastructureGraph
 	Repositories RepositoryGraph
 	Applications ApplicationGraph
+	Workers      WorkerGraph
 	Transports   TransportGraph
 	Handler      http.Handler
 
@@ -28,6 +30,7 @@ type Runtime struct {
 func NewRuntime(
 	ctx context.Context,
 	cfg config.Config,
+	provisioningExpirationObserver provisioningexpiration.Observer,
 ) (*Runtime, error) {
 	primitives, err := NewRuntimePrimitives()
 	if err != nil {
@@ -40,22 +43,32 @@ func NewRuntime(
 	}
 
 	provisioningInfrastructure, err :=
-		NewProvisioningInfrastructureGraph(cfg, security)
+		NewProvisioningInfrastructureGraph(
+			cfg,
+			security,
+		)
 	if err != nil {
 		return nil, err
 	}
 
-	billingInfrastructure, err := NewBillingInfrastructureGraph(
-		cfg,
-		primitives.Clock,
+	billingInfrastructure, err :=
+		NewBillingInfrastructureGraph(
+			cfg,
+			primitives.Clock,
+		)
+	if err != nil {
+		return nil, err
+	}
+
+	database, err := postgres.Open(
+		ctx,
+		cfg.DatabaseDSN,
 	)
 	if err != nil {
-		return nil, err
-	}
-
-	database, err := postgres.Open(ctx, cfg.DatabaseDSN)
-	if err != nil {
-		return nil, fmt.Errorf("open PostgreSQL: %w", err)
+		return nil, fmt.Errorf(
+			"open PostgreSQL: %w",
+			err,
+		)
 	}
 
 	closed := false
@@ -108,6 +121,16 @@ func NewRuntime(
 		return nil, err
 	}
 
+	workers, err := NewWorkerGraph(
+		cfg,
+		applications,
+		provisioningExpirationObserver,
+	)
+	if err != nil {
+		closeDatabase()
+		return nil, err
+	}
+
 	transports, err := NewTransportGraph(
 		cfg,
 		primitives,
@@ -127,6 +150,7 @@ func NewRuntime(
 		Billing:      billingInfrastructure,
 		Repositories: repositories,
 		Applications: applications,
+		Workers:      workers,
 		Transports:   transports,
 		Handler:      transports.Root,
 		database:     database,

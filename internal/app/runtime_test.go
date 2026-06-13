@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
+	"log"
 	"net/http"
 	"os"
 	"testing"
@@ -15,7 +17,10 @@ import (
 
 func TestNewRepositoryGraphRejectsNilDatabase(t *testing.T) {
 	_, err := NewRepositoryGraph(nil)
-	if !errors.Is(err, postgres.ErrInvalidDatabaseConfig) {
+	if !errors.Is(
+		err,
+		postgres.ErrInvalidDatabaseConfig,
+	) {
 		t.Fatalf(
 			"error = %v, want invalid database config",
 			err,
@@ -28,7 +33,9 @@ func TestRepositoryGraphValidateRejectsMissingCapability(
 ) {
 	var graph RepositoryGraph
 	if err := graph.Validate(); err == nil {
-		t.Fatal("expected incomplete graph validation error")
+		t.Fatal(
+			"expected incomplete graph validation error",
+		)
 	}
 }
 
@@ -42,10 +49,14 @@ func TestNewRuntimePrimitives(t *testing.T) {
 	}
 }
 
-func TestRuntimePrimitivesValidateRejectsMissingDependency(t *testing.T) {
+func TestRuntimePrimitivesValidateRejectsMissingDependency(
+	t *testing.T,
+) {
 	var primitives RuntimePrimitives
 	if err := primitives.Validate(); err == nil {
-		t.Fatal("expected incomplete primitives validation error")
+		t.Fatal(
+			"expected incomplete primitives validation error",
+		)
 	}
 }
 
@@ -58,7 +69,9 @@ func (*runtimeTestHandler) ServeHTTP(
 	writer.WriteHeader(http.StatusNoContent)
 }
 
-func TestNewServerWithHandlerUsesExactHandler(t *testing.T) {
+func TestNewServerWithHandlerUsesExactHandler(
+	t *testing.T,
+) {
 	handler := &runtimeTestHandler{}
 	cfg := config.Config{
 		GatewayAddr:           "127.0.0.1:0",
@@ -73,14 +86,18 @@ func TestNewServerWithHandlerUsesExactHandler(t *testing.T) {
 		t.Fatal("Handler is nil")
 	}
 	if server.Handler != handler {
-		t.Fatal("server did not preserve exact composed handler")
+		t.Fatal(
+			"server did not preserve exact composed handler",
+		)
 	}
 }
 
 func TestNewRuntimeIntegration(t *testing.T) {
 	dsn := os.Getenv("TOKENIO_TEST_DATABASE_DSN")
 	if dsn == "" {
-		t.Skip("TOKENIO_TEST_DATABASE_DSN is not set")
+		t.Skip(
+			"TOKENIO_TEST_DATABASE_DSN is not set",
+		)
 	}
 
 	cfg := config.Config{
@@ -92,25 +109,39 @@ func TestNewRuntimeIntegration(t *testing.T) {
 			[]byte{0x42},
 			32,
 		),
-		APIKeyProvisioningKeyVersion: "v1",
-		APIKeyProvisioningTTL:        24 * time.Hour,
-		BillingBaseURL:               "https://billing.example",
-		BillingServiceToken:          "integration-billing-service-token",
-		BillingJWTSigningKey:         "integration-billing-jwt-signing-key",
-		BillingJWTTTL:                15 * time.Minute,
-		BillingTimeout:               30 * time.Second,
-		AutoChargeThresholdCents:     1000,
-		MinChargeAmountCents:         100,
-		RequestBodyMaxBytes:          1024,
-		GatewayAddr:                  "127.0.0.1:0",
-		HTTPReadHeaderTimeout:        time.Second,
-		HTTPReadTimeout:              2 * time.Second,
-		HTTPWriteTimeout:             3 * time.Second,
-		HTTPIdleTimeout:              4 * time.Second,
-		HTTPShutdownTimeout:          5 * time.Second,
+		APIKeyProvisioningKeyVersion:          "v1",
+		APIKeyProvisioningTTL:                 24 * time.Hour,
+		APIKeyProvisioningExpirationInterval:  time.Minute,
+		APIKeyProvisioningExpirationBatchSize: 100,
+		BillingBaseURL:                        "https://billing.example",
+		BillingServiceToken:                   "integration-billing-service-token",
+		BillingJWTSigningKey:                  "integration-billing-jwt-signing-key",
+		BillingJWTTTL:                         15 * time.Minute,
+		BillingTimeout:                        30 * time.Second,
+		AutoChargeThresholdCents:              1000,
+		MinChargeAmountCents:                  100,
+		RequestBodyMaxBytes:                   1024,
+		GatewayAddr:                           "127.0.0.1:0",
+		HTTPReadHeaderTimeout:                 time.Second,
+		HTTPReadTimeout:                       2 * time.Second,
+		HTTPWriteTimeout:                      3 * time.Second,
+		HTTPIdleTimeout:                       4 * time.Second,
+		HTTPShutdownTimeout:                   5 * time.Second,
 	}
 
-	runtime, err := NewRuntime(t.Context(), cfg)
+	observer, err :=
+		NewProvisioningExpirationLogObserver(
+			log.New(io.Discard, "", 0),
+		)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	runtime, err := NewRuntime(
+		t.Context(),
+		cfg,
+		observer,
+	)
 	if err != nil {
 		t.Fatalf("NewRuntime: %v", err)
 	}
@@ -123,8 +154,11 @@ func TestNewRuntimeIntegration(t *testing.T) {
 		t.Fatalf("security graph: %v", err)
 	}
 	if !runtime.Security.ProvisioningEnabled ||
-		runtime.Security.ProvisioningAuthenticator == nil {
-		t.Fatal("runtime provisioning authenticator is disabled")
+		runtime.Security.ProvisioningAuthenticator ==
+			nil {
+		t.Fatal(
+			"runtime provisioning authenticator is disabled",
+		)
 	}
 	if err := runtime.Provisioning.Validate(); err != nil {
 		t.Fatalf(
@@ -133,10 +167,15 @@ func TestNewRuntimeIntegration(t *testing.T) {
 		)
 	}
 	if !runtime.Provisioning.Enabled {
-		t.Fatal("runtime provisioning graph is disabled")
+		t.Fatal(
+			"runtime provisioning graph is disabled",
+		)
 	}
 	if err := runtime.Billing.Validate(); err != nil {
-		t.Fatalf("billing infrastructure graph: %v", err)
+		t.Fatalf(
+			"billing infrastructure graph: %v",
+			err,
+		)
 	}
 	if err := runtime.Repositories.Validate(); err != nil {
 		t.Fatalf("repository graph: %v", err)
@@ -144,20 +183,37 @@ func TestNewRuntimeIntegration(t *testing.T) {
 	if err := runtime.Applications.Validate(); err != nil {
 		t.Fatalf("application graph: %v", err)
 	}
+	if err := runtime.Workers.Validate(); err != nil {
+		t.Fatalf("worker graph: %v", err)
+	}
+	if !runtime.Workers.
+		ProvisioningExpirationEnabled ||
+		runtime.Workers.
+			ProvisioningExpiration == nil {
+		t.Fatal(
+			"runtime provisioning expiration worker is disabled",
+		)
+	}
 	if err := runtime.Transports.Validate(); err != nil {
 		t.Fatalf("transport graph: %v", err)
 	}
 	if !runtime.Transports.ProvisioningEnabled ||
 		runtime.Transports.Provisioning == nil {
-		t.Fatal("runtime provisioning transport is disabled")
+		t.Fatal(
+			"runtime provisioning transport is disabled",
+		)
 	}
 	if runtime.Handler == nil {
 		t.Fatal("runtime handler is nil")
 	}
 	if runtime.Handler != runtime.Transports.Root {
-		t.Fatal("runtime handler is not transport graph root")
+		t.Fatal(
+			"runtime handler is not transport graph root",
+		)
 	}
-	if err := runtime.Ping(context.Background()); err != nil {
+	if err := runtime.Ping(
+		context.Background(),
+	); err != nil {
 		t.Fatalf("runtime ping: %v", err)
 	}
 

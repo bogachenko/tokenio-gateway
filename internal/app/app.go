@@ -14,6 +14,20 @@ import (
 	"github.com/bogachenko/tokenio-gateway/internal/config"
 )
 
+var ErrRuntimeComponentStopped = errors.New(
+	"runtime component stopped unexpectedly",
+)
+
+type httpRuntime interface {
+	ListenAndServe() error
+	Shutdown(context.Context) error
+	Close() error
+}
+
+type workerRuntime interface {
+	Run(context.Context) error
+}
+
 func NewServer(
 	cfg config.Config,
 	handler http.Handler,
@@ -51,7 +65,19 @@ func RunWithConfig(
 	ctx context.Context,
 	cfg config.Config,
 ) error {
-	runtime, err := NewRuntime(ctx, cfg)
+	observer, err :=
+		NewProvisioningExpirationLogObserver(
+			log.Default(),
+		)
+	if err != nil {
+		return err
+	}
+
+	runtime, err := NewRuntime(
+		ctx,
+		cfg,
+		observer,
+	)
 	if err != nil {
 		return err
 	}
@@ -62,60 +88,146 @@ func RunWithConfig(
 		"tokenio-gateway listening on %s",
 		cfg.GatewayAddr,
 	)
-	return serveHTTP(
+	return serveRuntime(
 		ctx,
 		server,
+		runtime.Workers,
 		cfg.HTTPShutdownTimeout,
 	)
 }
 
-func serveHTTP(
+func serveRuntime(
 	ctx context.Context,
-	server *http.Server,
+	server httpRuntime,
+	workers workerRuntime,
 	shutdownTimeout time.Duration,
 ) error {
 	if ctx == nil ||
 		server == nil ||
-		server.Handler == nil ||
+		workers == nil ||
 		shutdownTimeout <= 0 {
-		return fmt.Errorf("invalid HTTP runtime configuration")
+		return fmt.Errorf(
+			"invalid runtime lifecycle configuration",
+		)
 	}
 
-	serveErrors := make(chan error, 1)
+	runContext, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	httpErrors := make(chan error, 1)
+	workerErrors := make(chan error, 1)
+
 	go func() {
-		serveErrors <- server.ListenAndServe()
+		httpErrors <- server.ListenAndServe()
+	}()
+	go func() {
+		workerErrors <- workers.Run(runContext)
 	}()
 
 	select {
-	case err := <-serveErrors:
-		if err == nil || errors.Is(err, http.ErrServerClosed) {
-			return nil
-		}
-		return err
-
-	case <-ctx.Done():
-		shutdownContext, cancel := context.WithTimeout(
-			context.Background(),
-			shutdownTimeout,
-		)
-		shutdownErr := server.Shutdown(shutdownContext)
+	case httpErr := <-httpErrors:
 		cancel()
+		workerErr := <-workerErrors
 
-		if shutdownErr != nil {
-			_ = server.Close()
-		}
-		serveErr := <-serveErrors
-
-		if shutdownErr != nil {
-			return fmt.Errorf(
-				"graceful HTTP shutdown: %w",
-				shutdownErr,
+		if ctx.Err() == nil &&
+			(httpErr == nil ||
+				errors.Is(
+					httpErr,
+					http.ErrServerClosed,
+				)) {
+			return errors.Join(
+				ErrRuntimeComponentStopped,
+				runtimeWorkerError(workerErr),
 			)
 		}
-		if serveErr != nil &&
-			!errors.Is(serveErr, http.ErrServerClosed) {
-			return serveErr
+		return errors.Join(
+			runtimeHTTPError(httpErr),
+			runtimeWorkerError(workerErr),
+		)
+
+	case workerErr := <-workerErrors:
+		cancel()
+		shutdownErr := shutdownHTTP(
+			server,
+			shutdownTimeout,
+		)
+		httpErr := <-httpErrors
+
+		if ctx.Err() == nil && workerErr == nil {
+			return errors.Join(
+				ErrRuntimeComponentStopped,
+				shutdownErr,
+				runtimeHTTPError(httpErr),
+			)
 		}
+		return errors.Join(
+			runtimeWorkerError(workerErr),
+			shutdownErr,
+			runtimeHTTPError(httpErr),
+		)
+
+	case <-ctx.Done():
+		cancel()
+		shutdownErr := shutdownHTTP(
+			server,
+			shutdownTimeout,
+		)
+		httpErr := <-httpErrors
+		workerErr := <-workerErrors
+
+		return errors.Join(
+			runtimeWorkerError(workerErr),
+			shutdownErr,
+			runtimeHTTPError(httpErr),
+		)
+	}
+}
+
+func shutdownHTTP(
+	server httpRuntime,
+	shutdownTimeout time.Duration,
+) error {
+	shutdownContext, cancel := context.WithTimeout(
+		context.Background(),
+		shutdownTimeout,
+	)
+	shutdownErr := server.Shutdown(shutdownContext)
+	cancel()
+	if shutdownErr == nil {
 		return nil
 	}
+
+	closeErr := server.Close()
+	return errors.Join(
+		fmt.Errorf(
+			"graceful HTTP shutdown: %w",
+			shutdownErr,
+		),
+		wrapRuntimeError(
+			"force HTTP close",
+			closeErr,
+		),
+	)
+}
+
+func runtimeHTTPError(err error) error {
+	if err == nil ||
+		errors.Is(err, http.ErrServerClosed) {
+		return nil
+	}
+	return fmt.Errorf("serve HTTP: %w", err)
+}
+
+func runtimeWorkerError(err error) error {
+	return wrapRuntimeError("run workers", err)
+}
+
+func wrapRuntimeError(
+	operation string,
+	err error,
+) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%s: %w", operation, err)
 }
