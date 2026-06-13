@@ -1,6 +1,7 @@
 package provisioning
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
@@ -141,6 +142,25 @@ func (s *Service) Provision(
 		if rawAPIKey == "" {
 			return ProvisionResult{}, ErrCryptoUnavailable
 		}
+
+		attempted, attemptErr :=
+			s.store.RecordAPIKeyDeliveryAttempt(
+				ctx,
+				stored.Provisioning.ID,
+				now,
+			)
+		if attemptErr != nil {
+			return ProvisionResult{},
+				mapStoreError(attemptErr, false)
+		}
+		if err := validateDeliveryAttemptRecord(
+			stored.Provisioning,
+			attempted,
+			now,
+		); err != nil {
+			return ProvisionResult{}, err
+		}
+		stored.Provisioning = attempted
 
 		result := provisioningView(stored)
 		result.APIKey = rawAPIKey
@@ -523,6 +543,44 @@ func validateProvisioningResult(
 		return ErrStoreUnavailable
 	}
 
+	return nil
+}
+
+func validateDeliveryAttemptRecord(
+	before domain.APIKeyProvisioning,
+	after domain.APIKeyProvisioning,
+	attemptedAt time.Time,
+) error {
+	if before.DeliveryAttempts < 0 ||
+		after.ID != before.ID ||
+		after.IdempotencyKey != before.IdempotencyKey ||
+		after.SourceReferenceHash != before.SourceReferenceHash ||
+		after.ExternalBillingUserID != before.ExternalBillingUserID ||
+		after.UserID != before.UserID ||
+		after.APIKeyID != before.APIKeyID ||
+		after.ResultType != before.ResultType ||
+		after.Status != domain.APIKeyProvisioningStatusPendingDelivery ||
+		after.DeliveryAttempts != before.DeliveryAttempts+1 ||
+		!after.CreatedAt.Equal(before.CreatedAt) ||
+		!validUTCTime(after.CreatedAt) ||
+		!validUTCTime(after.UpdatedAt) ||
+		after.UpdatedAt.Before(before.UpdatedAt) ||
+		after.UpdatedAt.After(attemptedAt) ||
+		!bytes.Equal(after.EncryptedRawKey, before.EncryptedRawKey) ||
+		!bytes.Equal(after.EncryptionNonce, before.EncryptionNonce) ||
+		after.EncryptionKeyVersion != before.EncryptionKeyVersion ||
+		after.DeliveredAt != nil ||
+		after.ExpiredAt != nil {
+		return ErrStoreUnavailable
+	}
+
+	if before.ExpiresAt == nil ||
+		after.ExpiresAt == nil ||
+		!before.ExpiresAt.Equal(*after.ExpiresAt) ||
+		!validUTCTime(*after.ExpiresAt) ||
+		!after.ExpiresAt.After(attemptedAt) {
+		return ErrStoreUnavailable
+	}
 	return nil
 }
 

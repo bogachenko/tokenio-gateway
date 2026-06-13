@@ -65,6 +65,11 @@ type testProvisioningStore struct {
 		context.Context,
 		string,
 	) (*domain.APIKeyProvisioning, error)
+	recordAttempt func(
+		context.Context,
+		string,
+		time.Time,
+	) (domain.APIKeyProvisioning, error)
 	confirm func(
 		context.Context,
 		string,
@@ -76,12 +81,16 @@ type testProvisioningStore struct {
 		time.Time,
 	) (domain.APIKeyProvisioning, error)
 
-	provisionCalls int
-	findCalls      int
-	confirmCalls   int
-	expireCalls    int
+	provisionCalls     int
+	findCalls          int
+	recordAttemptCalls int
+	confirmCalls       int
+	expireCalls        int
 
-	lastRequest ports.APIKeyProvisioningRequest
+	lastRequest      ports.APIKeyProvisioningRequest
+	lastProvisioning domain.APIKeyProvisioning
+	lastAttemptID    string
+	lastAttemptAt    time.Time
 }
 
 func (s *testProvisioningStore) ProvisionAPIKey(
@@ -94,7 +103,11 @@ func (s *testProvisioningStore) ProvisionAPIKey(
 	if s.provision == nil {
 		return ports.APIKeyProvisioningResult{}, nil
 	}
-	return s.provision(ctx, request, factory)
+	result, err := s.provision(ctx, request, factory)
+	if err == nil {
+		s.lastProvisioning = result.Provisioning
+	}
+	return result, err
 }
 
 func (s *testProvisioningStore) FindAPIKeyProvisioningByID(
@@ -116,12 +129,21 @@ func (s *testProvisioningStore) FindAPIKeyProvisioningByIdempotencyKey(
 }
 
 func (s *testProvisioningStore) RecordAPIKeyDeliveryAttempt(
-	context.Context,
-	string,
-	time.Time,
+	ctx context.Context,
+	id string,
+	at time.Time,
 ) (domain.APIKeyProvisioning, error) {
-	return domain.APIKeyProvisioning{},
-		ports.ErrStoreUnavailable
+	s.recordAttemptCalls++
+	s.lastAttemptID = id
+	s.lastAttemptAt = at
+	if s.recordAttempt != nil {
+		return s.recordAttempt(ctx, id, at)
+	}
+
+	updated := s.lastProvisioning
+	updated.DeliveryAttempts++
+	updated.UpdatedAt = at
+	return updated, nil
 }
 
 func (s *testProvisioningStore) ConfirmAPIKeyDelivery(
@@ -371,11 +393,19 @@ func TestProvisionCreatedBuildsCanonicalStoreCommand(
 			domain.APIKeyProvisioningStatusPendingDelivery {
 		t.Fatalf("result = %+v", result)
 	}
-	if factory.calls != 1 || decryptor.calls != 1 {
+	if factory.calls != 1 ||
+		decryptor.calls != 1 ||
+		store.recordAttemptCalls != 1 ||
+		store.lastAttemptID != store.lastRequest.ProvisioningID ||
+		store.lastAttemptAt != fixedTime() {
 		t.Fatalf(
-			"factory calls = %d, decrypt calls = %d",
+			"factory calls = %d, decrypt calls = %d, "+
+				"attempt calls = %d, attempt id = %q, attempt at = %v",
 			factory.calls,
 			decryptor.calls,
+			store.recordAttemptCalls,
+			store.lastAttemptID,
+			store.lastAttemptAt,
 		)
 	}
 	if store.lastRequest.KeyName != defaultKeyName ||
@@ -428,6 +458,7 @@ func TestProvisionOutcomeControlsRawKeyDisclosure(
 		wantResult   ResultType
 		wantRaw      bool
 		wantDecrypts int
+		wantAttempts int
 	}{
 		{
 			name:         "pending replay",
@@ -435,6 +466,7 @@ func TestProvisionOutcomeControlsRawKeyDisclosure(
 			wantResult:   ResultTypeReplayed,
 			wantRaw:      true,
 			wantDecrypts: 1,
+			wantAttempts: 1,
 		},
 		{
 			name:       "delivered replay",
@@ -491,11 +523,15 @@ func TestProvisionOutcomeControlsRawKeyDisclosure(
 					test.wantRaw,
 				)
 			}
-			if decryptor.calls != test.wantDecrypts {
+			if decryptor.calls != test.wantDecrypts ||
+				store.recordAttemptCalls != test.wantAttempts {
 				t.Fatalf(
-					"decrypt calls = %d, want %d",
+					"decrypt calls = %d, want %d; "+
+						"attempt calls = %d, want %d",
 					decryptor.calls,
 					test.wantDecrypts,
+					store.recordAttemptCalls,
+					test.wantAttempts,
 				)
 			}
 		})
@@ -562,6 +598,108 @@ func TestProvisionExpiresDuePendingRecordBeforeDisclosure(
 			result,
 			decryptor.calls,
 			store.expireCalls,
+		)
+	}
+}
+
+func TestProvisionDoesNotDiscloseRawKeyWhenDeliveryAttemptFails(
+	t *testing.T,
+) {
+	store := &testProvisioningStore{}
+	store.provision = func(
+		_ context.Context,
+		request ports.APIKeyProvisioningRequest,
+		_ ports.APIKeyProvisioningMaterialFactory,
+	) (ports.APIKeyProvisioningResult, error) {
+		return resultFor(
+			request,
+			ports.APIKeyProvisioningOutcomeReplayedPending,
+		), nil
+	}
+	store.recordAttempt = func(
+		context.Context,
+		string,
+		time.Time,
+	) (domain.APIKeyProvisioning, error) {
+		return domain.APIKeyProvisioning{},
+			errors.New("database unavailable with sk_live_secret")
+	}
+	decryptor := &testMaterialDecryptor{
+		raw: "sk_live_must_not_leave_application",
+	}
+	service := newServiceForTest(
+		t,
+		store,
+		&testMaterialFactory{},
+		decryptor,
+	)
+
+	result, err := service.Provision(
+		context.Background(),
+		validInput(),
+	)
+	if !errors.Is(err, ErrStoreUnavailable) {
+		t.Fatalf("error = %v, want ErrStoreUnavailable", err)
+	}
+	if result.APIKey != "" ||
+		decryptor.calls != 1 ||
+		store.recordAttemptCalls != 1 {
+		t.Fatalf(
+			"result=%+v decrypts=%d attempts=%d",
+			result,
+			decryptor.calls,
+			store.recordAttemptCalls,
+		)
+	}
+	if strings.Contains(err.Error(), "sk_live_") {
+		t.Fatalf("raw key leaked through error: %v", err)
+	}
+}
+
+func TestProvisionRejectsMalformedDeliveryAttemptRecord(
+	t *testing.T,
+) {
+	store := &testProvisioningStore{}
+	store.provision = func(
+		_ context.Context,
+		request ports.APIKeyProvisioningRequest,
+		_ ports.APIKeyProvisioningMaterialFactory,
+	) (ports.APIKeyProvisioningResult, error) {
+		return resultFor(
+			request,
+			ports.APIKeyProvisioningOutcomeCreated,
+		), nil
+	}
+	store.recordAttempt = func(
+		_ context.Context,
+		_ string,
+		at time.Time,
+	) (domain.APIKeyProvisioning, error) {
+		malformed := store.lastProvisioning
+		malformed.DeliveryAttempts += 2
+		malformed.UpdatedAt = at
+		return malformed, nil
+	}
+	service := newServiceForTest(
+		t,
+		store,
+		&testMaterialFactory{},
+		&testMaterialDecryptor{
+			raw: "sk_live_must_not_be_returned",
+		},
+	)
+
+	result, err := service.Provision(
+		context.Background(),
+		validInput(),
+	)
+	if !errors.Is(err, ErrStoreUnavailable) {
+		t.Fatalf("error = %v, want ErrStoreUnavailable", err)
+	}
+	if result.APIKey != "" {
+		t.Fatalf(
+			"malformed attempt disclosed raw key: %+v",
+			result,
 		)
 	}
 }

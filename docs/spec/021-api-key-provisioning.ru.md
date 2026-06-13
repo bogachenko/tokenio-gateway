@@ -276,10 +276,15 @@ response не содержит raw API key.
 11. create tokenio_api_key_provisionings record
 12. commit transaction
 13. decrypt only for response serialization
-14. return raw key
+14. transactionally increment delivery_attempts
+15. return raw key
 ```
 
 Database commit должен произойти до отправки response.
+
+Каждый response, содержащий `api_key`, должен быть предварительно
+зафиксирован через `delivery_attempts = delivery_attempts + 1`.
+Если фиксация delivery attempt не выполнена, raw key не возвращается.
 
 Если commit failed, raw key не считается provisioned и не должен возвращаться как successful result.
 
