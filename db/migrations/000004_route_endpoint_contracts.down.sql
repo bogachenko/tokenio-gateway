@@ -1,0 +1,5 @@
+ALTER TABLE tokenio_routes
+DROP CONSTRAINT tokenio_routes_endpoint_configuration_chk;
+
+ALTER TABLE tokenio_routes
+DROP CONSTRAINT tokenio_routes_capabilities_object_chk;
