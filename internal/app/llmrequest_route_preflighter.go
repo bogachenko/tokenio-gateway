@@ -91,20 +91,6 @@ func (p *LLMRequestRoutePreflighter) Evaluate(
 		result.SecretAvailable = available
 	}
 
-	capacity, err := p.capacity.Check(
-		ctx,
-		llmrequest.RouteCapacityInput{
-			Route:    input.Route,
-			Reseller: input.Reseller,
-		},
-	)
-	if err != nil {
-		return llmrequest.RouteCandidatePreflightResult{},
-			fmt.Errorf("check route capacity: %w", err)
-	}
-	result.RateLimitAllowed = capacity.RateLimitAllowed
-	result.ConcurrencyAllowed = capacity.ConcurrencyAllowed
-
 	if input.Price == nil {
 		return result, nil
 	}
@@ -134,6 +120,21 @@ func (p *LLMRequestRoutePreflighter) Evaluate(
 		priced.EstimatedUpstreamCostCents
 	result.Currency = priced.Currency
 	result.Confidence = priced.Confidence
+
+	capacity, err := p.capacity.Check(
+		ctx,
+		llmrequest.RouteCapacityInput{
+			Route:          input.Route,
+			Reseller:       input.Reseller,
+			EstimatedUsage: priced.EstimatedUsage,
+		},
+	)
+	if err != nil {
+		return llmrequest.RouteCandidatePreflightResult{},
+			fmt.Errorf("check route capacity: %w", err)
+	}
+	result.RateLimitAllowed = capacity.RateLimitAllowed
+	result.ConcurrencyAllowed = capacity.ConcurrencyAllowed
 	return result, nil
 }
 

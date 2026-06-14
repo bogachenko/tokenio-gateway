@@ -141,7 +141,11 @@ func TestLLMRequestRoutePreflighterBuildsCompleteFacts(t *testing.T) {
 		t.Fatalf("secret name = %q", gotSecretName)
 	}
 	if gotCapacity.Route.ID != input.Route.ID ||
-		gotCapacity.Reseller.ID != input.Reseller.ID {
+		gotCapacity.Reseller.ID != input.Reseller.ID ||
+		gotCapacity.EstimatedUsage != (domain.TokenUsage{
+			InputTokens:  10,
+			OutputTokens: 5,
+		}) {
 		t.Fatalf("capacity input = %+v", gotCapacity)
 	}
 	if gotEstimateClientModel != input.Route.ClientModel ||
@@ -183,6 +187,7 @@ func TestLLMRequestRoutePreflighterMissingPriceIsUnavailable(
 	input := validLLMRequestRoutePreflightInput()
 	input.Price = nil
 	estimatorCalled := false
+	capacityCalled := false
 
 	preflighter := mustLLMRequestRoutePreflighter(
 		t,
@@ -199,7 +204,15 @@ func TestLLMRequestRoutePreflighterMissingPriceIsUnavailable(
 				},
 			),
 		),
-		allowedLLMRequestCapacity(),
+		llmRequestRouteCapacityFunc(
+			func(
+				context.Context,
+				llmrequest.RouteCapacityInput,
+			) (llmrequest.RouteCapacityResult, error) {
+				capacityCalled = true
+				return llmrequest.RouteCapacityResult{}, nil
+			},
+		),
 		allowedLLMRequestRewrite(),
 	)
 
@@ -210,11 +223,14 @@ func TestLLMRequestRoutePreflighterMissingPriceIsUnavailable(
 	if err != nil {
 		t.Fatalf("Evaluate: %v", err)
 	}
-	if result.CostAvailable || estimatorCalled {
+	if result.CostAvailable ||
+		estimatorCalled ||
+		capacityCalled {
 		t.Fatalf(
-			"result = %+v, estimator called = %v",
+			"result = %+v, estimator called = %v, capacity called = %v",
 			result,
 			estimatorCalled,
+			capacityCalled,
 		)
 	}
 }
@@ -224,6 +240,7 @@ func TestLLMRequestRoutePreflighterPricingErrorMarksUnavailable(
 ) {
 	input := validLLMRequestRoutePreflightInput()
 	input.Price.Currency = "USD"
+	capacityCalled := false
 
 	preflighter := mustLLMRequestRoutePreflighter(
 		t,
@@ -244,7 +261,15 @@ func TestLLMRequestRoutePreflighterPricingErrorMarksUnavailable(
 				},
 			),
 		),
-		allowedLLMRequestCapacity(),
+		llmRequestRouteCapacityFunc(
+			func(
+				context.Context,
+				llmrequest.RouteCapacityInput,
+			) (llmrequest.RouteCapacityResult, error) {
+				capacityCalled = true
+				return llmrequest.RouteCapacityResult{}, nil
+			},
+		),
 		allowedLLMRequestRewrite(),
 	)
 
@@ -257,9 +282,14 @@ func TestLLMRequestRoutePreflighterPricingErrorMarksUnavailable(
 	}
 	if result.CostAvailable ||
 		!result.SecretAvailable ||
-		!result.RateLimitAllowed ||
-		!result.ConcurrencyAllowed {
-		t.Fatalf("result = %+v", result)
+		result.RateLimitAllowed ||
+		result.ConcurrencyAllowed ||
+		capacityCalled {
+		t.Fatalf(
+			"result = %+v, capacity called = %v",
+			result,
+			capacityCalled,
+		)
 	}
 }
 

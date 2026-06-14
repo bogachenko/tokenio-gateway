@@ -37,8 +37,9 @@ type RouteCandidatePreflightResult struct {
 }
 
 type RouteCapacityInput struct {
-	Route    domain.Route
-	Reseller domain.Reseller
+	Route          domain.Route
+	Reseller       domain.Reseller
+	EstimatedUsage domain.TokenUsage
 }
 
 type RouteCapacityResult struct {
