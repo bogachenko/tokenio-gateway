@@ -23,8 +23,9 @@ type Config struct {
 	BillingJWTTTL        time.Duration
 	BillingTimeout       time.Duration
 
-	AdminToken       string
-	APIKeyHashSecret string
+	AdminToken            string
+	APIKeyHashSecret      string
+	APIKeyLastUsedTimeout time.Duration
 
 	ProvisioningServiceToken              string
 	APIKeyProvisioningEncryptionKey       []byte
@@ -84,8 +85,9 @@ func Load() (Config, error) {
 		BillingJWTTTL:        l.duration("TOKENIO_BILLING_JWT_TTL", 15*time.Minute),
 		BillingTimeout:       l.duration("TOKENIO_BILLING_TIMEOUT", 30*time.Second),
 
-		AdminToken:       l.required("TOKENIO_ADMIN_TOKEN"),
-		APIKeyHashSecret: l.required("TOKENIO_API_KEY_HASH_SECRET"),
+		AdminToken:            l.required("TOKENIO_ADMIN_TOKEN"),
+		APIKeyHashSecret:      l.required("TOKENIO_API_KEY_HASH_SECRET"),
+		APIKeyLastUsedTimeout: l.duration("TOKENIO_API_KEY_LAST_USED_TIMEOUT", 250*time.Millisecond),
 
 		ProvisioningServiceToken:        env("TOKENIO_PROVISIONING_SERVICE_TOKEN", ""),
 		APIKeyProvisioningEncryptionKey: l.optionalBase64Bytes("TOKENIO_API_KEY_PROVISIONING_ENCRYPTION_KEY", 32),
@@ -238,6 +240,9 @@ func validate(cfg Config) error {
 	}
 	if strings.TrimSpace(cfg.APIKeyHashSecret) == "" {
 		return fmt.Errorf("TOKENIO_API_KEY_HASH_SECRET is required")
+	}
+	if cfg.APIKeyLastUsedTimeout <= 0 {
+		return fmt.Errorf("TOKENIO_API_KEY_LAST_USED_TIMEOUT must be positive")
 	}
 	if strings.TrimSpace(cfg.APIKeyProvisioningKeyVersion) == "" {
 		return fmt.Errorf("TOKENIO_API_KEY_PROVISIONING_KEY_VERSION must be non-empty")

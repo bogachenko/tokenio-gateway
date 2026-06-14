@@ -256,6 +256,35 @@ HTTP 413
 error.code = request_body_too_large
 ```
 
+## 5.4. API-key last-used timeout
+
+```text
+TOKENIO_API_KEY_LAST_USED_TIMEOUT
+```
+
+Default:
+
+```text
+250ms
+```
+
+Meaning:
+
+```text
+maximum synchronous best-effort persistence time
+for API-key last_used_at after successful authentication
+```
+
+Validation:
+
+```text
+must be positive duration
+```
+
+Этот timeout не является public authentication timeout и не меняет
+результат уже успешной authentication. Он ограничивает только
+secondary usage-recording mutation.
+
 ---
 
 # 6. Billing config

@@ -445,6 +445,43 @@ upsert и INSERT в mutation запрещены.
 Application orchestration, timeout и best-effort policy задаются
 отдельно. Persistence adapter не создаёт goroutine, queue или retry.
 
+## 7.2. Bounded best-effort orchestration
+
+Application layer оборачивает основной authentication use case
+отдельным decorator:
+
+```text
+core authentication
+→ successful AuthPrincipal
+→ bounded RecordLastUsedAt
+→ вернуть тот же AuthPrincipal
+```
+
+Mutation выполняется только после успешной проверки key, user и
+billing identity.
+
+Policy:
+
+```text
+recorder error не отменяет успешную authentication;
+recorder error не включается в public response;
+mutation context имеет обязательный короткий timeout;
+client cancellation не оставляет mutation без собственного deadline;
+один request не создаёт goroutine;
+unbounded queue и background retry запрещены;
+used_at получается из injected UTC clock;
+```
+
+Timeout задаётся configuration contract:
+
+```text
+TOKENIO_API_KEY_LAST_USED_TIMEOUT
+```
+
+Core authentication use case остаётся единственным source of truth
+для решения, является ли credential допустимым. Decorator не повторяет
+key/user validation.
+
 Минимальная структура AuthPrincipal:
 
 ```text
