@@ -85,6 +85,90 @@ func TestUsageExtractorSupportsCurrentOpenAITokenNames(
 	}
 }
 
+func TestUsageExtractorExtractsDetailedEmbeddingUsage(
+	t *testing.T,
+) {
+	extractor := NewUsageExtractor()
+	result, err := extractor.Extract(
+		context.Background(),
+		ports.UsageExtractionRequest{
+			APIFamily: domain.
+				APIFamilyOpenAICompatible,
+			EndpointKind: domain.EndpointEmbeddings,
+			ClientModel:  "embedding-model",
+			ResponseBody: []byte(`{
+				"object":"list",
+				"model":"provider-embedding-model",
+				"usage":{"prompt_tokens":17,"total_tokens":17}
+			}`),
+		},
+	)
+	if err != nil {
+		t.Fatalf("Extract: %v", err)
+	}
+	if result.Completeness != "detailed" ||
+		result.ProviderResponseModel !=
+			"provider-embedding-model" ||
+		result.Usage.InputTokens != 17 ||
+		result.Usage.OutputTokens != 0 {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestUsageExtractorUsesEmbeddingTotalTokensAsInputFallback(
+	t *testing.T,
+) {
+	extractor := NewUsageExtractor()
+	result, err := extractor.Extract(
+		context.Background(),
+		ports.UsageExtractionRequest{
+			APIFamily: domain.
+				APIFamilyOpenAICompatible,
+			EndpointKind: domain.EndpointEmbeddings,
+			ClientModel:  "embedding-model",
+			ResponseBody: []byte(`{
+				"usage":{"total_tokens":23}
+			}`),
+		},
+	)
+	if err != nil {
+		t.Fatalf("Extract: %v", err)
+	}
+	if result.Completeness != "aggregate" ||
+		result.Usage.InputTokens != 23 ||
+		result.Usage.OutputTokens != 0 {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestUsageExtractorPrefersEmbeddingInputTokensOverTotal(
+	t *testing.T,
+) {
+	extractor := NewUsageExtractor()
+	result, err := extractor.Extract(
+		context.Background(),
+		ports.UsageExtractionRequest{
+			APIFamily: domain.
+				APIFamilyOpenAICompatible,
+			EndpointKind: domain.EndpointEmbeddings,
+			ClientModel:  "embedding-model",
+			ResponseBody: []byte(`{
+				"usage":{
+					"input_tokens":19,
+					"total_tokens":99
+				}
+			}`),
+		},
+	)
+	if err != nil {
+		t.Fatalf("Extract: %v", err)
+	}
+	if result.Completeness != "detailed" ||
+		result.Usage.InputTokens != 19 {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
 func TestUsageExtractorReturnsMissingWhenUsageIsAbsent(
 	t *testing.T,
 ) {
@@ -155,7 +239,8 @@ func TestUsageExtractorRejectsUnsupportedFamilyAndEndpoint(
 		{
 			APIFamily: domain.
 				APIFamilyOpenAICompatible,
-			EndpointKind: domain.EndpointEmbeddings,
+			EndpointKind: domain.
+				EndpointImagesGeneration,
 			ClientModel:  "model",
 			ResponseBody: []byte(`{}`),
 		},

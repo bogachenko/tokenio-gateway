@@ -45,7 +45,7 @@ func (e *UsageExtractor) Extract(
 		return ports.UsageExtractionResult{}, err
 	}
 	if request.APIFamily != domain.APIFamilyOpenAICompatible ||
-		request.EndpointKind != domain.EndpointChat ||
+		!supportedUsageEndpoint(request.EndpointKind) ||
 		strings.TrimSpace(request.ClientModel) == "" ||
 		request.ResponseBody == nil {
 		return ports.UsageExtractionResult{}, fmt.Errorf(
@@ -73,6 +73,10 @@ func (e *UsageExtractor) Extract(
 	usageRoot, err := decodeUsageObject(rawUsage)
 	if err != nil {
 		return ports.UsageExtractionResult{}, err
+	}
+
+	if request.EndpointKind == domain.EndpointEmbeddings {
+		return extractEmbeddingUsage(result, usageRoot)
 	}
 
 	inputTokens, inputPresent, err := firstNonNegativeInteger(
@@ -133,6 +137,57 @@ func (e *UsageExtractor) Extract(
 	} else {
 		result.Completeness = "aggregate"
 	}
+	return result, nil
+}
+
+func supportedUsageEndpoint(
+	endpoint domain.EndpointKind,
+) bool {
+	switch endpoint {
+	case domain.EndpointChat,
+		domain.EndpointEmbeddings:
+		return true
+	default:
+		return false
+	}
+}
+
+func extractEmbeddingUsage(
+	result ports.UsageExtractionResult,
+	usageRoot map[string]json.RawMessage,
+) (ports.UsageExtractionResult, error) {
+	inputTokens, inputPresent, err := firstNonNegativeInteger(
+		usageRoot,
+		"input_tokens",
+		"prompt_tokens",
+	)
+	if err != nil {
+		return ports.UsageExtractionResult{}, err
+	}
+
+	totalTokens, totalPresent, err := firstNonNegativeInteger(
+		usageRoot,
+		"total_tokens",
+	)
+	if err != nil {
+		return ports.UsageExtractionResult{}, err
+	}
+
+	switch {
+	case inputPresent:
+		result.Usage = domain.TokenUsage{
+			InputTokens: inputTokens,
+		}
+		result.Completeness = "detailed"
+	case totalPresent:
+		result.Usage = domain.TokenUsage{
+			InputTokens: totalTokens,
+		}
+		result.Completeness = "aggregate"
+	default:
+		return result, nil
+	}
+
 	return result, nil
 }
 
