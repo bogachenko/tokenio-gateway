@@ -90,6 +90,18 @@ type forwardingStageFunc func(
 	BillingAdmissionResult,
 ) (ForwardedRequest, error)
 
+type usageResolverFunc func(
+	context.Context,
+	UsageResolutionInput,
+) (UsageResolutionResult, error)
+
+func (function usageResolverFunc) Resolve(
+	ctx context.Context,
+	input UsageResolutionInput,
+) (UsageResolutionResult, error) {
+	return function(ctx, input)
+}
+
 func (function forwardingStageFunc) Execute(
 	ctx context.Context,
 	prepared PreparedRequest,
@@ -147,6 +159,13 @@ func TestNewServiceRequiresEveryDependency(t *testing.T) {
 				return value
 			},
 		},
+		{
+			name: "usage resolver",
+			mutate: func(value Dependencies) Dependencies {
+				value.UsageResolver = nil
+				return value
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -182,6 +201,7 @@ func TestServiceExecuteExecutesCanonicalOrder(t *testing.T) {
 		"route",
 		"admission",
 		"forwarding",
+		"usage",
 	}
 	if !reflect.DeepEqual(calls, wantCalls) {
 		t.Fatalf("calls = %#v, want %#v", calls, wantCalls)
@@ -201,7 +221,9 @@ func TestServiceExecuteExecutesCanonicalOrder(t *testing.T) {
 			ReservationDispositionCreated ||
 		reserved.Reserved.Reservation.Usage.Status !=
 			domain.UsageStatusReserved ||
-		reserved.Response.StatusCode != 200 {
+		reserved.Response.StatusCode != 200 ||
+		reserved.ResolvedUsage.Completeness != "detailed" ||
+		reserved.ResolvedUsage.ClientAmountCents != 15 {
 		t.Fatalf("forwarded = %+v", reserved)
 	}
 }
@@ -264,6 +286,19 @@ func TestServiceExecuteStopsAtFirstFailedStage(t *testing.T) {
 				"route",
 				"admission",
 				"forwarding",
+			},
+		},
+		{
+			name:      "usage resolution",
+			failStage: "usage",
+			wantCalls: []string{
+				"authenticate",
+				"parse",
+				"capabilities",
+				"route",
+				"admission",
+				"forwarding",
+				"usage",
 			},
 		},
 	}
@@ -568,6 +603,32 @@ func validDependencies(
 				}, nil
 			},
 		),
+		UsageResolver: usageResolverFunc(
+			func(
+				_ context.Context,
+				input UsageResolutionInput,
+			) (UsageResolutionResult, error) {
+				record("usage")
+				if input.Reserved.Prepared.LocalRequestID !=
+					"llmreq_test" ||
+					input.Response.StatusCode != 200 {
+					return UsageResolutionResult{},
+						errors.New(
+							"unexpected usage input",
+						)
+				}
+				return UsageResolutionResult{
+					Usage: domain.TokenUsage{
+						InputTokens:  10,
+						OutputTokens: 5,
+					},
+					Completeness:      "detailed",
+					UpstreamCostCents: 10,
+					ClientAmountCents: 15,
+					Currency:          "RUB",
+				}, nil
+			},
+		),
 	}
 }
 
@@ -641,6 +702,16 @@ func failingDependencies(
 			) (ForwardedRequest, error) {
 				record()
 				return ForwardedRequest{}, stageError
+			},
+		)
+	case "usage":
+		value.UsageResolver = usageResolverFunc(
+			func(
+				context.Context,
+				UsageResolutionInput,
+			) (UsageResolutionResult, error) {
+				record()
+				return UsageResolutionResult{}, stageError
 			},
 		)
 	default:

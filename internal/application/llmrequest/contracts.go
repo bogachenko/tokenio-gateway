@@ -40,6 +40,13 @@ type ForwardingStageExecutor interface {
 	) (ForwardedRequest, error)
 }
 
+type UsageResolver interface {
+	Resolve(
+		context.Context,
+		UsageResolutionInput,
+	) (UsageResolutionResult, error)
+}
+
 type Dependencies struct {
 	Authenticator      Authenticator
 	RequestParser      RequestParser
@@ -47,4 +54,5 @@ type Dependencies struct {
 	RoutePlanner       RoutePlanner
 	BillingAdmitter    BillingAdmitter
 	Forwarding         ForwardingStageExecutor
+	UsageResolver      UsageResolver
 }

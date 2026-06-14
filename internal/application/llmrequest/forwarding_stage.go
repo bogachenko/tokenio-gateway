@@ -32,8 +32,9 @@ type ForwardingStage struct {
 }
 
 type ForwardedRequest struct {
-	Reserved ReservedRequest
-	Response ports.ForwardResponse
+	Reserved      ReservedRequest
+	Response      ports.ForwardResponse
+	ResolvedUsage UsageResolutionResult
 }
 
 func NewForwardingStage(

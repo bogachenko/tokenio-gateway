@@ -1,6 +1,9 @@
 package llmrequest
 
-import "github.com/bogachenko/tokenio-gateway/internal/domain"
+import (
+	"github.com/bogachenko/tokenio-gateway/internal/domain"
+	"github.com/bogachenko/tokenio-gateway/internal/ports"
+)
 
 type Input struct {
 	LocalRequestID string
@@ -131,4 +134,22 @@ type ReservedRequest struct {
 	Prepared    PreparedRequest
 	Admission   BillingAdmissionResult
 	Reservation ReservationResult
+}
+
+type UsageResolutionInput struct {
+	Reserved ReservedRequest
+	Response ports.ForwardResponse
+}
+
+type UsageResolutionResult struct {
+	Usage        domain.TokenUsage
+	Completeness string
+	Estimated    bool
+
+	UpstreamCostCents int64
+	ClientAmountCents int64
+	Currency          string
+
+	ProviderRequestID     string
+	ProviderResponseModel string
 }

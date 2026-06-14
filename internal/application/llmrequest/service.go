@@ -19,6 +19,7 @@ type Service struct {
 	routePlanner       RoutePlanner
 	billingAdmitter    BillingAdmitter
 	forwarding         ForwardingStageExecutor
+	usageResolver      UsageResolver
 }
 
 func NewService(dependencies Dependencies) (*Service, error) {
@@ -27,7 +28,8 @@ func NewService(dependencies Dependencies) (*Service, error) {
 		dependencies.CapabilityDetector == nil ||
 		dependencies.RoutePlanner == nil ||
 		dependencies.BillingAdmitter == nil ||
-		dependencies.Forwarding == nil {
+		dependencies.Forwarding == nil ||
+		dependencies.UsageResolver == nil {
 		return nil, ErrDependencyRequired
 	}
 
@@ -38,6 +40,7 @@ func NewService(dependencies Dependencies) (*Service, error) {
 		routePlanner:       dependencies.RoutePlanner,
 		billingAdmitter:    dependencies.BillingAdmitter,
 		forwarding:         dependencies.Forwarding,
+		usageResolver:      dependencies.UsageResolver,
 	}, nil
 }
 
@@ -51,7 +54,8 @@ func (s *Service) Execute(
 		s.capabilityDetector == nil ||
 		s.routePlanner == nil ||
 		s.billingAdmitter == nil ||
-		s.forwarding == nil {
+		s.forwarding == nil ||
+		s.usageResolver == nil {
 		return ForwardedRequest{}, ErrDependencyRequired
 	}
 	if ctx == nil {
@@ -95,7 +99,47 @@ func (s *Service) Execute(
 			err,
 		)
 	}
+
+	resolved, err := s.usageResolver.Resolve(
+		ctx,
+		UsageResolutionInput{
+			Reserved: forwarded.Reserved,
+			Response: cloneForwardResponse(
+				forwarded.Response,
+			),
+		},
+	)
+	if err != nil {
+		return ForwardedRequest{}, fmt.Errorf(
+			"resolve final usage: %w",
+			err,
+		)
+	}
+	if err := validateUsageResolution(
+		forwarded,
+		resolved,
+	); err != nil {
+		return ForwardedRequest{}, err
+	}
+	forwarded.ResolvedUsage = resolved
 	return forwarded, nil
+}
+
+func validateUsageResolution(
+	forwarded ForwardedRequest,
+	resolved UsageResolutionResult,
+) error {
+	if resolved.Completeness == "" ||
+		resolved.UpstreamCostCents < 0 ||
+		resolved.ClientAmountCents < 0 ||
+		resolved.Currency != forwarded.Reserved.Prepared.Plan.Currency ||
+		!nonNegativeUsage(resolved.Usage) {
+		return fmt.Errorf(
+			"%w: invalid usage resolution",
+			ErrStageContractViolation,
+		)
+	}
+	return nil
 }
 
 func (s *Service) prepare(

@@ -189,14 +189,23 @@ func NewApplicationGraph(
 			err,
 		)
 	}
-	usageResolver, err := pricingapp.NewUsageResolver(
+	pricingUsageResolver, err := pricingapp.NewUsageResolver(
 		forwardingInfrastructure.UsageExtractor,
 		tokenEstimator,
 		pricingCalculator,
 	)
 	if err != nil {
 		return ApplicationGraph{}, fmt.Errorf(
-			"construct LLM-request usage resolver: %w",
+			"construct LLM-request pricing usage resolver: %w",
+			err,
+		)
+	}
+	usageResolver, err := NewLLMRequestUsageResolver(
+		pricingUsageResolver,
+	)
+	if err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"construct LLM-request usage resolver adapter: %w",
 			err,
 		)
 	}
@@ -282,6 +291,7 @@ func NewApplicationGraph(
 			RoutePlanner:       routePlanner,
 			BillingAdmitter:    billingAdmitter,
 			Forwarding:         llmRequestForwarding,
+			UsageResolver:      usageResolver,
 		},
 	)
 	if err != nil {
@@ -339,7 +349,7 @@ func NewApplicationGraph(
 		Ledger:               ledgerService,
 		AutoCharge:           autoCharge,
 		FailedBatchRetry:     failedBatchRetry,
-		UsageResolver:        usageResolver,
+		UsageResolver:        pricingUsageResolver,
 		LLMRequest:           llmRequestService,
 		Admin:                adminService,
 	}
