@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 
+	"github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
 	"github.com/bogachenko/tokenio-gateway/internal/infrastructure/postgres"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
@@ -15,6 +16,8 @@ type RepositoryGraph struct {
 	ModelCatalogRoutes ports.ModelCatalogRouteRepository
 	RoutePrices        ports.RoutePriceRepository
 	UsageLedger        ports.UsageLedger
+
+	LLMRequestAtomicReservation llmrequest.AtomicReservation
 
 	AdminUsers        ports.AdminUserRepository
 	AdminAPIKeys      ports.AdminAPIKeyRepository
@@ -34,6 +37,7 @@ type RepositoryGraph struct {
 
 func NewRepositoryGraph(
 	db *postgres.DB,
+	clock ports.Clock,
 ) (RepositoryGraph, error) {
 	users, err := postgres.NewUserRepository(db)
 	if err != nil {
@@ -74,6 +78,14 @@ func NewRepositoryGraph(
 	if err != nil {
 		return RepositoryGraph{}, fmt.Errorf(
 			"construct usage ledger: %w",
+			err,
+		)
+	}
+	atomicReservation, err :=
+		postgres.NewLLMRequestAtomicReservation(db, clock)
+	if err != nil {
+		return RepositoryGraph{}, fmt.Errorf(
+			"construct LLM-request atomic reservation: %w",
 			err,
 		)
 	}
@@ -176,6 +188,8 @@ func NewRepositoryGraph(
 		RoutePrices:        routePrices,
 		UsageLedger:        usageLedger,
 
+		LLMRequestAtomicReservation: atomicReservation,
+
 		AdminUsers:        adminUsers,
 		AdminAPIKeys:      adminAPIKeys,
 		AdminProvisioning: adminProvisioning,
@@ -211,6 +225,10 @@ func (g RepositoryGraph) Validate() error {
 		return fmt.Errorf("route-price repository is nil")
 	case g.UsageLedger == nil:
 		return fmt.Errorf("usage ledger is nil")
+	case g.LLMRequestAtomicReservation == nil:
+		return fmt.Errorf(
+			"LLM-request atomic reservation is nil",
+		)
 	case g.AdminUsers == nil:
 		return fmt.Errorf("admin user repository is nil")
 	case g.AdminAPIKeys == nil:

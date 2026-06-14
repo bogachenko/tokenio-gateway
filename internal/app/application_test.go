@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
 	"github.com/bogachenko/tokenio-gateway/internal/config"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
@@ -44,6 +45,7 @@ func validApplicationGraphInputs(
 		AutoChargeThresholdCents:     1000,
 		MinChargeAmountCents:         100,
 		RequestBodyMaxBytes:          1024,
+		UpstreamResponseBodyMaxBytes: 1024,
 	}
 	security, err := NewSecurityGraph(cfg)
 	if err != nil {
@@ -122,6 +124,9 @@ func validApplicationGraphInputs(
 		UsageLedger: &struct {
 			ports.UsageLedger
 		}{},
+		LLMRequestAtomicReservation: &struct {
+			llmrequest.AtomicReservation
+		}{},
 		AdminUsers: &struct {
 			ports.AdminUserRepository
 		}{},
@@ -195,6 +200,9 @@ func TestNewApplicationGraphWiresExistingPorts(t *testing.T) {
 	}
 	if graph.ModelCatalog == nil {
 		t.Fatal("model catalog service is not wired")
+	}
+	if graph.LLMRequestForwarding == nil {
+		t.Fatal("LLM-request forwarding stage is not wired")
 	}
 	if !graph.ProvisioningEnabled ||
 		graph.Provisioning == nil {

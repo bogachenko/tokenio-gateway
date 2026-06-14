@@ -7,6 +7,7 @@ import (
 	authenticateapp "github.com/bogachenko/tokenio-gateway/internal/application/authenticate"
 	billingapp "github.com/bogachenko/tokenio-gateway/internal/application/billing"
 	ledgerapp "github.com/bogachenko/tokenio-gateway/internal/application/ledger"
+	llmrequest "github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
 	modelcatalogapp "github.com/bogachenko/tokenio-gateway/internal/application/modelcatalog"
 	provisioningapp "github.com/bogachenko/tokenio-gateway/internal/application/provisioning"
 	"github.com/bogachenko/tokenio-gateway/internal/config"
@@ -20,6 +21,7 @@ type ApplicationGraph struct {
 	Ledger               *ledgerapp.Service
 	AutoCharge           *billingapp.AutoChargeService
 	FailedBatchRetry     *billingapp.FailedBatchRetryService
+	LLMRequestForwarding *llmrequest.ForwardingStage
 	Admin                *adminapp.Service
 }
 
@@ -148,6 +150,30 @@ func NewApplicationGraph(
 		)
 	}
 
+	forwardingExecutor, err :=
+		NewLLMRequestForwardingExecutor(
+			security.Secrets,
+			forwardingInfrastructure.AdapterFactory,
+			cfg.UpstreamResponseBodyMaxBytes,
+		)
+	if err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"construct LLM-request forwarding executor: %w",
+			err,
+		)
+	}
+	llmRequestForwarding, err := llmrequest.NewForwardingStage(
+		primitives.RouteCapacity,
+		repositories.LLMRequestAtomicReservation,
+		forwardingExecutor,
+	)
+	if err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"construct LLM-request forwarding stage: %w",
+			err,
+		)
+	}
+
 	failedBatchRetry, err := billingapp.NewFailedBatchRetryService(
 		billingInfrastructure.Charge,
 		repositories.AdminUsage,
@@ -196,6 +222,7 @@ func NewApplicationGraph(
 		Ledger:               ledgerService,
 		AutoCharge:           autoCharge,
 		FailedBatchRetry:     failedBatchRetry,
+		LLMRequestForwarding: llmRequestForwarding,
 		Admin:                adminService,
 	}
 	if err := graph.Validate(); err != nil {
@@ -223,6 +250,8 @@ func (g ApplicationGraph) Validate() error {
 		return fmt.Errorf("auto-charge service is nil")
 	case g.FailedBatchRetry == nil:
 		return fmt.Errorf("failed billing batch retry service is nil")
+	case g.LLMRequestForwarding == nil:
+		return fmt.Errorf("LLM-request forwarding stage is nil")
 	case g.Admin == nil:
 		return fmt.Errorf("admin service is nil")
 	default:

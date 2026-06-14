@@ -34,13 +34,14 @@ type Config struct {
 	APIKeyProvisioningExpirationInterval  time.Duration
 	APIKeyProvisioningExpirationBatchSize int
 
-	CostCurrency                string
-	AutoChargeThresholdCents    int64
-	MinChargeAmountCents        int64
-	MinRequestBalanceCents      int64
-	TokenEstimationSafetyFactor float64
-	CostEstimationSafetyFactor  float64
-	RequestBodyMaxBytes         int64
+	CostCurrency                 string
+	AutoChargeThresholdCents     int64
+	MinChargeAmountCents         int64
+	MinRequestBalanceCents       int64
+	TokenEstimationSafetyFactor  float64
+	CostEstimationSafetyFactor   float64
+	RequestBodyMaxBytes          int64
+	UpstreamResponseBodyMaxBytes int64
 
 	TelegramBotToken          string
 	TelegramChatID            string
@@ -108,7 +109,14 @@ func Load() (Config, error) {
 		MinRequestBalanceCents:      l.int64("TOKENIO_MIN_REQUEST_BALANCE_CENTS", 500),
 		TokenEstimationSafetyFactor: l.float64("TOKENIO_TOKEN_ESTIMATION_SAFETY_FACTOR", 1.25),
 		CostEstimationSafetyFactor:  l.float64("TOKENIO_COST_ESTIMATION_SAFETY_FACTOR", 1.10),
-		RequestBodyMaxBytes:         l.int64("TOKENIO_REQUEST_BODY_MAX_BYTES", 64<<20),
+		RequestBodyMaxBytes: l.int64(
+			"TOKENIO_REQUEST_BODY_MAX_BYTES",
+			64<<20,
+		),
+		UpstreamResponseBodyMaxBytes: l.int64(
+			"TOKENIO_UPSTREAM_RESPONSE_BODY_MAX_BYTES",
+			64<<20,
+		),
 
 		TelegramBotToken:          env("TOKENIO_TELEGRAM_BOT_TOKEN", ""),
 		TelegramChatID:            env("TOKENIO_TELEGRAM_CHAT_ID", ""),
@@ -174,6 +182,11 @@ func validate(cfg Config) error {
 	}
 	if cfg.RequestBodyMaxBytes <= 0 {
 		return fmt.Errorf("TOKENIO_REQUEST_BODY_MAX_BYTES must be positive")
+	}
+	if cfg.UpstreamResponseBodyMaxBytes <= 0 {
+		return fmt.Errorf(
+			"TOKENIO_UPSTREAM_RESPONSE_BODY_MAX_BYTES must be positive",
+		)
 	}
 	if cfg.BillingJWTTTL <= 0 {
 		return fmt.Errorf("TOKENIO_BILLING_JWT_TTL must be positive")

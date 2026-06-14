@@ -256,7 +256,35 @@ HTTP 413
 error.code = request_body_too_large
 ```
 
-## 5.4. API-key last-used timeout
+## 5.4. Upstream response body limit
+
+```text
+TOKENIO_UPSTREAM_RESPONSE_BODY_MAX_BYTES
+```
+
+Default:
+
+```text
+67108864
+```
+
+Meaning:
+
+```text
+64 MiB maximum buffered upstream response body
+```
+
+Validation:
+
+```text
+must be positive
+```
+
+The value is passed as typed configuration to the forwarding
+adapter factory. Provider adapters must not read this environment
+variable directly.
+
+## 5.5. API-key last-used timeout
 
 ```text
 TOKENIO_API_KEY_LAST_USED_TIMEOUT

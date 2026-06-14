@@ -16,7 +16,10 @@ import (
 )
 
 func TestNewRepositoryGraphRejectsNilDatabase(t *testing.T) {
-	_, err := NewRepositoryGraph(nil)
+	_, err := NewRepositoryGraph(
+		nil,
+		applicationGraphClock{now: time.Now().UTC()},
+	)
 	if !errors.Is(
 		err,
 		postgres.ErrInvalidDatabaseConfig,

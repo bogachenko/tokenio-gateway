@@ -102,7 +102,10 @@ func NewRuntime(
 		)
 	}
 
-	repositories, err := NewRepositoryGraph(database)
+	repositories, err := NewRepositoryGraph(
+		database,
+		primitives.Clock,
+	)
 	if err != nil {
 		closeDatabase()
 		return nil, err

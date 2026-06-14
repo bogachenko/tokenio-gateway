@@ -322,3 +322,55 @@ func TestLoadRejectsNonPositiveProvisioningTTL(t *testing.T) {
 		t.Fatalf("expected %q, got %v", want, err)
 	}
 }
+
+func TestLoadUpstreamResponseBodyMaxBytes(t *testing.T) {
+	setValidRequiredEnv(t)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.UpstreamResponseBodyMaxBytes != 64<<20 {
+		t.Fatalf(
+			"UpstreamResponseBodyMaxBytes = %d, want %d",
+			cfg.UpstreamResponseBodyMaxBytes,
+			int64(64<<20),
+		)
+	}
+
+	t.Setenv(
+		"TOKENIO_UPSTREAM_RESPONSE_BODY_MAX_BYTES",
+		"2048",
+	)
+	cfg, err = Load()
+	if err != nil {
+		t.Fatalf("Load() with override error = %v", err)
+	}
+	if cfg.UpstreamResponseBodyMaxBytes != 2048 {
+		t.Fatalf(
+			"UpstreamResponseBodyMaxBytes = %d, want 2048",
+			cfg.UpstreamResponseBodyMaxBytes,
+		)
+	}
+}
+
+func TestLoadRejectsInvalidUpstreamResponseBodyMaxBytes(
+	t *testing.T,
+) {
+	setValidRequiredEnv(t)
+	t.Setenv(
+		"TOKENIO_UPSTREAM_RESPONSE_BODY_MAX_BYTES",
+		"0",
+	)
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("expected Load() error")
+	}
+	if !strings.Contains(
+		err.Error(),
+		"TOKENIO_UPSTREAM_RESPONSE_BODY_MAX_BYTES must be positive",
+	) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
