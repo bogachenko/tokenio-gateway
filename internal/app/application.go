@@ -93,6 +93,7 @@ func NewApplicationGraph(
 			Resellers:      repositories.Resellers,
 			Prices:         repositories.RoutePrices,
 			Secrets:        security.SecretPresence,
+			AdapterSupport: forwardingInfrastructure.AdapterSupport,
 			RewriteSupport: forwardingInfrastructure.ModelRewriteSupport,
 			Clock:          primitives.Clock,
 			Currency:       cfg.CostCurrency,
@@ -242,6 +243,7 @@ func NewApplicationGraph(
 		security.SecretPresence,
 		preflightPricer,
 		primitives.RouteCapacity,
+		forwardingInfrastructure.AdapterSupport,
 		forwardingInfrastructure.ModelRewriteSupport,
 	)
 	if err != nil {
@@ -349,6 +351,7 @@ func NewApplicationGraph(
 		Ledger:         repositories.AdminUsage,
 		Audit:          repositories.AdminAudit,
 		Secrets:        security.SecretPresence,
+		AdapterSupport: forwardingInfrastructure.AdapterSupport,
 		KeyGenerator:   security.APIKeyGenerator,
 		Hasher:         security.APIKeyHasher,
 		Clock:          primitives.Clock,

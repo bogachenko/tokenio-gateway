@@ -66,6 +66,8 @@ func (s *LLMRequestRouteSelector) Select(
 			Reseller:        candidate.Reseller,
 			SecretAvailable: candidate.Preflight.SecretAvailable,
 			CostAvailable:   candidate.Preflight.CostAvailable,
+			ForwardingAdapterAvailable: candidate.Preflight.
+				ForwardingAdapterAvailable,
 			EstimatedUpstreamCostCents: candidate.Preflight.
 				EstimatedUpstreamCostCents,
 			RateLimitAllowed: candidate.Preflight.

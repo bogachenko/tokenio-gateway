@@ -627,8 +627,9 @@ func validPlannerPreflight(
 		cost = 20
 	}
 	return RouteCandidatePreflightResult{
-		SecretAvailable: true,
-		CostAvailable:   true,
+		ForwardingAdapterAvailable: true,
+		SecretAvailable:            true,
+		CostAvailable:              true,
 		EstimatedUsage: domain.TokenUsage{
 			InputTokens:  10,
 			OutputTokens: 5,

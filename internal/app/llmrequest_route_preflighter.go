@@ -15,6 +15,7 @@ type LLMRequestRoutePreflighter struct {
 	secrets        ports.SecretPresenceChecker
 	pricer         *pricing.PreflightPricer
 	capacity       ports.RouteCapacityChecker
+	adapterSupport ports.ForwardingAdapterSupport
 	rewriteSupport ports.ModelIdentifierRewriteSupport
 }
 
@@ -24,11 +25,13 @@ func NewLLMRequestRoutePreflighter(
 	secrets ports.SecretPresenceChecker,
 	pricer *pricing.PreflightPricer,
 	capacity ports.RouteCapacityChecker,
+	adapterSupport ports.ForwardingAdapterSupport,
 	rewriteSupport ports.ModelIdentifierRewriteSupport,
 ) (*LLMRequestRoutePreflighter, error) {
 	if secrets == nil ||
 		pricer == nil ||
 		capacity == nil ||
+		adapterSupport == nil ||
 		rewriteSupport == nil {
 		return nil, llmrequest.ErrDependencyRequired
 	}
@@ -36,6 +39,7 @@ func NewLLMRequestRoutePreflighter(
 		secrets:        secrets,
 		pricer:         pricer,
 		capacity:       capacity,
+		adapterSupport: adapterSupport,
 		rewriteSupport: rewriteSupport,
 	}, nil
 }
@@ -48,6 +52,7 @@ func (p *LLMRequestRoutePreflighter) Evaluate(
 		p.secrets == nil ||
 		p.pricer == nil ||
 		p.capacity == nil ||
+		p.adapterSupport == nil ||
 		p.rewriteSupport == nil {
 		return llmrequest.RouteCandidatePreflightResult{},
 			llmrequest.ErrDependencyRequired
@@ -66,6 +71,10 @@ func (p *LLMRequestRoutePreflighter) Evaluate(
 	}
 
 	result := llmrequest.RouteCandidatePreflightResult{
+		ForwardingAdapterAvailable: p.adapterSupport.SupportsForwardingAdapter(
+			input.Route.APIFamily,
+			input.Route.ProviderType,
+		),
 		ModelIdentifierRewriteAllowed: llmRequestModelRewriteAllowed(
 			p.rewriteSupport,
 			input.Route,

@@ -215,6 +215,7 @@ type Dependencies struct {
 	Ledger         ports.AdminUsageLedger
 	Audit          ports.AdminAuditStore
 	Secrets        ports.SecretPresenceChecker
+	AdapterSupport ports.ForwardingAdapterSupport
 	KeyGenerator   ports.APIKeyGenerator
 	Hasher         APIKeyHasher
 	Clock          ports.Clock

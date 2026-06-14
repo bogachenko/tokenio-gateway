@@ -63,6 +63,35 @@ func TestRegistrySelectsExactStructuralKey(t *testing.T) {
 	}
 }
 
+func TestRegistryReportsExactForwardingSupport(t *testing.T) {
+	registry, err := New(Registration{
+		Key: Key{
+			APIFamily:    domain.APIFamilyOpenAICompatible,
+			ProviderType: domain.ProviderOpenAI,
+		},
+		Factory: factoryFunc(func(
+			ports.ForwardingAdapterFactoryInput,
+		) (ports.ForwardingClient, error) {
+			return clientStub{}, nil
+		}),
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if !registry.SupportsForwardingAdapter(
+		domain.APIFamilyOpenAICompatible,
+		domain.ProviderOpenAI,
+	) {
+		t.Fatal("registered adapter unavailable")
+	}
+	if registry.SupportsForwardingAdapter(
+		domain.APIFamilyGeminiNative,
+		domain.ProviderOpenAI,
+	) {
+		t.Fatal("unknown key available")
+	}
+}
+
 func TestRegistryRejectsUnknownCombination(t *testing.T) {
 	registry, err := New(
 		Registration{

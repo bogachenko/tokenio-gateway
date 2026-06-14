@@ -25,6 +25,7 @@ type Dependencies struct {
 	Resellers      ports.ResellerQueryRepository
 	Prices         ports.RoutePriceRepository
 	Secrets        ports.SecretPresenceChecker
+	AdapterSupport ports.ForwardingAdapterSupport
 	RewriteSupport ports.ModelIdentifierRewriteSupport
 	Clock          ports.Clock
 	Currency       string
@@ -50,6 +51,7 @@ func NewService(deps Dependencies) (*Service, error) {
 		deps.Resellers == nil ||
 		deps.Prices == nil ||
 		deps.Secrets == nil ||
+		deps.AdapterSupport == nil ||
 		deps.RewriteSupport == nil ||
 		deps.Clock == nil ||
 		!validOpaque(deps.Currency) {
@@ -326,6 +328,12 @@ func (s *Service) buildModel(
 func (s *Service) routeConfigurationSupported(
 	route domain.Route,
 ) bool {
+	if !s.deps.AdapterSupport.SupportsForwardingAdapter(
+		route.APIFamily,
+		route.ProviderType,
+	) {
+		return false
+	}
 	if !endpointCapabilityPresent(route) {
 		return false
 	}

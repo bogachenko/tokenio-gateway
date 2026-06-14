@@ -88,7 +88,11 @@ func (s *Service) CreateRoute(ctx context.Context, command CommandContext, route
 	if reseller == nil {
 		return domain.Route{}, ErrNotFound
 	}
-	if reseller.ProviderType != route.ProviderType {
+	if reseller.ProviderType != route.ProviderType ||
+		!s.deps.AdapterSupport.SupportsForwardingAdapter(
+			route.APIFamily,
+			route.ProviderType,
+		) {
 		return domain.Route{}, ErrInvalidRequest
 	}
 	at, err := nowUTC(s.deps.Clock)
@@ -169,7 +173,12 @@ func (s *Service) UpdateRoute(ctx context.Context, command CommandContext, input
 	if reseller == nil {
 		return domain.Route{}, ErrNotFound
 	}
-	if reseller.ProviderType != next.ProviderType {
+	if reseller.ProviderType != next.ProviderType ||
+		(next.Enabled &&
+			!s.deps.AdapterSupport.SupportsForwardingAdapter(
+				next.APIFamily,
+				next.ProviderType,
+			)) {
 		return domain.Route{}, ErrInvalidRequest
 	}
 	audit := auditContext(command, domain.AuditActionRouteUpdate, "route", next.ID, routeState(*current), routeState(next), at)
@@ -210,6 +219,13 @@ func (s *Service) SetRouteEnabled(ctx context.Context, command CommandContext, i
 	}
 	if err := validateRoute(next); err != nil {
 		return domain.Route{}, err
+	}
+	if enabled &&
+		!s.deps.AdapterSupport.SupportsForwardingAdapter(
+			next.APIFamily,
+			next.ProviderType,
+		) {
+		return domain.Route{}, ErrInvalidRequest
 	}
 	audit := auditContext(command, action, "route", id, routeState(*current), routeState(next), at)
 	updated, err := s.deps.Routes.CompareAndSwapRouteWithAudit(ctx, *current, next, audit)

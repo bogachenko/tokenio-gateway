@@ -180,6 +180,15 @@ func (f *fakeSecrets) Exists(_ context.Context, name string) (bool, error) {
 	return f.present, nil
 }
 
+type fakeAdapterSupport struct{}
+
+func (*fakeAdapterSupport) SupportsForwardingAdapter(
+	domain.APIFamily,
+	domain.ProviderType,
+) bool {
+	return true
+}
+
 type fakeGenerator struct {
 	raw string
 	err error
@@ -199,7 +208,7 @@ func newServiceForTest(t *testing.T, users *fakeUsers, keys *fakeKeys, resellers
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, err := NewService(Dependencies{Users: users, APIKeys: keys, Provisionings: &fakeAdminProvisioningRepository{}, Resellers: resellers, Routes: routes, Prices: &fakePrices{}, PriceValidator: &fakePriceValidator{}, UsagePolicy: &fakeUsagePolicy{}, Ledger: ledgerStore, Audit: &fakeAuditStore{}, Secrets: secrets, KeyGenerator: generator, Hasher: hasher, Clock: fixedClock{value: time.Unix(100, 0).UTC()}, BatchRetrier: &fakeRetrier{}})
+	service, err := NewService(Dependencies{Users: users, APIKeys: keys, Provisionings: &fakeAdminProvisioningRepository{}, Resellers: resellers, Routes: routes, Prices: &fakePrices{}, PriceValidator: &fakePriceValidator{}, UsagePolicy: &fakeUsagePolicy{}, Ledger: ledgerStore, Audit: &fakeAuditStore{}, Secrets: secrets, AdapterSupport: &fakeAdapterSupport{}, KeyGenerator: generator, Hasher: hasher, Clock: fixedClock{value: time.Unix(100, 0).UTC()}, BatchRetrier: &fakeRetrier{}})
 	if err != nil {
 		t.Fatal(err)
 	}

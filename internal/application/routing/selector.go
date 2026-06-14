@@ -18,6 +18,8 @@ type SelectionInput struct {
 	Now                   time.Time
 }
 
+const SkipReasonForwardingAdapterUnavailable SkipReason = "forwarding_adapter_unavailable"
+
 type Candidate struct {
 	Route    domain.Route
 	Reseller domain.Reseller
@@ -25,6 +27,7 @@ type Candidate struct {
 	SecretAvailable bool
 
 	CostAvailable              bool
+	ForwardingAdapterAvailable bool
 	EstimatedUpstreamCostCents int64
 
 	RateLimitAllowed              bool
@@ -139,6 +142,9 @@ func validateStructuralCandidates(candidates []Candidate) error {
 func primaryOperationalSkipReason(candidate Candidate, now time.Time) (SkipReason, bool) {
 	if !candidate.Route.Enabled || !candidate.Reseller.Enabled {
 		return SkipReasonManualDisabled, true
+	}
+	if !candidate.ForwardingAdapterAvailable {
+		return SkipReasonForwardingAdapterUnavailable, true
 	}
 	if !candidate.SecretAvailable {
 		return SkipReasonMissingResellerAPIKey, true

@@ -22,7 +22,10 @@ type Registry struct {
 	factories map[Key]ports.ForwardingAdapterFactory
 }
 
-var _ ports.ForwardingAdapterFactory = (*Registry)(nil)
+var (
+	_ ports.ForwardingAdapterFactory = (*Registry)(nil)
+	_ ports.ForwardingAdapterSupport = (*Registry)(nil)
+)
 
 func New(registrations ...Registration) (*Registry, error) {
 	if len(registrations) == 0 {
@@ -49,6 +52,20 @@ func New(registrations ...Registration) (*Registry, error) {
 		factories[registration.Key] = registration.Factory
 	}
 	return &Registry{factories: factories}, nil
+}
+
+func (r *Registry) SupportsForwardingAdapter(
+	apiFamily domain.APIFamily,
+	providerType domain.ProviderType,
+) bool {
+	if r == nil {
+		return false
+	}
+	_, exists := r.factories[Key{
+		APIFamily:    apiFamily,
+		ProviderType: providerType,
+	}]
+	return exists
 }
 
 func (r *Registry) Build(

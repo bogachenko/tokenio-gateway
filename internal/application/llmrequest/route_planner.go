@@ -31,6 +31,7 @@ type RouteCandidatePreflightResult struct {
 	Currency   string
 	Confidence string
 
+	ForwardingAdapterAvailable    bool
 	RateLimitAllowed              bool
 	ConcurrencyAllowed            bool
 	ModelIdentifierRewriteAllowed bool
@@ -369,6 +370,7 @@ func validateSelectedRouteCandidate(
 		selected.Price.RouteID != selected.Route.ID ||
 		!preflight.SecretAvailable ||
 		!preflight.CostAvailable ||
+		!preflight.ForwardingAdapterAvailable ||
 		!preflight.RateLimitAllowed ||
 		!preflight.ConcurrencyAllowed ||
 		!preflight.ModelIdentifierRewriteAllowed ||

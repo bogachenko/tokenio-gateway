@@ -12,6 +12,7 @@ import (
 )
 
 type ForwardingInfrastructureGraph struct {
+	AdapterSupport      ports.ForwardingAdapterSupport
 	ModelRewriteSupport ports.ModelIdentifierRewriteSupport
 	AdapterFactory      ports.ForwardingAdapterFactory
 	UsageExtractor      ports.UsageExtractor
@@ -60,6 +61,7 @@ func NewForwardingInfrastructureGraph() (ForwardingInfrastructureGraph, error) {
 	}
 
 	graph := ForwardingInfrastructureGraph{
+		AdapterSupport:      adapterRegistry,
 		ModelRewriteSupport: rewriteRegistry,
 		AdapterFactory:      adapterRegistry,
 		UsageExtractor:      openaicompat.NewUsageExtractor(),
@@ -75,6 +77,9 @@ func NewForwardingInfrastructureGraph() (ForwardingInfrastructureGraph, error) {
 }
 
 func (g ForwardingInfrastructureGraph) Validate() error {
+	if g.AdapterSupport == nil {
+		return fmt.Errorf("forwarding adapter support registry is nil")
+	}
 	if g.ModelRewriteSupport == nil {
 		return fmt.Errorf(
 			"model rewrite support registry is nil",

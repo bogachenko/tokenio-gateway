@@ -36,6 +36,18 @@ func (function llmRequestRouteCapacityFunc) Check(
 	return function(ctx, input)
 }
 
+type llmRequestAdapterSupportFunc func(
+	domain.APIFamily,
+	domain.ProviderType,
+) bool
+
+func (function llmRequestAdapterSupportFunc) SupportsForwardingAdapter(
+	apiFamily domain.APIFamily,
+	providerType domain.ProviderType,
+) bool {
+	return function(apiFamily, providerType)
+}
+
 type llmRequestRewriteSupportFunc func(
 	domain.APIFamily,
 	domain.ProviderType,
@@ -170,6 +182,7 @@ func TestLLMRequestRoutePreflighterBuildsCompleteFacts(t *testing.T) {
 
 	if !result.SecretAvailable ||
 		!result.CostAvailable ||
+		!result.ForwardingAdapterAvailable ||
 		!result.RateLimitAllowed ||
 		!result.ConcurrencyAllowed ||
 		!result.ModelIdentifierRewriteAllowed ||
@@ -449,6 +462,7 @@ func TestNewLLMRequestRoutePreflighterRequiresDependencies(
 	)
 	validSecrets := alwaysPresentLLMRequestSecret()
 	validCapacity := allowedLLMRequestCapacity()
+	validAdapter := allowedLLMRequestAdapterSupport()
 	validRewrite := allowedLLMRequestRewrite()
 
 	tests := []struct {
@@ -456,31 +470,43 @@ func TestNewLLMRequestRoutePreflighterRequiresDependencies(
 		secrets  ports.SecretPresenceChecker
 		pricer   *pricing.PreflightPricer
 		capacity ports.RouteCapacityChecker
+		adapter  ports.ForwardingAdapterSupport
 		rewrite  ports.ModelIdentifierRewriteSupport
 	}{
 		{
 			name:     "secrets",
 			pricer:   pricer,
 			capacity: validCapacity,
+			adapter:  validAdapter,
 			rewrite:  validRewrite,
 		},
 		{
 			name:     "pricer",
 			secrets:  validSecrets,
 			capacity: validCapacity,
+			adapter:  validAdapter,
 			rewrite:  validRewrite,
 		},
 		{
 			name:    "capacity",
 			secrets: validSecrets,
 			pricer:  pricer,
+			adapter: validAdapter,
 			rewrite: validRewrite,
+		},
+		{
+			name:     "adapter",
+			secrets:  validSecrets,
+			pricer:   pricer,
+			capacity: validCapacity,
+			rewrite:  validRewrite,
 		},
 		{
 			name:     "rewrite",
 			secrets:  validSecrets,
 			pricer:   pricer,
 			capacity: validCapacity,
+			adapter:  validAdapter,
 		},
 	}
 
@@ -490,6 +516,7 @@ func TestNewLLMRequestRoutePreflighterRequiresDependencies(
 				test.secrets,
 				test.pricer,
 				test.capacity,
+				test.adapter,
 				test.rewrite,
 			)
 			if !errors.Is(
@@ -518,6 +545,7 @@ func mustLLMRequestRoutePreflighter(
 		secrets,
 		pricer,
 		capacity,
+		allowedLLMRequestAdapterSupport(),
 		rewrite,
 	)
 	if err != nil {
@@ -603,6 +631,14 @@ func allowedLLMRequestCapacity() ports.RouteCapacityChecker {
 				RateLimitAllowed:   true,
 				ConcurrencyAllowed: true,
 			}, nil
+		},
+	)
+}
+
+func allowedLLMRequestAdapterSupport() ports.ForwardingAdapterSupport {
+	return llmRequestAdapterSupportFunc(
+		func(domain.APIFamily, domain.ProviderType) bool {
+			return true
 		},
 	)
 }

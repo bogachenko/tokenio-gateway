@@ -31,6 +31,7 @@ func TestStage10V5SelectRejectsOverflowedResellerAvailableBalance(t *testing.T) 
 			ReservedCents:       1,
 			MinimumBalanceCents: 0,
 		},
+		ForwardingAdapterAvailable:    true,
 		SecretAvailable:               true,
 		CostAvailable:                 true,
 		EstimatedUpstreamCostCents:    1,

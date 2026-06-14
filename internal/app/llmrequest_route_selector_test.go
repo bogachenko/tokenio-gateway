@@ -263,6 +263,7 @@ func validLLMRequestRouteSelectionCandidate(
 			MinimumBalanceCents: 100,
 		},
 		Preflight: llmrequest.RouteCandidatePreflightResult{
+			ForwardingAdapterAvailable:    true,
 			SecretAvailable:               true,
 			CostAvailable:                 true,
 			EstimatedUpstreamCostCents:    estimatedUpstreamCostCents,

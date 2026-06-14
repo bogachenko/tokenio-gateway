@@ -79,6 +79,13 @@ type fakeRewriteSupport struct {
 	calls     int
 }
 
+func (*fakeRewriteSupport) SupportsForwardingAdapter(
+	domain.APIFamily,
+	domain.ProviderType,
+) bool {
+	return true
+}
+
 func (f *fakeRewriteSupport) SupportsModelIdentifierRewrite(
 	domain.APIFamily,
 	domain.ProviderType,
@@ -179,6 +186,7 @@ func newTestService(
 		Resellers:      resellers,
 		Prices:         prices,
 		Secrets:        secrets,
+		AdapterSupport: rewrite,
 		RewriteSupport: rewrite,
 		Clock: fixedClock{
 			value: testTime(),
@@ -713,4 +721,7 @@ var _ ports.ModelCatalogRouteRepository = (*fakeRoutes)(nil)
 var _ ports.ResellerQueryRepository = (*fakeResellers)(nil)
 var _ ports.RoutePriceRepository = (*fakePrices)(nil)
 var _ ports.SecretPresenceChecker = (*fakeSecrets)(nil)
-var _ ports.ModelIdentifierRewriteSupport = (*fakeRewriteSupport)(nil)
+var (
+	_ ports.ForwardingAdapterSupport      = (*fakeRewriteSupport)(nil)
+	_ ports.ModelIdentifierRewriteSupport = (*fakeRewriteSupport)(nil)
+)

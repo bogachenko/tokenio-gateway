@@ -71,6 +71,7 @@ func TestOperationalAvailabilitySkipReasons(t *testing.T) {
 	}{
 		{name: "disabled route", mutate: func(c *Candidate) { c.Route.Enabled = false }, wantReason: SkipReasonManualDisabled},
 		{name: "disabled reseller", mutate: func(c *Candidate) { c.Reseller.Enabled = false }, wantReason: SkipReasonManualDisabled},
+		{name: "missing forwarding adapter", mutate: func(c *Candidate) { c.ForwardingAdapterAvailable = false }, wantReason: SkipReasonForwardingAdapterUnavailable},
 		{name: "missing secret", mutate: func(c *Candidate) { c.SecretAvailable = false }, wantReason: SkipReasonMissingResellerAPIKey},
 		{name: "active cooldown", mutate: func(c *Candidate) { c.Route.CooldownUntil = &future }, wantReason: SkipReasonCooldownActive},
 		{name: "missing cost", mutate: func(c *Candidate) { c.CostAvailable = false }, wantReason: SkipReasonPricingUnavailable},
@@ -339,6 +340,7 @@ func baseCandidate(routeID string) Candidate {
 			ReservedCents:       0,
 			MinimumBalanceCents: 0,
 		},
+		ForwardingAdapterAvailable:    true,
 		SecretAvailable:               true,
 		CostAvailable:                 true,
 		EstimatedUpstreamCostCents:    50,
