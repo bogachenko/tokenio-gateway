@@ -12,8 +12,8 @@ func TestRouteEndpointContractsMigrationIsCanonical(
 	if err != nil {
 		t.Fatalf("loadMigrations: %v", err)
 	}
-	if len(items) != 4 {
-		t.Fatalf("migration count=%d want=4", len(items))
+	if len(items) < 4 {
+		t.Fatalf("migration count=%d want at least 4", len(items))
 	}
 
 	migration := items[3]

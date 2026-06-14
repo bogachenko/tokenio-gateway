@@ -1,0 +1,9 @@
+DROP TRIGGER tokenio_routes_price_endpoint_contract_trg
+ON tokenio_routes;
+
+DROP TRIGGER tokenio_route_prices_endpoint_contract_trg
+ON tokenio_route_prices;
+
+DROP FUNCTION tokenio_enforce_route_price_endpoint_contract();
+
+DROP FUNCTION tokenio_validate_route_price_endpoint_contract(TEXT);
