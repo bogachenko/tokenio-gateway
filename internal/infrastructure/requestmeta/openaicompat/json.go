@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -31,12 +32,14 @@ type jsonValue struct {
 	object  map[string]jsonValue
 	array   []jsonValue
 	text    string
+	number  json.Number
 	boolean bool
 }
 
 type requestInspection struct {
-	clientModel  string
-	capabilities domain.CapabilitySet
+	clientModel                string
+	capabilities               domain.CapabilitySet
+	embeddingInputTokenCeiling int64
 }
 
 func inspect(
@@ -102,9 +105,19 @@ func inspect(
 		detectChatCapabilities(root, &capabilities)
 	}
 
+	var embeddingInputTokenCeiling int64
+	if endpointKind == domain.EndpointEmbeddings {
+		embeddingInputTokenCeiling, err =
+			inspectEmbeddingInput(root)
+		if err != nil {
+			return requestInspection{}, err
+		}
+	}
+
 	return requestInspection{
-		clientModel:  modelValue.text,
-		capabilities: capabilities,
+		clientModel:                modelValue.text,
+		capabilities:               capabilities,
+		embeddingInputTokenCeiling: embeddingInputTokenCeiling,
 	}, nil
 }
 
@@ -130,6 +143,149 @@ func baseCapabilities(value domain.EndpointKind) domain.CapabilitySet {
 	default:
 		return domain.CapabilitySet{}
 	}
+}
+
+func inspectEmbeddingInput(root jsonValue) (int64, error) {
+	input, exists := root.object["input"]
+	if !exists {
+		return 0, fmt.Errorf(
+			"%w: embeddings input is required",
+			llmrequest.ErrInvalidJSON,
+		)
+	}
+
+	switch input.kind {
+	case jsonValueString:
+		if input.text == "" {
+			return 0, fmt.Errorf(
+				"%w: embeddings input string is empty",
+				llmrequest.ErrInvalidJSON,
+			)
+		}
+		return int64(len([]byte(input.text))), nil
+	case jsonValueArray:
+		return inspectEmbeddingInputArray(input.array)
+	default:
+		return 0, fmt.Errorf(
+			"%w: embeddings input has unsupported type",
+			llmrequest.ErrInvalidJSON,
+		)
+	}
+}
+
+func inspectEmbeddingInputArray(
+	values []jsonValue,
+) (int64, error) {
+	if len(values) == 0 {
+		return 0, fmt.Errorf(
+			"%w: embeddings input array is empty",
+			llmrequest.ErrInvalidJSON,
+		)
+	}
+
+	switch values[0].kind {
+	case jsonValueString:
+		return embeddingStringArrayCeiling(values)
+	case jsonValueNumber:
+		return embeddingTokenArrayCeiling(values)
+	case jsonValueArray:
+		return embeddingTokenBatchCeiling(values)
+	default:
+		return 0, fmt.Errorf(
+			"%w: embeddings input array has unsupported element type",
+			llmrequest.ErrInvalidJSON,
+		)
+	}
+}
+
+func embeddingStringArrayCeiling(
+	values []jsonValue,
+) (int64, error) {
+	var total int64
+	for _, value := range values {
+		if value.kind != jsonValueString || value.text == "" {
+			return 0, fmt.Errorf(
+				"%w: embeddings input must be non-empty strings",
+				llmrequest.ErrInvalidJSON,
+			)
+		}
+		var err error
+		total, err = addEmbeddingInputUnits(
+			total,
+			int64(len([]byte(value.text))),
+		)
+		if err != nil {
+			return 0, err
+		}
+	}
+	return total, nil
+}
+
+func embeddingTokenArrayCeiling(
+	values []jsonValue,
+) (int64, error) {
+	for _, value := range values {
+		if err := validateEmbeddingToken(value); err != nil {
+			return 0, err
+		}
+	}
+	return int64(len(values)), nil
+}
+
+func embeddingTokenBatchCeiling(
+	values []jsonValue,
+) (int64, error) {
+	var total int64
+	for _, value := range values {
+		if value.kind != jsonValueArray ||
+			len(value.array) == 0 {
+			return 0, fmt.Errorf(
+				"%w: embeddings token arrays must be non-empty",
+				llmrequest.ErrInvalidJSON,
+			)
+		}
+		units, err := embeddingTokenArrayCeiling(value.array)
+		if err != nil {
+			return 0, err
+		}
+		total, err = addEmbeddingInputUnits(total, units)
+		if err != nil {
+			return 0, err
+		}
+	}
+	return total, nil
+}
+
+func validateEmbeddingToken(value jsonValue) error {
+	if value.kind != jsonValueNumber {
+		return fmt.Errorf(
+			"%w: embeddings token IDs must be integers",
+			llmrequest.ErrInvalidJSON,
+		)
+	}
+	token, err := strconv.ParseInt(
+		value.number.String(),
+		10,
+		64,
+	)
+	if err != nil || token < 0 {
+		return fmt.Errorf(
+			"%w: embeddings token IDs must be non-negative integers",
+			llmrequest.ErrInvalidJSON,
+		)
+	}
+	return nil
+}
+
+func addEmbeddingInputUnits(left, right int64) (int64, error) {
+	const maxInt64 = int64(^uint64(0) >> 1)
+	if right < 0 || left > maxInt64-right {
+		return 0, fmt.Errorf(
+			"%w: embeddings input size overflow",
+			llmrequest.ErrInvalidJSON,
+		)
+	}
+	return left + right, nil
 }
 
 func detectChatCapabilities(
@@ -278,9 +434,20 @@ func decodeJSONValue(
 	case nil:
 		return jsonValue{kind: jsonValueNull}, nil
 	case json.Number:
-		return jsonValue{kind: jsonValueNumber}, nil
+		return jsonValue{
+			kind:   jsonValueNumber,
+			number: value,
+		}, nil
 	case float64:
-		return jsonValue{kind: jsonValueNumber}, nil
+		return jsonValue{
+			kind: jsonValueNumber,
+			number: json.Number(strconv.FormatFloat(
+				value,
+				'f',
+				-1,
+				64,
+			)),
+		}, nil
 	default:
 		return jsonValue{}, fmt.Errorf(
 			"%w: unsupported JSON token",

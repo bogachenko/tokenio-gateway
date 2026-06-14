@@ -154,33 +154,87 @@ func TestTokenEstimatorRejectsMissingOutputLimit(
 	}
 }
 
-func TestTokenEstimatorEmbeddingsUsesRequestByteCeiling(
+func TestTokenEstimatorEmbeddingsUsesInputOnlyCeiling(
 	t *testing.T,
 ) {
 	estimator := NewTokenEstimator()
-	body := []byte(
-		`{"model":"embedding-1","input":["a","b"]}`,
-	)
-
-	result, err := estimator.Estimate(
-		context.Background(),
-		ports.TokenEstimateRequest{
-			APIFamily:    domain.APIFamilyOpenAICompatible,
-			EndpointKind: domain.EndpointEmbeddings,
-			ClientModel:  "embedding-1",
-			RequestBody:  body,
-			RequestedCapabilities: domain.CapabilitySet{
-				Embeddings: true,
-			},
+	tests := []struct {
+		name string
+		body string
+		want int64
+	}{
+		{
+			name: "single string",
+			body: `{
+				"model":"embedding-1",
+				"input":"hello",
+				"encoding_format":"base64"
+			}`,
+			want: 5,
 		},
-	)
-	if err != nil {
-		t.Fatalf("Estimate: %v", err)
+		{
+			name: "string batch",
+			body: `{
+				"model":"embedding-1",
+				"input":["ab","c"]
+			}`,
+			want: 3,
+		},
+		{
+			name: "token IDs",
+			body: `{
+				"model":"embedding-1",
+				"input":[10,20,30]
+			}`,
+			want: 3,
+		},
+		{
+			name: "token ID batch",
+			body: `{
+				"model":"embedding-1",
+				"input":[[10,20],[30]]
+			}`,
+			want: 3,
+		},
 	}
-	if result.Usage != (domain.TokenUsage{
-		InputTokens: int64(len(body)),
-	}) {
-		t.Fatalf("usage = %+v", result.Usage)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result, err := estimator.Estimate(
+				context.Background(),
+				ports.TokenEstimateRequest{
+					APIFamily: domain.
+						APIFamilyOpenAICompatible,
+					EndpointKind: domain.
+						EndpointEmbeddings,
+					ClientModel: "embedding-1",
+					RequestBody: []byte(test.body),
+					RequestedCapabilities: domain.
+						CapabilitySet{
+						Embeddings: true,
+					},
+				},
+			)
+			if err != nil {
+				t.Fatalf("Estimate: %v", err)
+			}
+			if result.Usage != (domain.TokenUsage{
+				InputTokens: test.want,
+			}) {
+				t.Fatalf(
+					"usage=%+v want=%d",
+					result.Usage,
+					test.want,
+				)
+			}
+			if result.Confidence !=
+				structuralByteCeilingConfidence {
+				t.Fatalf(
+					"confidence=%q",
+					result.Confidence,
+				)
+			}
+		})
 	}
 }
 

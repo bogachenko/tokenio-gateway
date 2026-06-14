@@ -69,7 +69,11 @@ func (e *TokenEstimator) Estimate(
 		return ports.TokenEstimate{}, err
 	}
 
-	usage, err := estimateStructuralUsage(request, root)
+	usage, err := estimateStructuralUsage(
+		request,
+		root,
+		inspection,
+	)
 	if err != nil {
 		return ports.TokenEstimate{}, err
 	}
@@ -118,12 +122,16 @@ func decodeEstimatorRoot(
 func estimateStructuralUsage(
 	request ports.TokenEstimateRequest,
 	root map[string]json.RawMessage,
+	inspection requestInspection,
 ) (domain.TokenUsage, error) {
 	switch request.EndpointKind {
 	case domain.EndpointChat:
 		return estimateChatUsage(request, root)
 	case domain.EndpointEmbeddings:
-		return structuralInputUsage(request), nil
+		return domain.TokenUsage{
+			InputTokens: inspection.
+				embeddingInputTokenCeiling,
+		}, nil
 	case domain.EndpointImagesGeneration:
 		units, err := positiveIntegerField(root, "n", 1)
 		if err != nil {

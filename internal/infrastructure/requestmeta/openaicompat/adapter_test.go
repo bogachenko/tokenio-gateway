@@ -131,6 +131,71 @@ func TestAdapterDetectUsesExactStructuralSignalsOnly(
 	}
 }
 
+func TestAdapterParsesSupportedEmbeddingInputForms(
+	t *testing.T,
+) {
+	adapter := NewAdapter()
+	tests := []string{
+		`{"model":"embedding-1","input":"hello"}`,
+		`{"model":"embedding-1","input":["a","b"]}`,
+		`{"model":"embedding-1","input":[1,2,3]}`,
+		`{"model":"embedding-1","input":[[1,2],[3]]}`,
+	}
+	for _, payload := range tests {
+		result, err := adapter.Parse(
+			context.Background(),
+			llmrequest.ParseInput{
+				APIFamily: domain.
+					APIFamilyOpenAICompatible,
+				EndpointKind: domain.EndpointEmbeddings,
+				Payload:      []byte(payload),
+			},
+		)
+		if err != nil {
+			t.Fatalf("payload=%s Parse: %v", payload, err)
+		}
+		if result.ClientModel != "embedding-1" {
+			t.Fatalf("result=%+v", result)
+		}
+	}
+}
+
+func TestAdapterRejectsInvalidEmbeddingInputForms(
+	t *testing.T,
+) {
+	adapter := NewAdapter()
+	tests := []string{
+		`{"model":"embedding-1"}`,
+		`{"model":"embedding-1","input":null}`,
+		`{"model":"embedding-1","input":""}`,
+		`{"model":"embedding-1","input":[]}`,
+		`{"model":"embedding-1","input":["ok",""]}`,
+		`{"model":"embedding-1","input":["text",1]}`,
+		`{"model":"embedding-1","input":[1,-2]}`,
+		`{"model":"embedding-1","input":[1,2.5]}`,
+		`{"model":"embedding-1","input":[[1],[]]}`,
+		`{"model":"embedding-1","input":[[1],["x"]]}`,
+	}
+	for _, payload := range tests {
+		_, err := adapter.Parse(
+			context.Background(),
+			llmrequest.ParseInput{
+				APIFamily: domain.
+					APIFamilyOpenAICompatible,
+				EndpointKind: domain.EndpointEmbeddings,
+				Payload:      []byte(payload),
+			},
+		)
+		if !errors.Is(err, llmrequest.ErrInvalidJSON) {
+			t.Fatalf(
+				"payload=%s error=%v, want invalid JSON",
+				payload,
+				err,
+			)
+		}
+	}
+}
+
 func TestAdapterDetectBaseCapabilityByEndpoint(t *testing.T) {
 	adapter := NewAdapter()
 	tests := []struct {
@@ -168,8 +233,8 @@ func TestAdapterDetectBaseCapabilityByEndpoint(t *testing.T) {
 						APIFamilyOpenAICompatible,
 					EndpointKind: test.endpoint,
 					ClientModel:  "model-1",
-					Payload: []byte(
-						`{"model":"model-1"}`,
+					Payload: endpointPayload(
+						test.endpoint,
 					),
 				},
 			)
@@ -460,4 +525,15 @@ func nestedPayload(nestedArrays int) []byte {
 	builder.WriteString(strings.Repeat("]", nestedArrays))
 	builder.WriteByte('}')
 	return []byte(builder.String())
+}
+
+func endpointPayload(endpoint domain.EndpointKind) []byte {
+	switch endpoint {
+	case domain.EndpointEmbeddings:
+		return []byte(
+			`{"model":"model-1","input":"x"}`,
+		)
+	default:
+		return []byte(`{"model":"model-1"}`)
+	}
 }
