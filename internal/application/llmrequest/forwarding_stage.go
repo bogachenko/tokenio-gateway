@@ -37,6 +37,7 @@ type ForwardedRequest struct {
 	Response         ports.ForwardResponse
 	ResolvedUsage    UsageResolutionResult
 	FinalUsageRecord domain.UsageRecord
+	AutoCharge       AutoChargeResult
 }
 
 func NewForwardingStage(

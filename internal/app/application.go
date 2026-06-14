@@ -218,6 +218,15 @@ func NewApplicationGraph(
 			err,
 		)
 	}
+	requestAutoCharger, err := NewLLMRequestAutoCharger(
+		autoCharge,
+	)
+	if err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"construct LLM-request auto charger: %w",
+			err,
+		)
+	}
 
 	preflightPricer, err := pricingapp.NewPreflightPricer(
 		tokenEstimator,
@@ -302,6 +311,7 @@ func NewApplicationGraph(
 			Forwarding:         llmRequestForwarding,
 			UsageResolver:      usageResolver,
 			Finalizer:          requestFinalizer,
+			AutoCharger:        requestAutoCharger,
 		},
 	)
 	if err != nil {

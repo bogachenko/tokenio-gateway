@@ -167,3 +167,25 @@ type PricingFailureInput struct {
 type FinalizationResult struct {
 	Usage domain.UsageRecord
 }
+
+type AutoChargeStatus string
+
+const (
+	AutoChargeStatusDeferred  AutoChargeStatus = "deferred"
+	AutoChargeStatusProcessed AutoChargeStatus = "processed"
+	AutoChargeStatusFailed    AutoChargeStatus = "failed"
+)
+
+type AutoChargeInput struct {
+	Principal        Principal
+	FinalUsageRecord domain.UsageRecord
+}
+
+type AutoChargeResult struct {
+	Status AutoChargeStatus
+
+	ProcessedBatchIDs  []string
+	ChargedAmountCents int64
+
+	BillingBalanceCents *int64
+}

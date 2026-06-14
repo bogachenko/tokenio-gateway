@@ -22,6 +22,7 @@ type Service struct {
 	forwarding         ForwardingStageExecutor
 	usageResolver      UsageResolver
 	finalizer          Finalizer
+	autoCharger        AutoCharger
 }
 
 func NewService(dependencies Dependencies) (*Service, error) {
@@ -32,7 +33,8 @@ func NewService(dependencies Dependencies) (*Service, error) {
 		dependencies.BillingAdmitter == nil ||
 		dependencies.Forwarding == nil ||
 		dependencies.UsageResolver == nil ||
-		dependencies.Finalizer == nil {
+		dependencies.Finalizer == nil ||
+		dependencies.AutoCharger == nil {
 		return nil, ErrDependencyRequired
 	}
 
@@ -45,6 +47,7 @@ func NewService(dependencies Dependencies) (*Service, error) {
 		forwarding:         dependencies.Forwarding,
 		usageResolver:      dependencies.UsageResolver,
 		finalizer:          dependencies.Finalizer,
+		autoCharger:        dependencies.AutoCharger,
 	}, nil
 }
 
@@ -60,7 +63,8 @@ func (s *Service) Execute(
 		s.billingAdmitter == nil ||
 		s.forwarding == nil ||
 		s.usageResolver == nil ||
-		s.finalizer == nil {
+		s.finalizer == nil ||
+		s.autoCharger == nil {
 		return ForwardedRequest{}, ErrDependencyRequired
 	}
 	if ctx == nil {
@@ -173,7 +177,46 @@ func (s *Service) Execute(
 
 	forwarded.ResolvedUsage = resolved
 	forwarded.FinalUsageRecord = finalized.Usage
+	forwarded.AutoCharge = cloneAutoChargeResult(
+		s.autoCharger.Run(
+			ctx,
+			AutoChargeInput{
+				Principal: forwarded.Reserved.
+					Prepared.Principal,
+				FinalUsageRecord: finalized.Usage,
+			},
+		),
+	)
 	return forwarded, nil
+}
+
+func cloneAutoChargeResult(
+	value AutoChargeResult,
+) AutoChargeResult {
+	result := value
+	result.ProcessedBatchIDs = append(
+		[]string(nil),
+		value.ProcessedBatchIDs...,
+	)
+	if value.BillingBalanceCents != nil {
+		copied := *value.BillingBalanceCents
+		result.BillingBalanceCents = &copied
+	}
+	switch result.Status {
+	case AutoChargeStatusDeferred,
+		AutoChargeStatusProcessed,
+		AutoChargeStatusFailed:
+	default:
+		result = AutoChargeResult{
+			Status: AutoChargeStatusFailed,
+		}
+	}
+	if result.ChargedAmountCents < 0 {
+		result = AutoChargeResult{
+			Status: AutoChargeStatusFailed,
+		}
+	}
+	return result
 }
 
 func (s *Service) markPricingFailed(

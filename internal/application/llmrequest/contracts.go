@@ -58,6 +58,10 @@ type Finalizer interface {
 	) (FinalizationResult, error)
 }
 
+type AutoCharger interface {
+	Run(context.Context, AutoChargeInput) AutoChargeResult
+}
+
 type Dependencies struct {
 	Authenticator      Authenticator
 	RequestParser      RequestParser
@@ -67,4 +71,5 @@ type Dependencies struct {
 	Forwarding         ForwardingStageExecutor
 	UsageResolver      UsageResolver
 	Finalizer          Finalizer
+	AutoCharger        AutoCharger
 }

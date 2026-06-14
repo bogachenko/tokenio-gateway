@@ -265,26 +265,54 @@ func setKnownBillingHeaders(
 	headers http.Header,
 	result llmrequestapp.ForwardedRequest,
 ) {
-	prepared := result.Reserved.Prepared
-	admission := result.Reserved.Admission
-	headers.Set(localRequestIDHeader, prepared.LocalRequestID)
+	record := result.FinalUsageRecord
+	headers.Set(localRequestIDHeader, record.LocalRequestID)
 	headers.Set(
 		"X-Billing-Provider-Type",
-		string(prepared.Plan.Route.ProviderType),
+		string(record.ProviderType),
 	)
-	headers.Set("X-Billing-Client-Model", prepared.ClientModel)
-	headers.Set("X-Billing-Model", prepared.Plan.BillingModel)
-	headers.Set("X-Billing-Currency", prepared.Plan.Currency)
+	headers.Set("X-Billing-Client-Model", record.ClientModel)
+	headers.Set("X-Billing-Model", record.BillingModel)
+	headers.Set("X-Billing-Currency", record.Currency)
 	headers.Set(
-		"X-Wallet-Balance-Cents",
-		strconv.FormatInt(admission.RemoteBalanceCents, 10),
-	)
-	headers.Set(
-		"X-Wallet-Effective-Balance-Cents",
-		strconv.FormatInt(admission.EffectiveBalanceCents, 10),
+		"X-Billing-Amount-Cents",
+		strconv.FormatInt(record.ClientAmountCents, 10),
 	)
 	headers.Set(
-		"X-Billing-Pending-Cents",
-		strconv.FormatInt(admission.PendingAmountCents, 10),
+		"X-Billing-Remaining-Cents",
+		strconv.FormatInt(record.RemainingAmountCents, 10),
 	)
+	headers.Set(
+		"X-Billing-Input-Tokens",
+		strconv.FormatInt(record.Usage.InputTokens, 10),
+	)
+	headers.Set(
+		"X-Billing-Output-Tokens",
+		strconv.FormatInt(record.Usage.OutputTokens, 10),
+	)
+	headers.Set(
+		"X-Billing-Usage-Completeness",
+		record.UsageCompleteness,
+	)
+	headers.Set("X-Billing-Status", string(record.Status))
+	headers.Set(
+		"X-Auto-Charge-Status",
+		string(result.AutoCharge.Status),
+	)
+	headers.Set(
+		"X-Auto-Charge-Charged-Cents",
+		strconv.FormatInt(
+			result.AutoCharge.ChargedAmountCents,
+			10,
+		),
+	)
+	if result.AutoCharge.BillingBalanceCents != nil {
+		headers.Set(
+			"X-Wallet-Balance-Cents",
+			strconv.FormatInt(
+				*result.AutoCharge.BillingBalanceCents,
+				10,
+			),
+		)
+	}
 }

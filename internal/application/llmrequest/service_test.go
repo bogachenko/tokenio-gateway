@@ -127,6 +127,18 @@ func (function finalizerFunc) MarkPricingFailed(
 	return function.pricingFailed(ctx, input)
 }
 
+type autoChargerFunc func(
+	context.Context,
+	AutoChargeInput,
+) AutoChargeResult
+
+func (function autoChargerFunc) Run(
+	ctx context.Context,
+	input AutoChargeInput,
+) AutoChargeResult {
+	return function(ctx, input)
+}
+
 func (function forwardingStageFunc) Execute(
 	ctx context.Context,
 	prepared PreparedRequest,
@@ -198,6 +210,13 @@ func TestNewServiceRequiresEveryDependency(t *testing.T) {
 				return value
 			},
 		},
+		{
+			name: "auto charger",
+			mutate: func(value Dependencies) Dependencies {
+				value.AutoCharger = nil
+				return value
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -235,6 +254,7 @@ func TestServiceExecuteExecutesCanonicalOrder(t *testing.T) {
 		"forwarding",
 		"usage",
 		"finalize",
+		"autocharge",
 	}
 	if !reflect.DeepEqual(calls, wantCalls) {
 		t.Fatalf("calls = %#v, want %#v", calls, wantCalls)
@@ -258,7 +278,9 @@ func TestServiceExecuteExecutesCanonicalOrder(t *testing.T) {
 		reserved.ResolvedUsage.Completeness != "detailed" ||
 		reserved.ResolvedUsage.ClientAmountCents != 15 ||
 		reserved.FinalUsageRecord.Status !=
-			domain.UsageStatusBillable {
+			domain.UsageStatusBillable ||
+		reserved.AutoCharge.Status !=
+			AutoChargeStatusDeferred {
 		t.Fatalf("forwarded = %+v", reserved)
 	}
 }
@@ -675,6 +697,9 @@ func validDependencies(
 					Usage: domain.UsageRecord{
 						LocalRequestID: input.Reserved.
 							Prepared.LocalRequestID,
+						UserID: input.Reserved.Prepared.
+							Principal.UserID,
+						Currency: "RUB",
 						Status: domain.
 							UsageStatusBillable,
 					},
@@ -695,6 +720,23 @@ func validDependencies(
 				}, nil
 			},
 		},
+		AutoCharger: autoChargerFunc(
+			func(
+				_ context.Context,
+				input AutoChargeInput,
+			) AutoChargeResult {
+				record("autocharge")
+				if input.FinalUsageRecord.Status !=
+					domain.UsageStatusBillable {
+					return AutoChargeResult{
+						Status: AutoChargeStatusFailed,
+					}
+				}
+				return AutoChargeResult{
+					Status: AutoChargeStatusDeferred,
+				}
+			},
+		),
 	}
 }
 

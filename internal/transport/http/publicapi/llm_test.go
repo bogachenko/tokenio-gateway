@@ -59,6 +59,24 @@ func successfulLLMResult(
 				Currency:              "RUB",
 			},
 		},
+		FinalUsageRecord: domain.UsageRecord{
+			LocalRequestID:       requestID,
+			ProviderType:         domain.ProviderOpenAI,
+			ClientModel:          "client-model",
+			BillingModel:         "openai:client-model",
+			Currency:             "RUB",
+			ClientAmountCents:    15,
+			RemainingAmountCents: 15,
+			UsageCompleteness:    "detailed",
+			Status:               domain.UsageStatusBillable,
+			Usage: domain.TokenUsage{
+				InputTokens:  10,
+				OutputTokens: 5,
+			},
+		},
+		AutoCharge: llmrequestapp.AutoChargeResult{
+			Status: llmrequestapp.AutoChargeStatusDeferred,
+		},
 		Response: ports.ForwardResponse{
 			StatusCode: http.StatusCreated,
 			Headers: map[string][]string{
@@ -132,15 +150,23 @@ func TestLLMRouterDispatchesNormalizedInputAndPassesResponseThrough(
 				*requests.input.IdempotencyKey != "idem-1" {
 				t.Fatalf("input=%+v", requests.input)
 			}
-			if response.Header().Get("Connection") != "" ||
-				response.Header().Get("X-Billing-Amount-Cents") != "" {
+			if response.Header().Get("Connection") != "" {
 				t.Fatalf("unsafe upstream headers leaked: %#v", response.Header())
 			}
 			if response.Header().Get("X-Local-Request-ID") != "llmreq_transport_1" ||
 				response.Header().Get("X-Billing-Provider-Type") != "openai" ||
 				response.Header().Get("X-Billing-Client-Model") != "client-model" ||
 				response.Header().Get("X-Billing-Model") != "openai:client-model" ||
-				response.Header().Get("X-Billing-Currency") != "RUB" {
+				response.Header().Get("X-Billing-Currency") != "RUB" ||
+				response.Header().Get("X-Billing-Amount-Cents") != "15" ||
+				response.Header().Get("X-Billing-Remaining-Cents") != "15" ||
+				response.Header().Get("X-Billing-Input-Tokens") != "10" ||
+				response.Header().Get("X-Billing-Output-Tokens") != "5" ||
+				response.Header().Get("X-Billing-Usage-Completeness") != "detailed" ||
+				response.Header().Get("X-Billing-Status") != "billable" ||
+				response.Header().Get("X-Auto-Charge-Status") != "deferred" ||
+				response.Header().Get("X-Wallet-Effective-Balance-Cents") != "" ||
+				response.Header().Get("X-Billing-Pending-Cents") != "" {
 				t.Fatalf("gateway headers=%#v", response.Header())
 			}
 		})
