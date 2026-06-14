@@ -19,6 +19,14 @@ type APIKeyRepository interface {
 	FindByHash(ctx context.Context, keyHash string) (*domain.APIKeyRecord, error)
 }
 
+type APIKeyUsageRecorder interface {
+	RecordLastUsedAt(
+		context.Context,
+		string,
+		time.Time,
+	) error
+}
+
 type UserRepository interface {
 	FindByID(ctx context.Context, userID string) (*domain.User, error)
 }

@@ -408,6 +408,43 @@ error.code = user_disabled
 10. Вернуть AuthPrincipal.
 ```
 
+## 7.1. `last_used_at` mutation boundary
+
+Consumer-side lookup и usage mutation являются разными ports:
+
+```text
+APIKeyRepository.FindByHash
+APIKeyUsageRecorder.RecordLastUsedAt
+```
+
+`RecordLastUsedAt` принимает только:
+
+```text
+api_key_id
+used_at в UTC
+```
+
+Передавать в mutation raw API key или `key_hash` запрещено.
+
+Persistence contract:
+
+```text
+last_used_at изменяется монотонно;
+более старый used_at является успешным no-op;
+unknown key не создаётся;
+disabled key не обновляется;
+revoked key не обновляется;
+key с expires_at <= used_at не обновляется;
+upsert и INSERT в mutation запрещены.
+```
+
+Если запись отсутствует или не является допустимой для фиксации
+использования, persistence adapter возвращает generic `not found`.
+Он не раскрывает caller-у конкретную причину.
+
+Application orchestration, timeout и best-effort policy задаются
+отдельно. Persistence adapter не создаёт goroutine, queue или retry.
+
 Минимальная структура AuthPrincipal:
 
 ```text
