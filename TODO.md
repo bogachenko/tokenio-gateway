@@ -29,8 +29,9 @@ internal/application/llmrequest
 authentication
 → request parsing
 → capability detection
-→ billing admission
 → route selection
+→ preflight pricing
+→ billing admission
 → usage reservation
 → forwarding
 → usage extraction
