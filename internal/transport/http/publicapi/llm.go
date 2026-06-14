@@ -6,6 +6,9 @@ import (
 	"net/http"
 	"strconv"
 
+	authenticateapp "github.com/bogachenko/tokenio-gateway/internal/application/authenticate"
+	billingapp "github.com/bogachenko/tokenio-gateway/internal/application/billing"
+	ledgerapp "github.com/bogachenko/tokenio-gateway/internal/application/ledger"
 	llmrequestapp "github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
@@ -128,13 +131,7 @@ func (h *LLMRouter) ServeHTTP(
 		},
 	)
 	if err != nil {
-		writeError(
-			writer,
-			requestID,
-			http.StatusInternalServerError,
-			domain.ErrorCodeInternalError,
-			"Internal error",
-		)
+		writeLLMApplicationError(writer, requestID, err)
 		return
 	}
 
@@ -156,6 +153,57 @@ func (h *LLMRouter) ServeHTTP(
 			domain.ErrorCodeInternalError,
 			"Internal error",
 		)
+	}
+}
+
+func writeLLMApplicationError(
+	writer http.ResponseWriter,
+	requestID string,
+	err error,
+) {
+	switch {
+	case errors.Is(err, authenticateapp.ErrInvalidAPIKey):
+		writeError(writer, requestID, http.StatusUnauthorized, domain.ErrorCodeInvalidAPIKey, "Invalid API key")
+	case errors.Is(err, authenticateapp.ErrUserDisabled):
+		writeError(writer, requestID, http.StatusForbidden, domain.ErrorCodeUserDisabled, "User is disabled")
+	case errors.Is(err, llmrequestapp.ErrInvalidJSON):
+		writeError(writer, requestID, http.StatusBadRequest, domain.ErrorCodeInvalidJSON, "Request body must contain valid JSON")
+	case errors.Is(err, llmrequestapp.ErrModelRequired):
+		writeError(writer, requestID, http.StatusBadRequest, domain.ErrorCodeModelRequired, "Model is required")
+	case errors.Is(err, llmrequestapp.ErrStreamingUnsupported):
+		writeError(writer, requestID, http.StatusBadRequest, domain.ErrorCodeStreamingUnsupported, "Streaming is not supported")
+	case errors.Is(err, llmrequestapp.ErrUnknownModel):
+		writeError(writer, requestID, http.StatusBadRequest, domain.ErrorCodeUnknownModel, "Unknown model")
+	case errors.Is(err, llmrequestapp.ErrUnsupportedCapability):
+		writeError(writer, requestID, http.StatusBadRequest, domain.ErrorCodeUnsupportedCapability, "Unsupported capability")
+	case errors.Is(err, llmrequestapp.ErrNoRouteAvailable):
+		writeError(writer, requestID, http.StatusServiceUnavailable, domain.ErrorCodeNoRouteAvailable, "No route is available")
+	case errors.Is(err, ledgerapp.ErrInsufficientFunds):
+		writeError(writer, requestID, http.StatusPaymentRequired, domain.ErrorCodeInsufficientFunds, "Insufficient balance")
+	case errors.Is(err, llmrequestapp.ErrIdempotencyKeyReused),
+		errors.Is(err, ledgerapp.ErrIdempotencyKeyReused),
+		errors.Is(err, llmrequestapp.ErrLocalRequestConflict),
+		errors.Is(err, ledgerapp.ErrLocalRequestConflict):
+		writeError(writer, requestID, http.StatusConflict, domain.ErrorCodeIdempotencyKeyReused, "Idempotency key conflicts with an existing request")
+	case errors.Is(err, llmrequestapp.ErrRequestInProgress),
+		errors.Is(err, ledgerapp.ErrRequestInProgress):
+		writeError(writer, requestID, http.StatusConflict, domain.ErrorCodeRequestInProgress, "Request is already in progress")
+	case errors.Is(err, llmrequestapp.ErrIdempotencyReplayNotAvailable),
+		errors.Is(err, ledgerapp.ErrIdempotencyReplayNotAvailable):
+		writeError(writer, requestID, http.StatusConflict, domain.ErrorCodeIdempotencyReplayNotAvailable, "Idempotency replay is not available")
+	case errors.Is(err, llmrequestapp.ErrUnresolvedUsage),
+		errors.Is(err, ledgerapp.ErrUnresolvedUsage):
+		writeError(writer, requestID, http.StatusConflict, domain.ErrorCodeUnresolvedUsage, "Previous usage requires resolution")
+	case errors.Is(err, billingapp.ErrBillingIdentityUnavailable),
+		errors.Is(err, billingapp.ErrBillingUnavailable):
+		writeError(writer, requestID, http.StatusServiceUnavailable, domain.ErrorCodeBillingUnavailable, "Billing service is unavailable")
+	case errors.Is(err, billingapp.ErrBillingStoreUnavailable),
+		errors.Is(err, ledgerapp.ErrUsageStoreUnavailable):
+		writeError(writer, requestID, http.StatusServiceUnavailable, domain.ErrorCodeUsageStoreUnavailable, "Usage store is unavailable")
+	case errors.Is(err, context.DeadlineExceeded):
+		writeError(writer, requestID, http.StatusGatewayTimeout, domain.ErrorCodeUpstreamUnavailable, "Upstream request timed out")
+	default:
+		writeError(writer, requestID, http.StatusInternalServerError, domain.ErrorCodeInternalError, "Internal error")
 	}
 }
 

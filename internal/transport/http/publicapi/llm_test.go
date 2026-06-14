@@ -8,6 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	authenticateapp "github.com/bogachenko/tokenio-gateway/internal/application/authenticate"
+	billingapp "github.com/bogachenko/tokenio-gateway/internal/application/billing"
+	ledgerapp "github.com/bogachenko/tokenio-gateway/internal/application/ledger"
 	llmrequestapp "github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
@@ -264,5 +267,65 @@ func TestLLMRouterMapsApplicationFailureWithoutLeakage(t *testing.T) {
 	if response.Code != http.StatusInternalServerError ||
 		strings.Contains(response.Body.String(), "sk_live_") {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestLLMRouterMapsApplicationErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		err     error
+		status  int
+		code    domain.ErrorCode
+		message string
+	}{
+		{"invalid api key", authenticateapp.ErrInvalidAPIKey, http.StatusUnauthorized, domain.ErrorCodeInvalidAPIKey, "Invalid API key"},
+		{"disabled user", authenticateapp.ErrUserDisabled, http.StatusForbidden, domain.ErrorCodeUserDisabled, "User is disabled"},
+		{"model required", llmrequestapp.ErrModelRequired, http.StatusBadRequest, domain.ErrorCodeModelRequired, "Model is required"},
+		{"streaming unsupported", llmrequestapp.ErrStreamingUnsupported, http.StatusBadRequest, domain.ErrorCodeStreamingUnsupported, "Streaming is not supported"},
+		{"unknown model", llmrequestapp.ErrUnknownModel, http.StatusBadRequest, domain.ErrorCodeUnknownModel, "Unknown model"},
+		{"unsupported capability", llmrequestapp.ErrUnsupportedCapability, http.StatusBadRequest, domain.ErrorCodeUnsupportedCapability, "Unsupported capability"},
+		{"no route", llmrequestapp.ErrNoRouteAvailable, http.StatusServiceUnavailable, domain.ErrorCodeNoRouteAvailable, "No route is available"},
+		{"insufficient funds", ledgerapp.ErrInsufficientFunds, http.StatusPaymentRequired, domain.ErrorCodeInsufficientFunds, "Insufficient balance"},
+		{"idempotency conflict", ledgerapp.ErrIdempotencyKeyReused, http.StatusConflict, domain.ErrorCodeIdempotencyKeyReused, "Idempotency key conflicts with an existing request"},
+		{"billing unavailable", billingapp.ErrBillingUnavailable, http.StatusServiceUnavailable, domain.ErrorCodeBillingUnavailable, "Billing service is unavailable"},
+		{"timeout", context.DeadlineExceeded, http.StatusGatewayTimeout, domain.ErrorCodeUpstreamUnavailable, "Upstream request timed out"},
+		{"internal", errors.New("postgres sk_live_secret"), http.StatusInternalServerError, domain.ErrorCodeInternalError, "Internal error"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			requests := &testLLMRequests{err: test.err}
+			router, err := NewLLMRouter(
+				requests,
+				&testRequestIDs{local: "llmreq_mapping_1"},
+				1024,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			request := httptest.NewRequest(
+				http.MethodPost,
+				chatCompletionsPath,
+				strings.NewReader(`{"model":"client-model"}`),
+			)
+			request.Header.Set("Authorization", "Bearer sk_live_test")
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+
+			router.ServeHTTP(response, request)
+
+			assertError(
+				t,
+				response,
+				test.status,
+				test.code,
+				test.message,
+				"llmreq_mapping_1",
+			)
+			if strings.Contains(response.Body.String(), "sk_live_") ||
+				strings.Contains(response.Body.String(), "postgres") {
+				t.Fatalf("internal detail leaked: %s", response.Body.String())
+			}
+		})
 	}
 }
