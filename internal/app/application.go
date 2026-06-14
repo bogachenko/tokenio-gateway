@@ -160,20 +160,26 @@ func NewApplicationGraph(
 		)
 	}
 
+	adminBatchRetrier := newAdminFailedBatchRetrier(
+		failedBatchRetry,
+	)
+
 	adminService, err := adminapp.NewService(adminapp.Dependencies{
-		Users:         repositories.AdminUsers,
-		APIKeys:       repositories.AdminAPIKeys,
-		Provisionings: repositories.AdminProvisioning,
-		Resellers:     repositories.AdminResellers,
-		Routes:        repositories.AdminRoutes,
-		Prices:        repositories.AdminRoutePrices,
-		Ledger:        repositories.AdminUsage,
-		Audit:         repositories.AdminAudit,
-		Secrets:       security.SecretPresence,
-		KeyGenerator:  security.APIKeyGenerator,
-		Hasher:        security.APIKeyHasher,
-		Clock:         primitives.Clock,
-		BatchRetrier:  failedBatchRetry,
+		Users:          repositories.AdminUsers,
+		APIKeys:        repositories.AdminAPIKeys,
+		Provisionings:  repositories.AdminProvisioning,
+		Resellers:      repositories.AdminResellers,
+		Routes:         repositories.AdminRoutes,
+		Prices:         repositories.AdminRoutePrices,
+		PriceValidator: adminRoutePriceValidator{},
+		UsagePolicy:    adminUsagePolicy{},
+		Ledger:         repositories.AdminUsage,
+		Audit:          repositories.AdminAudit,
+		Secrets:        security.SecretPresence,
+		KeyGenerator:   security.APIKeyGenerator,
+		Hasher:         security.APIKeyHasher,
+		Clock:          primitives.Clock,
+		BatchRetrier:   adminBatchRetrier,
 	})
 	if err != nil {
 		return ApplicationGraph{}, fmt.Errorf(

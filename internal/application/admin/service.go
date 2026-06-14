@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bogachenko/tokenio-gateway/internal/application/pricing"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
@@ -29,7 +28,7 @@ type Service struct {
 }
 
 func NewService(deps Dependencies) (*Service, error) {
-	if deps.Users == nil || deps.APIKeys == nil || deps.Provisionings == nil || deps.Resellers == nil || deps.Routes == nil || deps.Prices == nil || deps.Ledger == nil || deps.Audit == nil || deps.Secrets == nil || deps.KeyGenerator == nil || deps.Hasher == nil || deps.Clock == nil || deps.BatchRetrier == nil {
+	if deps.Users == nil || deps.APIKeys == nil || deps.Provisionings == nil || deps.Resellers == nil || deps.Routes == nil || deps.Prices == nil || deps.PriceValidator == nil || deps.UsagePolicy == nil || deps.Ledger == nil || deps.Audit == nil || deps.Secrets == nil || deps.KeyGenerator == nil || deps.Hasher == nil || deps.Clock == nil || deps.BatchRetrier == nil {
 		return nil, fmt.Errorf("%w: dependency", ErrInternal)
 	}
 	provisioning, err := NewProvisioningQueryService(
@@ -177,8 +176,8 @@ func validateRoute(r domain.Route) error {
 	}
 	return nil
 }
-func validatePrice(p domain.RoutePrice) error {
-	if err := pricing.ValidateRoutePrice(p); err != nil {
+func (s *Service) validatePrice(p domain.RoutePrice) error {
+	if err := s.deps.PriceValidator.ValidateRoutePrice(p); err != nil {
 		return ErrInvalidRequest
 	}
 	if math.IsNaN(p.MarkupCoefficient) || math.IsInf(p.MarkupCoefficient, 0) || p.MarkupCoefficient <= 0 {

@@ -328,7 +328,7 @@ func (s *Service) UpsertRoutePrice(ctx context.Context, command CommandContext, 
 		price.CreatedAt = current.CreatedAt
 	}
 	price.UpdatedAt = at
-	if err := validatePrice(price); err != nil {
+	if err := s.validatePrice(price); err != nil {
 		return domain.RoutePrice{}, err
 	}
 	var before domain.AuditState

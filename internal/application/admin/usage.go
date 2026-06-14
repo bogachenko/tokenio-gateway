@@ -3,7 +3,6 @@ package admin
 import (
 	"context"
 
-	"github.com/bogachenko/tokenio-gateway/internal/application/ledger"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
@@ -84,17 +83,17 @@ func (s *Service) loadPricingFailed(ctx context.Context, id string) (domain.Usag
 	if current.Status != domain.UsageStatusPricingFailed {
 		return domain.UsageRecord{}, ErrStateConflict
 	}
-	if err := ledger.ValidateRecord(*current); err != nil {
+	if err := s.deps.UsagePolicy.ValidateRecord(*current); err != nil {
 		return domain.UsageRecord{}, ErrStateConflict
 	}
 	return *current, nil
 }
 
 func (s *Service) persistPricingResolution(ctx context.Context, command CommandContext, current, next domain.UsageRecord, action domain.AuditAction) (domain.UsageRecord, error) {
-	if err := ledger.ValidateTransition(current.Status, next.Status); err != nil {
+	if err := s.deps.UsagePolicy.ValidateTransition(current.Status, next.Status); err != nil {
 		return domain.UsageRecord{}, ErrStateConflict
 	}
-	if err := ledger.ValidateRecord(next); err != nil {
+	if err := s.deps.UsagePolicy.ValidateRecord(next); err != nil {
 		return domain.UsageRecord{}, ErrInvalidRequest
 	}
 	audit := auditContext(command, action, "usage_record", current.LocalRequestID, usageState(current), usageState(next), next.UpdatedAt)

@@ -194,20 +194,31 @@ type FailedChargeBatchRetrier interface {
 	RetryFailedBatch(context.Context, string, domain.AuditContext) (domain.BillingChargeBatch, error)
 }
 
+type RoutePriceValidator interface {
+	ValidateRoutePrice(domain.RoutePrice) error
+}
+
+type UsagePolicy interface {
+	ValidateRecord(domain.UsageRecord) error
+	ValidateTransition(domain.UsageStatus, domain.UsageStatus) error
+}
+
 type Dependencies struct {
-	Users         ports.AdminUserRepository
-	APIKeys       ports.AdminAPIKeyRepository
-	Provisionings ports.AdminAPIKeyProvisioningRepository
-	Resellers     ports.ResellerRepository
-	Routes        ports.AdminRouteRepository
-	Prices        ports.AdminRoutePriceRepository
-	Ledger        ports.AdminUsageLedger
-	Audit         ports.AdminAuditStore
-	Secrets       ports.SecretPresenceChecker
-	KeyGenerator  ports.APIKeyGenerator
-	Hasher        APIKeyHasher
-	Clock         ports.Clock
-	BatchRetrier  FailedChargeBatchRetrier
+	Users          ports.AdminUserRepository
+	APIKeys        ports.AdminAPIKeyRepository
+	Provisionings  ports.AdminAPIKeyProvisioningRepository
+	Resellers      ports.ResellerRepository
+	Routes         ports.AdminRouteRepository
+	Prices         ports.AdminRoutePriceRepository
+	PriceValidator RoutePriceValidator
+	UsagePolicy    UsagePolicy
+	Ledger         ports.AdminUsageLedger
+	Audit          ports.AdminAuditStore
+	Secrets        ports.SecretPresenceChecker
+	KeyGenerator   ports.APIKeyGenerator
+	Hasher         APIKeyHasher
+	Clock          ports.Clock
+	BatchRetrier   FailedChargeBatchRetrier
 }
 
 type APIKeyHasher interface{ Hash(string) string }

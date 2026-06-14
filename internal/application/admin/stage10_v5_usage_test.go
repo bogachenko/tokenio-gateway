@@ -100,8 +100,9 @@ func stage10V5PricingFailedRecord() domain.UsageRecord {
 func TestStage10V5ResolvePricingFailedUsesAtomicExpectedStateCASAndAudit(t *testing.T) {
 	ledger := &stage10V5ResolutionLedgerFake{current: stage10V5PricingFailedRecord()}
 	service := &Service{deps: Dependencies{
-		Ledger: ledger,
-		Clock:  &stage10V5AdminClock{now: time.Unix(10, 0).UTC()},
+		UsagePolicy: &fakeUsagePolicy{},
+		Ledger:      ledger,
+		Clock:       &stage10V5AdminClock{now: time.Unix(10, 0).UTC()},
 	}}
 	command := CommandContext{RequestID: "admreq_resolve", AdminSubject: "admin_token"}
 

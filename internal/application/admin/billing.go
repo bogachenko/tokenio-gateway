@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	billingapp "github.com/bogachenko/tokenio-gateway/internal/application/billing"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
@@ -72,11 +71,11 @@ func (s *Service) RetryFailedBillingChargeBatch(ctx context.Context, command Com
 	batch, err := s.deps.BatchRetrier.RetryFailedBatch(ctx, id, audit)
 	if err != nil {
 		switch {
-		case errors.Is(err, billingapp.ErrChargeBatchNotFound):
+		case errors.Is(err, ErrBatchRetryNotFound):
 			return domain.BillingChargeBatch{}, ErrNotFound
-		case errors.Is(err, billingapp.ErrChargeBatchNotFailed), errors.Is(err, billingapp.ErrChargeReconciliationRequired):
+		case errors.Is(err, ErrBatchRetryStateConflict):
 			return domain.BillingChargeBatch{}, ErrStateConflict
-		case errors.Is(err, billingapp.ErrBillingStoreUnavailable), errors.Is(err, billingapp.ErrBillingUnavailable):
+		case errors.Is(err, ErrBatchRetryUnavailable):
 			return domain.BillingChargeBatch{}, ErrStoreUnavailable
 		default:
 			return domain.BillingChargeBatch{}, ErrInternal

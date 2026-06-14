@@ -65,24 +65,32 @@ func TestStage10V5PriceValidationContracts(t *testing.T) {
 		CreatedAt:               at,
 		UpdatedAt:               at,
 	}
-	if err := validatePrice(base); err != nil {
+	validator := &fakePriceValidator{}
+	service := &Service{
+		deps: Dependencies{
+			PriceValidator: validator,
+		},
+	}
+	if err := service.validatePrice(base); err != nil {
 		t.Fatal(err)
 	}
 	cases := []struct {
-		name   string
-		mutate func(*domain.RoutePrice)
+		name         string
+		mutate       func(*domain.RoutePrice)
+		validatorErr error
 	}{
-		{"currency", func(price *domain.RoutePrice) { price.Currency = "USD" }},
-		{"negative field", func(price *domain.RoutePrice) { price.InputPricePer1MTokensCents = -1 }},
-		{"zero markup", func(price *domain.RoutePrice) { price.MarkupCoefficient = 0 }},
-		{"nan markup", func(price *domain.RoutePrice) { price.MarkupCoefficient = math.NaN() }},
-		{"unit kind", func(price *domain.RoutePrice) { price.ImageGenerationUnitKind = "unknown" }},
+		{"currency", func(price *domain.RoutePrice) { price.Currency = "USD" }, ErrInvalidRequest},
+		{"negative field", func(price *domain.RoutePrice) { price.InputPricePer1MTokensCents = -1 }, ErrInvalidRequest},
+		{"zero markup", func(price *domain.RoutePrice) { price.MarkupCoefficient = 0 }, nil},
+		{"nan markup", func(price *domain.RoutePrice) { price.MarkupCoefficient = math.NaN() }, nil},
+		{"unit kind", func(price *domain.RoutePrice) { price.ImageGenerationUnitKind = "unknown" }, nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			validator.err = tc.validatorErr
 			price := base
 			tc.mutate(&price)
-			if err := validatePrice(price); err == nil {
+			if err := service.validatePrice(price); err == nil {
 				t.Fatalf("invalid price accepted: %+v", price)
 			}
 		})

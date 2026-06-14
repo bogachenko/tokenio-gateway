@@ -106,6 +106,34 @@ type fakePrices struct {
 	ports.AdminRoutePriceRepository
 }
 
+type fakePriceValidator struct {
+	err error
+}
+
+func (f *fakePriceValidator) ValidateRoutePrice(
+	domain.RoutePrice,
+) error {
+	return f.err
+}
+
+type fakeUsagePolicy struct {
+	recordErr     error
+	transitionErr error
+}
+
+func (f *fakeUsagePolicy) ValidateRecord(
+	domain.UsageRecord,
+) error {
+	return f.recordErr
+}
+
+func (f *fakeUsagePolicy) ValidateTransition(
+	domain.UsageStatus,
+	domain.UsageStatus,
+) error {
+	return f.transitionErr
+}
+
 type fakeLedger struct {
 	ports.AdminUsageLedger
 	mu           sync.Mutex
@@ -171,7 +199,7 @@ func newServiceForTest(t *testing.T, users *fakeUsers, keys *fakeKeys, resellers
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, err := NewService(Dependencies{Users: users, APIKeys: keys, Provisionings: &fakeAdminProvisioningRepository{}, Resellers: resellers, Routes: routes, Prices: &fakePrices{}, Ledger: ledgerStore, Audit: &fakeAuditStore{}, Secrets: secrets, KeyGenerator: generator, Hasher: hasher, Clock: fixedClock{value: time.Unix(100, 0).UTC()}, BatchRetrier: &fakeRetrier{}})
+	service, err := NewService(Dependencies{Users: users, APIKeys: keys, Provisionings: &fakeAdminProvisioningRepository{}, Resellers: resellers, Routes: routes, Prices: &fakePrices{}, PriceValidator: &fakePriceValidator{}, UsagePolicy: &fakeUsagePolicy{}, Ledger: ledgerStore, Audit: &fakeAuditStore{}, Secrets: secrets, KeyGenerator: generator, Hasher: hasher, Clock: fixedClock{value: time.Unix(100, 0).UTC()}, BatchRetrier: &fakeRetrier{}})
 	if err != nil {
 		t.Fatal(err)
 	}
