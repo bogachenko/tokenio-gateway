@@ -1,0 +1,30 @@
+package llmrequest
+
+import (
+	"context"
+
+	"github.com/bogachenko/tokenio-gateway/internal/domain"
+)
+
+type Authenticator interface {
+	Authenticate(context.Context, string) (Principal, error)
+}
+
+type RequestParser interface {
+	Parse(context.Context, ParseInput) (ParsedRequest, error)
+}
+
+type CapabilityDetector interface {
+	Detect(context.Context, CapabilityInput) (domain.CapabilitySet, error)
+}
+
+type RoutePlanner interface {
+	Plan(context.Context, RoutePlanInput) (RoutePlan, error)
+}
+
+type Dependencies struct {
+	Authenticator      Authenticator
+	RequestParser      RequestParser
+	CapabilityDetector CapabilityDetector
+	RoutePlanner       RoutePlanner
+}
