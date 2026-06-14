@@ -13,6 +13,7 @@ import (
 
 type TransportGraph struct {
 	Public http.Handler
+	LLM    http.Handler
 	Admin  http.Handler
 
 	ProvisioningEnabled bool
@@ -54,6 +55,18 @@ func NewTransportGraph(
 		)
 	}
 
+	llmRouter, err := publicapi.NewLLMRouter(
+		applications.LLMRequest,
+		primitives.RequestIDs,
+		cfg.RequestBodyMaxBytes,
+	)
+	if err != nil {
+		return TransportGraph{}, fmt.Errorf(
+			"construct public LLM HTTP router: %w",
+			err,
+		)
+	}
+
 	adminRouter, err := adminhttp.NewRouter(
 		applications.Admin,
 		security.AdminAuthenticator,
@@ -82,6 +95,7 @@ func NewTransportGraph(
 
 	rootRouter, err := httptransport.NewRouter(
 		publicRouter,
+		llmRouter,
 		adminRouter,
 		provisioningRouter,
 	)
@@ -91,6 +105,7 @@ func NewTransportGraph(
 
 	graph := TransportGraph{
 		Public:              publicRouter,
+		LLM:                 llmRouter,
 		Admin:               adminRouter,
 		ProvisioningEnabled: applications.ProvisioningEnabled,
 		Provisioning:        provisioningRouter,
@@ -106,6 +121,8 @@ func (g TransportGraph) Validate() error {
 	switch {
 	case g.Public == nil:
 		return fmt.Errorf("public API HTTP handler is nil")
+	case g.LLM == nil:
+		return fmt.Errorf("public LLM HTTP handler is nil")
 	case g.Admin == nil:
 		return fmt.Errorf("admin HTTP handler is nil")
 	case g.ProvisioningEnabled && g.Provisioning == nil:

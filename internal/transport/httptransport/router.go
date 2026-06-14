@@ -14,20 +14,23 @@ var ErrInvalidRouterConfig = errors.New("invalid HTTP router config")
 
 type Router struct {
 	public       http.Handler
+	llm          http.Handler
 	admin        http.Handler
 	provisioning http.Handler
 }
 
 func NewRouter(
 	public http.Handler,
+	llm http.Handler,
 	admin http.Handler,
 	provisioning http.Handler,
 ) (*Router, error) {
-	if public == nil || admin == nil {
+	if public == nil || llm == nil || admin == nil {
 		return nil, ErrInvalidRouterConfig
 	}
 	return &Router{
 		public:       public,
+		llm:          llm,
 		admin:        admin,
 		provisioning: provisioning,
 	}, nil
@@ -39,6 +42,8 @@ func (h *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		healthHandler(w, r)
 	case r.URL.Path == "/v1/models":
 		h.public.ServeHTTP(w, r)
+	case isPublicLLMPath(r.URL.Path):
+		h.llm.ServeHTTP(w, r)
 	case r.URL.Path == "/admin/v1" || strings.HasPrefix(r.URL.Path, "/admin/v1/"):
 		h.admin.ServeHTTP(w, r)
 	case h.provisioning != nil &&
@@ -50,5 +55,16 @@ func (h *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Code:    domain.ErrorCodeNotFound,
 			Message: "Endpoint not found",
 		})
+	}
+}
+
+func isPublicLLMPath(path string) bool {
+	switch path {
+	case "/v1/chat/completions",
+		"/v1/embeddings",
+		"/v1/images/generations":
+		return true
+	default:
+		return false
 	}
 }
