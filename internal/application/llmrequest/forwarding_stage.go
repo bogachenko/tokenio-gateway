@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
 
@@ -32,9 +33,10 @@ type ForwardingStage struct {
 }
 
 type ForwardedRequest struct {
-	Reserved      ReservedRequest
-	Response      ports.ForwardResponse
-	ResolvedUsage UsageResolutionResult
+	Reserved         ReservedRequest
+	Response         ports.ForwardResponse
+	ResolvedUsage    UsageResolutionResult
+	FinalUsageRecord domain.UsageRecord
 }
 
 func NewForwardingStage(

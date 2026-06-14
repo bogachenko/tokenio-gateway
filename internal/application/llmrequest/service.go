@@ -2,6 +2,7 @@ package llmrequest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -20,6 +21,7 @@ type Service struct {
 	billingAdmitter    BillingAdmitter
 	forwarding         ForwardingStageExecutor
 	usageResolver      UsageResolver
+	finalizer          Finalizer
 }
 
 func NewService(dependencies Dependencies) (*Service, error) {
@@ -29,7 +31,8 @@ func NewService(dependencies Dependencies) (*Service, error) {
 		dependencies.RoutePlanner == nil ||
 		dependencies.BillingAdmitter == nil ||
 		dependencies.Forwarding == nil ||
-		dependencies.UsageResolver == nil {
+		dependencies.UsageResolver == nil ||
+		dependencies.Finalizer == nil {
 		return nil, ErrDependencyRequired
 	}
 
@@ -41,6 +44,7 @@ func NewService(dependencies Dependencies) (*Service, error) {
 		billingAdmitter:    dependencies.BillingAdmitter,
 		forwarding:         dependencies.Forwarding,
 		usageResolver:      dependencies.UsageResolver,
+		finalizer:          dependencies.Finalizer,
 	}, nil
 }
 
@@ -55,7 +59,8 @@ func (s *Service) Execute(
 		s.routePlanner == nil ||
 		s.billingAdmitter == nil ||
 		s.forwarding == nil ||
-		s.usageResolver == nil {
+		s.usageResolver == nil ||
+		s.finalizer == nil {
 		return ForwardedRequest{}, ErrDependencyRequired
 	}
 	if ctx == nil {
@@ -110,6 +115,17 @@ func (s *Service) Execute(
 		},
 	)
 	if err != nil {
+		failureErr := s.markPricingFailed(
+			ctx,
+			forwarded.Reserved,
+			"usage_resolution_failed",
+		)
+		if failureErr != nil {
+			return ForwardedRequest{}, errors.Join(
+				fmt.Errorf("resolve final usage: %w", err),
+				failureErr,
+			)
+		}
 		return ForwardedRequest{}, fmt.Errorf(
 			"resolve final usage: %w",
 			err,
@@ -119,10 +135,75 @@ func (s *Service) Execute(
 		forwarded,
 		resolved,
 	); err != nil {
+		failureErr := s.markPricingFailed(
+			ctx,
+			forwarded.Reserved,
+			"usage_resolution_invalid",
+		)
+		if failureErr != nil {
+			return ForwardedRequest{}, errors.Join(
+				err,
+				failureErr,
+			)
+		}
 		return ForwardedRequest{}, err
 	}
+
+	finalized, err := s.finalizer.Commit(
+		ctx,
+		FinalizationInput{
+			Reserved:      forwarded.Reserved,
+			ResolvedUsage: resolved,
+		},
+	)
+	if err != nil {
+		return ForwardedRequest{}, fmt.Errorf(
+			"finalize billable usage: %w",
+			err,
+		)
+	}
+	if finalized.Usage.Status != domain.UsageStatusBillable ||
+		finalized.Usage.LocalRequestID !=
+			forwarded.Reserved.Prepared.LocalRequestID {
+		return ForwardedRequest{}, fmt.Errorf(
+			"%w: invalid finalization result",
+			ErrStageContractViolation,
+		)
+	}
+
 	forwarded.ResolvedUsage = resolved
+	forwarded.FinalUsageRecord = finalized.Usage
 	return forwarded, nil
+}
+
+func (s *Service) markPricingFailed(
+	ctx context.Context,
+	reserved ReservedRequest,
+	reason string,
+) error {
+	finalized, err := s.finalizer.MarkPricingFailed(
+		ctx,
+		PricingFailureInput{
+			Reserved:      reserved,
+			FailureReason: reason,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf(
+			"finalize pricing failure: %w",
+			err,
+		)
+	}
+	if finalized.Usage.Status !=
+		domain.UsageStatusPricingFailed ||
+		finalized.Usage.LocalRequestID !=
+			reserved.Prepared.LocalRequestID {
+		return fmt.Errorf(
+			"%w: invalid pricing failure result",
+			ErrStageContractViolation,
+		)
+	}
+	return nil
 }
 
 func validateUsageResolution(

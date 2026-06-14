@@ -47,6 +47,17 @@ type UsageResolver interface {
 	) (UsageResolutionResult, error)
 }
 
+type Finalizer interface {
+	Commit(
+		context.Context,
+		FinalizationInput,
+	) (FinalizationResult, error)
+	MarkPricingFailed(
+		context.Context,
+		PricingFailureInput,
+	) (FinalizationResult, error)
+}
+
 type Dependencies struct {
 	Authenticator      Authenticator
 	RequestParser      RequestParser
@@ -55,4 +66,5 @@ type Dependencies struct {
 	BillingAdmitter    BillingAdmitter
 	Forwarding         ForwardingStageExecutor
 	UsageResolver      UsageResolver
+	Finalizer          Finalizer
 }

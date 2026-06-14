@@ -209,6 +209,15 @@ func NewApplicationGraph(
 			err,
 		)
 	}
+	requestFinalizer, err := NewLLMRequestFinalizer(
+		ledgerService,
+	)
+	if err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"construct LLM-request finalizer: %w",
+			err,
+		)
+	}
 
 	preflightPricer, err := pricingapp.NewPreflightPricer(
 		tokenEstimator,
@@ -292,6 +301,7 @@ func NewApplicationGraph(
 			BillingAdmitter:    billingAdmitter,
 			Forwarding:         llmRequestForwarding,
 			UsageResolver:      usageResolver,
+			Finalizer:          requestFinalizer,
 		},
 	)
 	if err != nil {

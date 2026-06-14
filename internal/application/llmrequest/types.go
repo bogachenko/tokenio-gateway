@@ -153,3 +153,17 @@ type UsageResolutionResult struct {
 	ProviderRequestID     string
 	ProviderResponseModel string
 }
+
+type FinalizationInput struct {
+	Reserved      ReservedRequest
+	ResolvedUsage UsageResolutionResult
+}
+
+type PricingFailureInput struct {
+	Reserved      ReservedRequest
+	FailureReason string
+}
+
+type FinalizationResult struct {
+	Usage domain.UsageRecord
+}

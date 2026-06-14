@@ -102,6 +102,31 @@ func (function usageResolverFunc) Resolve(
 	return function(ctx, input)
 }
 
+type finalizerFunc struct {
+	commit func(
+		context.Context,
+		FinalizationInput,
+	) (FinalizationResult, error)
+	pricingFailed func(
+		context.Context,
+		PricingFailureInput,
+	) (FinalizationResult, error)
+}
+
+func (function finalizerFunc) Commit(
+	ctx context.Context,
+	input FinalizationInput,
+) (FinalizationResult, error) {
+	return function.commit(ctx, input)
+}
+
+func (function finalizerFunc) MarkPricingFailed(
+	ctx context.Context,
+	input PricingFailureInput,
+) (FinalizationResult, error) {
+	return function.pricingFailed(ctx, input)
+}
+
 func (function forwardingStageFunc) Execute(
 	ctx context.Context,
 	prepared PreparedRequest,
@@ -166,6 +191,13 @@ func TestNewServiceRequiresEveryDependency(t *testing.T) {
 				return value
 			},
 		},
+		{
+			name: "finalizer",
+			mutate: func(value Dependencies) Dependencies {
+				value.Finalizer = nil
+				return value
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -202,6 +234,7 @@ func TestServiceExecuteExecutesCanonicalOrder(t *testing.T) {
 		"admission",
 		"forwarding",
 		"usage",
+		"finalize",
 	}
 	if !reflect.DeepEqual(calls, wantCalls) {
 		t.Fatalf("calls = %#v, want %#v", calls, wantCalls)
@@ -223,7 +256,9 @@ func TestServiceExecuteExecutesCanonicalOrder(t *testing.T) {
 			domain.UsageStatusReserved ||
 		reserved.Response.StatusCode != 200 ||
 		reserved.ResolvedUsage.Completeness != "detailed" ||
-		reserved.ResolvedUsage.ClientAmountCents != 15 {
+		reserved.ResolvedUsage.ClientAmountCents != 15 ||
+		reserved.FinalUsageRecord.Status !=
+			domain.UsageStatusBillable {
 		t.Fatalf("forwarded = %+v", reserved)
 	}
 }
@@ -299,6 +334,7 @@ func TestServiceExecuteStopsAtFirstFailedStage(t *testing.T) {
 				"admission",
 				"forwarding",
 				"usage",
+				"pricing_failed",
 			},
 		},
 	}
@@ -629,6 +665,36 @@ func validDependencies(
 				}, nil
 			},
 		),
+		Finalizer: finalizerFunc{
+			commit: func(
+				_ context.Context,
+				input FinalizationInput,
+			) (FinalizationResult, error) {
+				record("finalize")
+				return FinalizationResult{
+					Usage: domain.UsageRecord{
+						LocalRequestID: input.Reserved.
+							Prepared.LocalRequestID,
+						Status: domain.
+							UsageStatusBillable,
+					},
+				}, nil
+			},
+			pricingFailed: func(
+				_ context.Context,
+				input PricingFailureInput,
+			) (FinalizationResult, error) {
+				record("pricing_failed")
+				return FinalizationResult{
+					Usage: domain.UsageRecord{
+						LocalRequestID: input.Reserved.
+							Prepared.LocalRequestID,
+						Status: domain.
+							UsageStatusPricingFailed,
+					},
+				}, nil
+			},
+		},
 	}
 }
 
