@@ -9,8 +9,10 @@ import (
 	ledgerapp "github.com/bogachenko/tokenio-gateway/internal/application/ledger"
 	llmrequest "github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
 	modelcatalogapp "github.com/bogachenko/tokenio-gateway/internal/application/modelcatalog"
+	pricingapp "github.com/bogachenko/tokenio-gateway/internal/application/pricing"
 	provisioningapp "github.com/bogachenko/tokenio-gateway/internal/application/provisioning"
 	"github.com/bogachenko/tokenio-gateway/internal/config"
+	requestmetaopenaicompat "github.com/bogachenko/tokenio-gateway/internal/infrastructure/requestmeta/openaicompat"
 )
 
 type ApplicationGraph struct {
@@ -21,7 +23,7 @@ type ApplicationGraph struct {
 	Ledger               *ledgerapp.Service
 	AutoCharge           *billingapp.AutoChargeService
 	FailedBatchRetry     *billingapp.FailedBatchRetryService
-	LLMRequestForwarding *llmrequest.ForwardingStage
+	LLMRequest           *llmrequest.Service
 	Admin                *adminapp.Service
 }
 
@@ -174,6 +176,108 @@ func NewApplicationGraph(
 		)
 	}
 
+	requestMetadata := requestmetaopenaicompat.NewAdapter()
+	tokenEstimator := requestmetaopenaicompat.NewTokenEstimator()
+	pricingCalculator, err := pricingapp.NewCalculator(
+		cfg.TokenEstimationSafetyFactor,
+		cfg.CostEstimationSafetyFactor,
+	)
+	if err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"construct LLM-request pricing calculator: %w",
+			err,
+		)
+	}
+	preflightPricer, err := pricingapp.NewPreflightPricer(
+		tokenEstimator,
+		pricingCalculator,
+	)
+	if err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"construct LLM-request preflight pricer: %w",
+			err,
+		)
+	}
+	routePreflighter, err := NewLLMRequestRoutePreflighter(
+		security.SecretPresence,
+		preflightPricer,
+		primitives.RouteCapacity,
+		forwardingInfrastructure.ModelRewriteSupport,
+	)
+	if err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"construct LLM-request route preflighter: %w",
+			err,
+		)
+	}
+	routeSelector, err := NewLLMRequestRouteSelector(
+		primitives.Clock,
+	)
+	if err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"construct LLM-request route selector: %w",
+			err,
+		)
+	}
+	routePlanner, err := llmrequest.NewRepositoryRoutePlanner(
+		repositories.Routes,
+		repositories.Resellers,
+		repositories.RoutePrices,
+		routePreflighter,
+		routeSelector,
+	)
+	if err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"construct LLM-request route planner: %w",
+			err,
+		)
+	}
+	requestAuthenticator, err := NewLLMRequestAuthenticator(
+		publicAuthentication,
+	)
+	if err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"construct LLM-request authenticator: %w",
+			err,
+		)
+	}
+	billingAdmission, err := billingapp.NewAdmissionService(
+		billingInfrastructure.Identity,
+		billingInfrastructure.Balance,
+		repositories.UsageLedger,
+	)
+	if err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"construct LLM-request billing admission service: %w",
+			err,
+		)
+	}
+	billingAdmitter, err := NewLLMRequestBillingAdmitter(
+		billingAdmission,
+	)
+	if err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"construct LLM-request billing admitter: %w",
+			err,
+		)
+	}
+	llmRequestService, err := llmrequest.NewService(
+		llmrequest.Dependencies{
+			Authenticator:      requestAuthenticator,
+			RequestParser:      requestMetadata,
+			CapabilityDetector: requestMetadata,
+			RoutePlanner:       routePlanner,
+			BillingAdmitter:    billingAdmitter,
+			Forwarding:         llmRequestForwarding,
+		},
+	)
+	if err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"construct LLM-request service: %w",
+			err,
+		)
+	}
+
 	failedBatchRetry, err := billingapp.NewFailedBatchRetryService(
 		billingInfrastructure.Charge,
 		repositories.AdminUsage,
@@ -222,7 +326,7 @@ func NewApplicationGraph(
 		Ledger:               ledgerService,
 		AutoCharge:           autoCharge,
 		FailedBatchRetry:     failedBatchRetry,
-		LLMRequestForwarding: llmRequestForwarding,
+		LLMRequest:           llmRequestService,
 		Admin:                adminService,
 	}
 	if err := graph.Validate(); err != nil {
@@ -250,8 +354,8 @@ func (g ApplicationGraph) Validate() error {
 		return fmt.Errorf("auto-charge service is nil")
 	case g.FailedBatchRetry == nil:
 		return fmt.Errorf("failed billing batch retry service is nil")
-	case g.LLMRequestForwarding == nil:
-		return fmt.Errorf("LLM-request forwarding stage is nil")
+	case g.LLMRequest == nil:
+		return fmt.Errorf("LLM-request service is nil")
 	case g.Admin == nil:
 		return fmt.Errorf("admin service is nil")
 	default:

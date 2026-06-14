@@ -44,6 +44,8 @@ func validApplicationGraphInputs(
 		CostCurrency:                 "RUB",
 		AutoChargeThresholdCents:     1000,
 		MinChargeAmountCents:         100,
+		TokenEstimationSafetyFactor:  1.25,
+		CostEstimationSafetyFactor:   1.10,
 		RequestBodyMaxBytes:          1024,
 		UpstreamResponseBodyMaxBytes: 1024,
 	}
@@ -201,8 +203,8 @@ func TestNewApplicationGraphWiresExistingPorts(t *testing.T) {
 	if graph.ModelCatalog == nil {
 		t.Fatal("model catalog service is not wired")
 	}
-	if graph.LLMRequestForwarding == nil {
-		t.Fatal("LLM-request forwarding stage is not wired")
+	if graph.LLMRequest == nil {
+		t.Fatal("LLM-request service is not wired")
 	}
 	if !graph.ProvisioningEnabled ||
 		graph.Provisioning == nil {
