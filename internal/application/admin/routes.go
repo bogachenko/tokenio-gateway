@@ -289,6 +289,58 @@ func (s *Service) ClearRouteCooldown(ctx context.Context, command CommandContext
 	return updated, nil
 }
 
+func validateRoutePriceForEndpoint(
+	route domain.Route,
+	price domain.RoutePrice,
+) error {
+	if route.ID == "" ||
+		price.RouteID != route.ID {
+		return ErrInvalidRequest
+	}
+
+	hasImageGenerationDimension :=
+		price.ImageGenerationPricePerUnitCents != 0 ||
+			price.ImageGenerationUnitKind !=
+				domain.ImageGenerationUnitKindNone
+
+	switch route.EndpointKind {
+	case domain.EndpointChat:
+		if hasImageGenerationDimension {
+			return ErrInvalidRequest
+		}
+	case domain.EndpointEmbeddings:
+		if price.CachedInputPricePer1MTokensCents != 0 ||
+			price.OutputPricePer1MTokensCents != 0 ||
+			price.ReasoningOutputPricePer1MTokensCents != 0 ||
+			price.ImageInputPricePer1MTokensCents != 0 ||
+			price.AudioInputPricePer1MTokensCents != 0 ||
+			price.AudioOutputPricePer1MTokensCents != 0 ||
+			price.FileInputPricePer1MTokensCents != 0 ||
+			price.VideoInputPricePer1MTokensCents != 0 ||
+			hasImageGenerationDimension {
+			return ErrInvalidRequest
+		}
+	case domain.EndpointImagesGeneration:
+		if price.InputPricePer1MTokensCents != 0 ||
+			price.CachedInputPricePer1MTokensCents != 0 ||
+			price.OutputPricePer1MTokensCents != 0 ||
+			price.ReasoningOutputPricePer1MTokensCents != 0 ||
+			price.ImageInputPricePer1MTokensCents != 0 ||
+			price.AudioInputPricePer1MTokensCents != 0 ||
+			price.AudioOutputPricePer1MTokensCents != 0 ||
+			price.FileInputPricePer1MTokensCents != 0 ||
+			price.VideoInputPricePer1MTokensCents != 0 ||
+			price.ImageGenerationUnitKind !=
+				domain.ImageGenerationUnitKindGeneratedImage {
+			return ErrInvalidRequest
+		}
+	default:
+		return ErrInvalidRequest
+	}
+
+	return nil
+}
+
 func (s *Service) GetRoutePrice(ctx context.Context, routeID string) (domain.RoutePrice, error) {
 	if isBlank(routeID) {
 		return domain.RoutePrice{}, ErrInvalidRequest
@@ -329,6 +381,12 @@ func (s *Service) UpsertRoutePrice(ctx context.Context, command CommandContext, 
 	}
 	price.UpdatedAt = at
 	if err := s.validatePrice(price); err != nil {
+		return domain.RoutePrice{}, err
+	}
+	if err := validateRoutePriceForEndpoint(
+		*route,
+		price,
+	); err != nil {
 		return domain.RoutePrice{}, err
 	}
 	var before domain.AuditState
