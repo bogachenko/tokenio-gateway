@@ -1,0 +1,9 @@
+DROP TRIGGER tokenio_resellers_route_provider_contract_trg
+ON tokenio_resellers;
+
+DROP TRIGGER tokenio_routes_reseller_provider_contract_trg
+ON tokenio_routes;
+
+DROP FUNCTION tokenio_enforce_route_reseller_provider_contract();
+
+DROP FUNCTION tokenio_validate_route_reseller_provider_contract(TEXT);

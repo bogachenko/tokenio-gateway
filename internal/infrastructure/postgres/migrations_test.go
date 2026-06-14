@@ -14,6 +14,7 @@ func TestLoadMigrationsReturnsCanonicalSequence(t *testing.T) {
 		"operational_admin_provisioning",
 		"route_endpoint_contracts",
 		"route_price_endpoint_contracts",
+		"route_reseller_provider_contract",
 	}
 	if len(items) != len(expectedNames) {
 		t.Fatalf("migration count = %d, want %d", len(items), len(expectedNames))
