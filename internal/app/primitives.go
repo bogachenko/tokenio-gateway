@@ -4,19 +4,31 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/bogachenko/tokenio-gateway/internal/infrastructure/routecapacity"
 	"github.com/bogachenko/tokenio-gateway/internal/infrastructure/runtimeprimitives"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
 
 type RuntimePrimitives struct {
-	Clock      ports.Clock
-	RequestIDs ports.RequestIDGenerator
+	Clock         ports.Clock
+	RequestIDs    ports.RequestIDGenerator
+	RouteCapacity ports.RouteCapacityManager
 }
 
 func NewRuntimePrimitives() (RuntimePrimitives, error) {
+	clock := runtimeprimitives.NewUTCClock()
+	capacity, err := routecapacity.NewManager(clock)
+	if err != nil {
+		return RuntimePrimitives{}, fmt.Errorf(
+			"construct route capacity manager: %w",
+			err,
+		)
+	}
+
 	primitives := RuntimePrimitives{
-		Clock:      runtimeprimitives.NewUTCClock(),
-		RequestIDs: runtimeprimitives.NewSecureRequestIDGenerator(),
+		Clock:         clock,
+		RequestIDs:    runtimeprimitives.NewSecureRequestIDGenerator(),
+		RouteCapacity: capacity,
 	}
 	if err := primitives.Validate(); err != nil {
 		return RuntimePrimitives{}, fmt.Errorf(
@@ -33,6 +45,9 @@ func (p RuntimePrimitives) Validate() error {
 	}
 	if p.RequestIDs == nil {
 		return fmt.Errorf("request ID generator is nil")
+	}
+	if p.RouteCapacity == nil {
+		return fmt.Errorf("route capacity manager is nil")
 	}
 
 	now := p.Clock.Now()

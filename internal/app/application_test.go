@@ -74,6 +74,9 @@ func validApplicationGraphInputs(
 		RequestIDs: &struct {
 			ports.RequestIDGenerator
 		}{},
+		RouteCapacity: &struct {
+			ports.RouteCapacityManager
+		}{},
 	}
 
 	billingInfrastructure := BillingInfrastructureGraph{
