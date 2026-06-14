@@ -155,6 +155,20 @@ func validateEndpoint(v domain.EndpointKind) bool {
 	}
 	return false
 }
+func routeDefaultMaxOutputTokensValid(
+	route domain.Route,
+) bool {
+	switch route.EndpointKind {
+	case domain.EndpointChat:
+		return route.DefaultMaxOutputTokens > 0
+	case domain.EndpointEmbeddings,
+		domain.EndpointImagesGeneration:
+		return route.DefaultMaxOutputTokens == 0
+	default:
+		return false
+	}
+}
+
 func routeEndpointCapabilityValid(
 	route domain.Route,
 ) bool {
@@ -215,7 +229,7 @@ func validateRoute(r domain.Route) error {
 	if r.Priority < 0 || r.RequestsPerMinute < 0 || r.TokensPerMinute < 0 || r.ConcurrentRequests < 0 || r.DefaultMaxOutputTokens < 0 {
 		return ErrInvalidRequest
 	}
-	if r.EndpointKind == domain.EndpointChat && r.DefaultMaxOutputTokens <= 0 {
+	if !routeDefaultMaxOutputTokensValid(r) {
 		return ErrInvalidRequest
 	}
 	if !routeEndpointCapabilityValid(r) {
