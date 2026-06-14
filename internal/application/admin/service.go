@@ -158,24 +158,48 @@ func validateEndpoint(v domain.EndpointKind) bool {
 func routeEndpointCapabilityValid(
 	route domain.Route,
 ) bool {
-	base := route.Capabilities
+	capabilities := route.Capabilities
+
+	if capabilities.ToolChoice && !capabilities.Tools {
+		return false
+	}
+	if capabilities.JSONSchema &&
+		!capabilities.ResponseFormat {
+		return false
+	}
 
 	switch route.EndpointKind {
 	case domain.EndpointChat:
-		return base.Chat &&
-			!base.Embeddings &&
-			!base.ImagesGeneration
+		return capabilities.Chat &&
+			!capabilities.Embeddings &&
+			!capabilities.ImagesGeneration
 	case domain.EndpointEmbeddings:
-		return !base.Chat &&
-			base.Embeddings &&
-			!base.ImagesGeneration
+		return !capabilities.Chat &&
+			capabilities.Embeddings &&
+			!capabilities.ImagesGeneration &&
+			!hasAncillaryCapabilities(capabilities)
 	case domain.EndpointImagesGeneration:
-		return !base.Chat &&
-			!base.Embeddings &&
-			base.ImagesGeneration
+		return !capabilities.Chat &&
+			!capabilities.Embeddings &&
+			capabilities.ImagesGeneration &&
+			!hasAncillaryCapabilities(capabilities)
 	default:
 		return false
 	}
+}
+
+func hasAncillaryCapabilities(
+	capabilities domain.CapabilitySet,
+) bool {
+	return capabilities.Tools ||
+		capabilities.ToolChoice ||
+		capabilities.ResponseFormat ||
+		capabilities.JSONSchema ||
+		capabilities.ImageInput ||
+		capabilities.AudioInput ||
+		capabilities.FileInput ||
+		capabilities.VideoInput ||
+		capabilities.Reasoning
 }
 
 func validateRoute(r domain.Route) error {
