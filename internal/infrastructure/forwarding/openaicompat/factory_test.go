@@ -9,10 +9,14 @@ import (
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
 
-func TestFactoryBuildsOpenAICompatibleAdapter(t *testing.T) {
+func TestFactoryBuildsOpenAICompatibleClient(t *testing.T) {
+	var gotMethod string
+	var gotPath string
 	factory, err := NewFactory(
 		roundTripFunc(
-			func(*http.Request) (*http.Response, error) {
+			func(request *http.Request) (*http.Response, error) {
+				gotMethod = request.Method
+				gotPath = request.URL.Path
 				return response(200, "ok"), nil
 			},
 		),
@@ -28,19 +32,29 @@ func TestFactoryBuildsOpenAICompatibleAdapter(t *testing.T) {
 		ResellerAPIKey:       resellerSecret,
 		MaxResponseBodyBytes: 64,
 	}
-	adapter, err := factory.Build(input)
+	client, err := factory.Build(input)
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	result, err := adapter.Forward(
+	result, err := client.Forward(
 		t.Context(),
-		forwardReq(domain.EndpointChat),
+		ports.ForwardingClientRequest{
+			Route: input.Route,
+			Body:  []byte(`{"model":"client-model"}`),
+		},
 	)
 	if err != nil {
 		t.Fatalf("Forward: %v", err)
 	}
-	if result.StatusCode != 200 {
-		t.Fatalf("result=%+v", result)
+	if result.StatusCode != 200 ||
+		gotMethod != http.MethodPost ||
+		gotPath != "/api/v1/chat/completions" {
+		t.Fatalf(
+			"result=%+v method=%q path=%q",
+			result,
+			gotMethod,
+			gotPath,
+		)
 	}
 }
 

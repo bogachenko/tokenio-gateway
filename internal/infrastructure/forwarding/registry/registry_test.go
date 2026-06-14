@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -10,16 +11,21 @@ import (
 
 type factoryFunc func(
 	ports.ForwardingAdapterFactoryInput,
-) (ports.ForwardingAdapter, error)
+) (ports.ForwardingClient, error)
 
 func (function factoryFunc) Build(
 	input ports.ForwardingAdapterFactoryInput,
-) (ports.ForwardingAdapter, error) {
+) (ports.ForwardingClient, error) {
 	return function(input)
 }
 
-type adapterStub struct {
-	ports.ForwardingAdapter
+type clientStub struct{}
+
+func (clientStub) Forward(
+	context.Context,
+	ports.ForwardingClientRequest,
+) (ports.ForwardResponse, error) {
+	return ports.ForwardResponse{}, nil
 }
 
 func TestRegistrySelectsExactStructuralKey(t *testing.T) {
@@ -27,9 +33,9 @@ func TestRegistrySelectsExactStructuralKey(t *testing.T) {
 	factory := factoryFunc(
 		func(
 			input ports.ForwardingAdapterFactoryInput,
-		) (ports.ForwardingAdapter, error) {
+		) (ports.ForwardingClient, error) {
 			got = input
-			return adapterStub{}, nil
+			return clientStub{}, nil
 		},
 	)
 	registry, err := New(
@@ -48,12 +54,12 @@ func TestRegistrySelectsExactStructuralKey(t *testing.T) {
 	input := validBuildInput()
 	input.Route.ProviderType = domain.ProviderOpenRouter
 	input.Reseller.ProviderType = domain.ProviderOpenRouter
-	adapter, err := registry.Build(input)
+	client, err := registry.Build(input)
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
-	if adapter == nil || got.Route.ID != input.Route.ID {
-		t.Fatalf("adapter=%v input=%+v", adapter, got)
+	if client == nil || got.Route.ID != input.Route.ID {
+		t.Fatalf("client=%v input=%+v", client, got)
 	}
 }
 
@@ -67,8 +73,8 @@ func TestRegistryRejectsUnknownCombination(t *testing.T) {
 			Factory: factoryFunc(
 				func(
 					ports.ForwardingAdapterFactoryInput,
-				) (ports.ForwardingAdapter, error) {
-					return adapterStub{}, nil
+				) (ports.ForwardingClient, error) {
+					return clientStub{}, nil
 				},
 			),
 		},
@@ -93,8 +99,8 @@ func TestRegistryRejectsDuplicateRegistration(t *testing.T) {
 	factory := factoryFunc(
 		func(
 			ports.ForwardingAdapterFactoryInput,
-		) (ports.ForwardingAdapter, error) {
-			return adapterStub{}, nil
+		) (ports.ForwardingClient, error) {
+			return clientStub{}, nil
 		},
 	)
 	_, err := New(
@@ -116,8 +122,8 @@ func TestRegistryRejectsInvalidBuildInput(t *testing.T) {
 			Factory: factoryFunc(
 				func(
 					ports.ForwardingAdapterFactoryInput,
-				) (ports.ForwardingAdapter, error) {
-					return adapterStub{}, nil
+				) (ports.ForwardingClient, error) {
+					return clientStub{}, nil
 				},
 			),
 		},

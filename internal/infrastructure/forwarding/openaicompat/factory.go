@@ -30,7 +30,7 @@ func NewFactory(
 
 func (f *Factory) Build(
 	input ports.ForwardingAdapterFactoryInput,
-) (ports.ForwardingAdapter, error) {
+) (ports.ForwardingClient, error) {
 	if f == nil || f.transport == nil || f.classifier == nil {
 		return nil, ErrInvalidAdapterConfig
 	}
@@ -56,5 +56,12 @@ func (f *Factory) Build(
 			err,
 		)
 	}
-	return adapter, nil
+	client, err := newClient(adapter)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"construct openai-compatible forwarding client: %w",
+			err,
+		)
+	}
+	return client, nil
 }

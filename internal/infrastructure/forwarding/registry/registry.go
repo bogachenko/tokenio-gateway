@@ -53,7 +53,7 @@ func New(registrations ...Registration) (*Registry, error) {
 
 func (r *Registry) Build(
 	input ports.ForwardingAdapterFactoryInput,
-) (ports.ForwardingAdapter, error) {
+) (ports.ForwardingClient, error) {
 	if r == nil || len(r.factories) == 0 {
 		return nil, ErrInvalidRegistration
 	}
@@ -73,22 +73,22 @@ func (r *Registry) Build(
 			key.ProviderType,
 		)
 	}
-	adapter, err := factory.Build(input)
+	client, err := factory.Build(input)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"build forwarding adapter for api_family=%q provider_type=%q: %w",
+			"build forwarding client for api_family=%q provider_type=%q: %w",
 			key.APIFamily,
 			key.ProviderType,
 			err,
 		)
 	}
-	if adapter == nil {
+	if client == nil {
 		return nil, fmt.Errorf(
-			"%w: factory returned nil adapter",
+			"%w: factory returned nil client",
 			ErrInvalidBuildInput,
 		)
 	}
-	return adapter, nil
+	return client, nil
 }
 
 func validateBuildInput(

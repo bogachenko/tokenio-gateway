@@ -217,6 +217,18 @@ type ForwardingAdapter interface {
 	Forward(ctx context.Context, request ForwardRequest) (ForwardResponse, error)
 }
 
+type ForwardingClientRequest struct {
+	Route domain.Route
+	Body  []byte
+}
+
+type ForwardingClient interface {
+	Forward(
+		context.Context,
+		ForwardingClientRequest,
+	) (ForwardResponse, error)
+}
+
 type ForwardingAdapterFactoryInput struct {
 	Route    domain.Route
 	Reseller domain.Reseller
@@ -228,7 +240,7 @@ type ForwardingAdapterFactoryInput struct {
 type ForwardingAdapterFactory interface {
 	Build(
 		ForwardingAdapterFactoryInput,
-	) (ForwardingAdapter, error)
+	) (ForwardingClient, error)
 }
 
 type UsageReserveOutcome string
