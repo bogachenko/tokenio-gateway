@@ -155,6 +155,29 @@ func validateEndpoint(v domain.EndpointKind) bool {
 	}
 	return false
 }
+func routeEndpointCapabilityValid(
+	route domain.Route,
+) bool {
+	base := route.Capabilities
+
+	switch route.EndpointKind {
+	case domain.EndpointChat:
+		return base.Chat &&
+			!base.Embeddings &&
+			!base.ImagesGeneration
+	case domain.EndpointEmbeddings:
+		return !base.Chat &&
+			base.Embeddings &&
+			!base.ImagesGeneration
+	case domain.EndpointImagesGeneration:
+		return !base.Chat &&
+			!base.Embeddings &&
+			base.ImagesGeneration
+	default:
+		return false
+	}
+}
+
 func validateRoute(r domain.Route) error {
 	if isBlank(r.ID) || isBlank(r.ResellerID) || !validateProviderType(r.ProviderType) || !validateAPIFamily(r.APIFamily) || !validateEndpoint(r.EndpointKind) || isBlank(r.ClientModel) || isBlank(r.ProviderModel) {
 		return ErrInvalidRequest
@@ -169,6 +192,9 @@ func validateRoute(r domain.Route) error {
 		return ErrInvalidRequest
 	}
 	if r.EndpointKind == domain.EndpointChat && r.DefaultMaxOutputTokens <= 0 {
+		return ErrInvalidRequest
+	}
+	if !routeEndpointCapabilityValid(r) {
 		return ErrInvalidRequest
 	}
 	if requireUTC(r.CreatedAt) != nil || requireUTC(r.UpdatedAt) != nil || optionalUTC(r.CooldownUntil) != nil || optionalUTC(r.LastErrorAt) != nil || optionalUTC(r.DisabledAt) != nil {
