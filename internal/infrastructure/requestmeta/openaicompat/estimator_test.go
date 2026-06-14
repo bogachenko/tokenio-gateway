@@ -249,7 +249,14 @@ func TestTokenEstimatorImagesUsesExplicitOrDefaultUnits(
 	}{
 		{
 			name: "explicit",
-			body: `{"model":"image-1","prompt":"x","n":3}`,
+			body: `{
+				"model":"image-1",
+				"prompt":"x",
+				"n":3,
+				"size":"1536x1024",
+				"quality":"high",
+				"response_format":"b64_json"
+			}`,
 			want: 3,
 		},
 		{

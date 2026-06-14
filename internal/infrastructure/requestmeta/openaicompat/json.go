@@ -40,6 +40,7 @@ type requestInspection struct {
 	clientModel                string
 	capabilities               domain.CapabilitySet
 	embeddingInputTokenCeiling int64
+	imageGenerationUnits       int64
 }
 
 func inspect(
@@ -114,10 +115,20 @@ func inspect(
 		}
 	}
 
+	var imageGenerationUnits int64
+	if endpointKind == domain.EndpointImagesGeneration {
+		imageGenerationUnits, err =
+			inspectImageGenerationRequest(root)
+		if err != nil {
+			return requestInspection{}, err
+		}
+	}
+
 	return requestInspection{
 		clientModel:                modelValue.text,
 		capabilities:               capabilities,
 		embeddingInputTokenCeiling: embeddingInputTokenCeiling,
+		imageGenerationUnits:       imageGenerationUnits,
 	}, nil
 }
 
@@ -143,6 +154,67 @@ func baseCapabilities(value domain.EndpointKind) domain.CapabilitySet {
 	default:
 		return domain.CapabilitySet{}
 	}
+}
+
+func inspectImageGenerationRequest(
+	root jsonValue,
+) (int64, error) {
+	prompt, exists := root.object["prompt"]
+	if !exists {
+		return 0, fmt.Errorf(
+			"%w: image generation prompt is required",
+			llmrequest.ErrInvalidJSON,
+		)
+	}
+	if prompt.kind != jsonValueString ||
+		strings.TrimSpace(prompt.text) == "" {
+		return 0, fmt.Errorf(
+			"%w: image generation prompt must be a non-empty string",
+			llmrequest.ErrInvalidJSON,
+		)
+	}
+
+	for _, name := range []string{
+		"size",
+		"quality",
+		"response_format",
+	} {
+		value, exists := root.object[name]
+		if !exists {
+			continue
+		}
+		if value.kind != jsonValueString ||
+			strings.TrimSpace(value.text) == "" {
+			return 0, fmt.Errorf(
+				"%w: image generation %s must be a non-empty string",
+				llmrequest.ErrInvalidJSON,
+				name,
+			)
+		}
+	}
+
+	n, exists := root.object["n"]
+	if !exists {
+		return 1, nil
+	}
+	if n.kind != jsonValueNumber {
+		return 0, fmt.Errorf(
+			"%w: image generation n must be an integer",
+			llmrequest.ErrInvalidJSON,
+		)
+	}
+	units, err := strconv.ParseInt(
+		n.number.String(),
+		10,
+		64,
+	)
+	if err != nil || units < 1 || units > 10 {
+		return 0, fmt.Errorf(
+			"%w: image generation n must be between 1 and 10",
+			llmrequest.ErrInvalidJSON,
+		)
+	}
+	return units, nil
 }
 
 func inspectEmbeddingInput(root jsonValue) (int64, error) {

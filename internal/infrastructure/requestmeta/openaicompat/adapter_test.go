@@ -196,6 +196,80 @@ func TestAdapterRejectsInvalidEmbeddingInputForms(
 	}
 }
 
+func TestAdapterParsesValidImageGenerationRequest(
+	t *testing.T,
+) {
+	adapter := NewAdapter()
+	payload := []byte(`{
+		"model":"image-model",
+		"prompt":"A red fox in snow",
+		"n":3,
+		"size":"1536x1024",
+		"quality":"high",
+		"response_format":"b64_json"
+	}`)
+	original := append([]byte(nil), payload...)
+
+	result, err := adapter.Parse(
+		context.Background(),
+		llmrequest.ParseInput{
+			APIFamily: domain.
+				APIFamilyOpenAICompatible,
+			EndpointKind: domain.
+				EndpointImagesGeneration,
+			Payload: payload,
+		},
+	)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if result.ClientModel != "image-model" {
+		t.Fatalf("result=%+v", result)
+	}
+	if !bytes.Equal(payload, original) {
+		t.Fatal("payload mutated")
+	}
+}
+
+func TestAdapterRejectsInvalidImageGenerationRequest(
+	t *testing.T,
+) {
+	adapter := NewAdapter()
+	tests := []string{
+		`{"model":"image-model"}`,
+		`{"model":"image-model","prompt":null}`,
+		`{"model":"image-model","prompt":""}`,
+		`{"model":"image-model","prompt":"   "}`,
+		`{"model":"image-model","prompt":"x","n":0}`,
+		`{"model":"image-model","prompt":"x","n":11}`,
+		`{"model":"image-model","prompt":"x","n":1.5}`,
+		`{"model":"image-model","prompt":"x","n":"2"}`,
+		`{"model":"image-model","prompt":"x","size":1}`,
+		`{"model":"image-model","prompt":"x","size":""}`,
+		`{"model":"image-model","prompt":"x","quality":false}`,
+		`{"model":"image-model","prompt":"x","response_format":{}}`,
+	}
+	for _, payload := range tests {
+		_, err := adapter.Parse(
+			context.Background(),
+			llmrequest.ParseInput{
+				APIFamily: domain.
+					APIFamilyOpenAICompatible,
+				EndpointKind: domain.
+					EndpointImagesGeneration,
+				Payload: []byte(payload),
+			},
+		)
+		if !errors.Is(err, llmrequest.ErrInvalidJSON) {
+			t.Fatalf(
+				"payload=%s error=%v, want invalid JSON",
+				payload,
+				err,
+			)
+		}
+	}
+}
+
 func TestAdapterDetectBaseCapabilityByEndpoint(t *testing.T) {
 	adapter := NewAdapter()
 	tests := []struct {
@@ -532,6 +606,10 @@ func endpointPayload(endpoint domain.EndpointKind) []byte {
 	case domain.EndpointEmbeddings:
 		return []byte(
 			`{"model":"model-1","input":"x"}`,
+		)
+	case domain.EndpointImagesGeneration:
+		return []byte(
+			`{"model":"model-1","prompt":"x"}`,
 		)
 	default:
 		return []byte(`{"model":"model-1"}`)

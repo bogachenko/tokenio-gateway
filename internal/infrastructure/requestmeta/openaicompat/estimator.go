@@ -133,12 +133,9 @@ func estimateStructuralUsage(
 				embeddingInputTokenCeiling,
 		}, nil
 	case domain.EndpointImagesGeneration:
-		units, err := positiveIntegerField(root, "n", 1)
-		if err != nil {
-			return domain.TokenUsage{}, err
-		}
 		return domain.TokenUsage{
-			ImageGenerationUnits: units,
+			ImageGenerationUnits: inspection.
+				imageGenerationUnits,
 		}, nil
 	default:
 		return domain.TokenUsage{}, fmt.Errorf(
