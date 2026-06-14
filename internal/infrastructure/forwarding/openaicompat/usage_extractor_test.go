@@ -169,6 +169,100 @@ func TestUsageExtractorPrefersEmbeddingInputTokensOverTotal(
 	}
 }
 
+func TestUsageExtractorExtractsImageGenerationUnits(
+	t *testing.T,
+) {
+	extractor := NewUsageExtractor()
+	response := []byte(`{
+		"created":1710000000,
+		"data":[
+			{"url":"https://example.test/1.png"},
+			{"b64_json":"AAAA"}
+		]
+	}`)
+	original := append([]byte(nil), response...)
+
+	result, err := extractor.Extract(
+		context.Background(),
+		ports.UsageExtractionRequest{
+			APIFamily: domain.
+				APIFamilyOpenAICompatible,
+			EndpointKind: domain.
+				EndpointImagesGeneration,
+			ClientModel:  "image-model",
+			ResponseBody: response,
+		},
+	)
+	if err != nil {
+		t.Fatalf("Extract: %v", err)
+	}
+	if result.Completeness != "detailed" ||
+		result.Usage.ImageGenerationUnits != 2 ||
+		result.Usage.InputTokens != 0 ||
+		result.Usage.OutputTokens != 0 {
+		t.Fatalf("result = %+v", result)
+	}
+	if !bytes.Equal(response, original) {
+		t.Fatalf("response mutated")
+	}
+}
+
+func TestUsageExtractorReturnsMissingForImageResponseWithoutData(
+	t *testing.T,
+) {
+	extractor := NewUsageExtractor()
+	result, err := extractor.Extract(
+		context.Background(),
+		ports.UsageExtractionRequest{
+			APIFamily: domain.
+				APIFamilyOpenAICompatible,
+			EndpointKind: domain.
+				EndpointImagesGeneration,
+			ClientModel:  "image-model",
+			ResponseBody: []byte(`{"created":1710000000}`),
+		},
+	)
+	if err != nil {
+		t.Fatalf("Extract: %v", err)
+	}
+	if result.Completeness != "missing" ||
+		result.Usage != (domain.TokenUsage{}) {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestUsageExtractorRejectsMalformedImageResponseData(
+	t *testing.T,
+) {
+	extractor := NewUsageExtractor()
+	for _, response := range []string{
+		`{"data":{}}`,
+		`{"data":[]}`,
+	} {
+		_, err := extractor.Extract(
+			context.Background(),
+			ports.UsageExtractionRequest{
+				APIFamily: domain.
+					APIFamilyOpenAICompatible,
+				EndpointKind: domain.
+					EndpointImagesGeneration,
+				ClientModel:  "image-model",
+				ResponseBody: []byte(response),
+			},
+		)
+		if !errors.Is(
+			err,
+			ErrUsageExtractionUnavailable,
+		) {
+			t.Fatalf(
+				"response=%s error=%v",
+				response,
+				err,
+			)
+		}
+	}
+}
+
 func TestUsageExtractorReturnsMissingWhenUsageIsAbsent(
 	t *testing.T,
 ) {
@@ -239,8 +333,7 @@ func TestUsageExtractorRejectsUnsupportedFamilyAndEndpoint(
 		{
 			APIFamily: domain.
 				APIFamilyOpenAICompatible,
-			EndpointKind: domain.
-				EndpointImagesGeneration,
+			EndpointKind: domain.EndpointModels,
 			ClientModel:  "model",
 			ResponseBody: []byte(`{}`),
 		},

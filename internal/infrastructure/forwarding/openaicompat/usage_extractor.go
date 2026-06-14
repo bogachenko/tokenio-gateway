@@ -65,6 +65,10 @@ func (e *UsageExtractor) Extract(
 		ProviderResponseModel: optionalJSONString(root, "model"),
 	}
 
+	if request.EndpointKind == domain.EndpointImagesGeneration {
+		return extractImageGenerationUsage(result, root)
+	}
+
 	rawUsage, exists := root["usage"]
 	if !exists || bytes.Equal(bytes.TrimSpace(rawUsage), []byte("null")) {
 		return result, nil
@@ -145,11 +149,46 @@ func supportedUsageEndpoint(
 ) bool {
 	switch endpoint {
 	case domain.EndpointChat,
-		domain.EndpointEmbeddings:
+		domain.EndpointEmbeddings,
+		domain.EndpointImagesGeneration:
 		return true
 	default:
 		return false
 	}
+}
+
+func extractImageGenerationUsage(
+	result ports.UsageExtractionResult,
+	root map[string]json.RawMessage,
+) (ports.UsageExtractionResult, error) {
+	rawData, exists := root["data"]
+	if !exists || bytes.Equal(
+		bytes.TrimSpace(rawData),
+		[]byte("null"),
+	) {
+		return result, nil
+	}
+
+	var data []json.RawMessage
+	decoder := json.NewDecoder(bytes.NewReader(rawData))
+	if err := decoder.Decode(&data); err != nil || data == nil {
+		return ports.UsageExtractionResult{}, fmt.Errorf(
+			"%w: image response data is not an array",
+			ErrUsageExtractionUnavailable,
+		)
+	}
+	if len(data) == 0 {
+		return ports.UsageExtractionResult{}, fmt.Errorf(
+			"%w: image response data is empty",
+			ErrUsageExtractionUnavailable,
+		)
+	}
+
+	result.Usage = domain.TokenUsage{
+		ImageGenerationUnits: int64(len(data)),
+	}
+	result.Completeness = "detailed"
+	return result, nil
 }
 
 func extractEmbeddingUsage(
