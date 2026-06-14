@@ -18,7 +18,7 @@ type Service struct {
 	capabilityDetector CapabilityDetector
 	routePlanner       RoutePlanner
 	billingAdmitter    BillingAdmitter
-	atomicReservation  AtomicReservation
+	forwarding         ForwardingStageExecutor
 }
 
 func NewService(dependencies Dependencies) (*Service, error) {
@@ -27,7 +27,7 @@ func NewService(dependencies Dependencies) (*Service, error) {
 		dependencies.CapabilityDetector == nil ||
 		dependencies.RoutePlanner == nil ||
 		dependencies.BillingAdmitter == nil ||
-		dependencies.AtomicReservation == nil {
+		dependencies.Forwarding == nil {
 		return nil, ErrDependencyRequired
 	}
 
@@ -37,25 +37,25 @@ func NewService(dependencies Dependencies) (*Service, error) {
 		capabilityDetector: dependencies.CapabilityDetector,
 		routePlanner:       dependencies.RoutePlanner,
 		billingAdmitter:    dependencies.BillingAdmitter,
-		atomicReservation:  dependencies.AtomicReservation,
+		forwarding:         dependencies.Forwarding,
 	}, nil
 }
 
-func (s *Service) Reserve(
+func (s *Service) Execute(
 	ctx context.Context,
 	input Input,
-) (ReservedRequest, error) {
+) (ForwardedRequest, error) {
 	if s == nil ||
 		s.authenticator == nil ||
 		s.requestParser == nil ||
 		s.capabilityDetector == nil ||
 		s.routePlanner == nil ||
 		s.billingAdmitter == nil ||
-		s.atomicReservation == nil {
-		return ReservedRequest{}, ErrDependencyRequired
+		s.forwarding == nil {
+		return ForwardedRequest{}, ErrDependencyRequired
 	}
 	if ctx == nil {
-		return ReservedRequest{}, fmt.Errorf(
+		return ForwardedRequest{}, fmt.Errorf(
 			"%w: nil context",
 			ErrInvalidInput,
 		)
@@ -63,7 +63,7 @@ func (s *Service) Reserve(
 
 	prepared, err := s.prepare(ctx, input)
 	if err != nil {
-		return ReservedRequest{}, err
+		return ForwardedRequest{}, err
 	}
 
 	admission, err := s.billingAdmitter.Admit(
@@ -75,34 +75,27 @@ func (s *Service) Reserve(
 		},
 	)
 	if err != nil {
-		return ReservedRequest{}, fmt.Errorf(
+		return ForwardedRequest{}, fmt.Errorf(
 			"admit billing reserve: %w",
 			err,
 		)
 	}
 	if err := validateBillingAdmission(prepared, admission); err != nil {
-		return ReservedRequest{}, err
+		return ForwardedRequest{}, err
 	}
 
-	reservation, err := s.atomicReservation.Reserve(
+	forwarded, err := s.forwarding.Execute(
 		ctx,
-		reservationInput(prepared),
+		clonePreparedRequest(prepared),
+		admission,
 	)
 	if err != nil {
-		return ReservedRequest{}, fmt.Errorf(
-			"reserve usage and reseller balance: %w",
+		return ForwardedRequest{}, fmt.Errorf(
+			"execute forwarding stage: %w",
 			err,
 		)
 	}
-	if err := validateReservation(prepared, reservation); err != nil {
-		return ReservedRequest{}, err
-	}
-
-	return ReservedRequest{
-		Prepared:    clonePreparedRequest(prepared),
-		Admission:   admission,
-		Reservation: cloneReservationResult(reservation),
-	}, nil
+	return forwarded, nil
 }
 
 func (s *Service) prepare(

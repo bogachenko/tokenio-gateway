@@ -32,11 +32,19 @@ type AtomicReservation interface {
 	Reserve(context.Context, ReservationInput) (ReservationResult, error)
 }
 
+type ForwardingStageExecutor interface {
+	Execute(
+		context.Context,
+		PreparedRequest,
+		BillingAdmissionResult,
+	) (ForwardedRequest, error)
+}
+
 type Dependencies struct {
 	Authenticator      Authenticator
 	RequestParser      RequestParser
 	CapabilityDetector CapabilityDetector
 	RoutePlanner       RoutePlanner
 	BillingAdmitter    BillingAdmitter
-	AtomicReservation  AtomicReservation
+	Forwarding         ForwardingStageExecutor
 }

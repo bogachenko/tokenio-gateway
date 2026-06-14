@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
+	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
 
 type authenticateFunc func(
@@ -83,6 +84,20 @@ func (function reserveFunc) Reserve(
 	return function(ctx, input)
 }
 
+type forwardingStageFunc func(
+	context.Context,
+	PreparedRequest,
+	BillingAdmissionResult,
+) (ForwardedRequest, error)
+
+func (function forwardingStageFunc) Execute(
+	ctx context.Context,
+	prepared PreparedRequest,
+	admission BillingAdmissionResult,
+) (ForwardedRequest, error) {
+	return function(ctx, prepared, admission)
+}
+
 func TestNewServiceRequiresEveryDependency(t *testing.T) {
 	valid := validDependencies(nil)
 
@@ -126,9 +141,9 @@ func TestNewServiceRequiresEveryDependency(t *testing.T) {
 			},
 		},
 		{
-			name: "atomic reservation",
+			name: "forwarding stage",
 			mutate: func(value Dependencies) Dependencies {
-				value.AtomicReservation = nil
+				value.Forwarding = nil
 				return value
 			},
 		},
@@ -147,17 +162,17 @@ func TestNewServiceRequiresEveryDependency(t *testing.T) {
 	}
 }
 
-func TestServiceReserveExecutesCanonicalOrder(t *testing.T) {
+func TestServiceExecuteExecutesCanonicalOrder(t *testing.T) {
 	var calls []string
 	service := mustService(t, validDependencies(&calls))
 	input := validInput()
 
-	reserved, err := service.Reserve(
+	reserved, err := service.Execute(
 		context.Background(),
 		input,
 	)
 	if err != nil {
-		t.Fatalf("Reserve: %v", err)
+		t.Fatalf("Execute: %v", err)
 	}
 
 	wantCalls := []string{
@@ -166,27 +181,32 @@ func TestServiceReserveExecutesCanonicalOrder(t *testing.T) {
 		"capabilities",
 		"route",
 		"admission",
-		"reservation",
+		"forwarding",
 	}
 	if !reflect.DeepEqual(calls, wantCalls) {
 		t.Fatalf("calls = %#v, want %#v", calls, wantCalls)
 	}
-	if reserved.Prepared.LocalRequestID != input.LocalRequestID ||
-		reserved.Prepared.Principal.UserID != "user-1" ||
-		reserved.Prepared.ClientModel != "model-1" ||
-		!reserved.Prepared.RequestedCapabilities.Chat ||
-		reserved.Prepared.Plan.Route.ID != "route-1" ||
-		!bytes.Equal(reserved.Prepared.Payload, input.Payload) ||
-		!reserved.Admission.Allowed ||
-		reserved.Reservation.Disposition !=
+	if reserved.Reserved.Prepared.LocalRequestID !=
+		input.LocalRequestID ||
+		reserved.Reserved.Prepared.Principal.UserID != "user-1" ||
+		reserved.Reserved.Prepared.ClientModel != "model-1" ||
+		!reserved.Reserved.Prepared.RequestedCapabilities.Chat ||
+		reserved.Reserved.Prepared.Plan.Route.ID != "route-1" ||
+		!bytes.Equal(
+			reserved.Reserved.Prepared.Payload,
+			input.Payload,
+		) ||
+		!reserved.Reserved.Admission.Allowed ||
+		reserved.Reserved.Reservation.Disposition !=
 			ReservationDispositionCreated ||
-		reserved.Reservation.Usage.Status !=
-			domain.UsageStatusReserved {
-		t.Fatalf("reserved = %+v", reserved)
+		reserved.Reserved.Reservation.Usage.Status !=
+			domain.UsageStatusReserved ||
+		reserved.Response.StatusCode != 200 {
+		t.Fatalf("forwarded = %+v", reserved)
 	}
 }
 
-func TestServiceReserveStopsAtFirstFailedStage(t *testing.T) {
+func TestServiceExecuteStopsAtFirstFailedStage(t *testing.T) {
 	stageError := errors.New("stage failed")
 
 	tests := []struct {
@@ -235,15 +255,15 @@ func TestServiceReserveStopsAtFirstFailedStage(t *testing.T) {
 			},
 		},
 		{
-			name:      "atomic reservation",
-			failStage: "reservation",
+			name:      "forwarding stage",
+			failStage: "forwarding",
 			wantCalls: []string{
 				"authenticate",
 				"parse",
 				"capabilities",
 				"route",
 				"admission",
-				"reservation",
+				"forwarding",
 			},
 		},
 	}
@@ -260,7 +280,7 @@ func TestServiceReserveStopsAtFirstFailedStage(t *testing.T) {
 			)
 			service := mustService(t, dependencies)
 
-			_, err := service.Reserve(
+			_, err := service.Execute(
 				context.Background(),
 				validInput(),
 			)
@@ -278,7 +298,7 @@ func TestServiceReserveStopsAtFirstFailedStage(t *testing.T) {
 	}
 }
 
-func TestServiceReserveDoesNotCallReservationWhenAdmissionDenied(
+func TestServiceExecuteDoesNotCallForwardingWhenAdmissionDenied(
 	t *testing.T,
 ) {
 	var calls []string
@@ -296,7 +316,7 @@ func TestServiceReserveDoesNotCallReservationWhenAdmissionDenied(
 	)
 
 	service := mustService(t, dependencies)
-	_, err := service.Reserve(
+	_, err := service.Execute(
 		context.Background(),
 		validInput(),
 	)
@@ -318,67 +338,7 @@ func TestServiceReserveDoesNotCallReservationWhenAdmissionDenied(
 	}
 }
 
-func TestServiceReserveRejectsReservationIdentityMutation(
-	t *testing.T,
-) {
-	dependencies := validDependencies(nil)
-	dependencies.AtomicReservation = reserveFunc(
-		func(
-			_ context.Context,
-			input ReservationInput,
-		) (ReservationResult, error) {
-			result := validReservation(input)
-			result.Usage.SelectedRouteID = "other-route"
-			return result, nil
-		},
-	)
-
-	service := mustService(t, dependencies)
-	_, err := service.Reserve(
-		context.Background(),
-		validInput(),
-	)
-	if !errors.Is(err, ErrStageContractViolation) {
-		t.Fatalf(
-			"error = %v, want stage contract violation",
-			err,
-		)
-	}
-}
-
-func TestServiceReserveAcceptsAlreadyReservedWithoutResellerSnapshot(
-	t *testing.T,
-) {
-	dependencies := validDependencies(nil)
-	dependencies.AtomicReservation = reserveFunc(
-		func(
-			_ context.Context,
-			input ReservationInput,
-		) (ReservationResult, error) {
-			result := validReservation(input)
-			result.Disposition =
-				ReservationDispositionAlreadyReserved
-			result.Reseller = nil
-			return result, nil
-		},
-	)
-
-	service := mustService(t, dependencies)
-	result, err := service.Reserve(
-		context.Background(),
-		validInput(),
-	)
-	if err != nil {
-		t.Fatalf("Reserve: %v", err)
-	}
-	if result.Reservation.Disposition !=
-		ReservationDispositionAlreadyReserved ||
-		result.Reservation.Reseller != nil {
-		t.Fatalf("reservation = %+v", result.Reservation)
-	}
-}
-
-func TestServiceReserveIsolatesPayloadBetweenStages(t *testing.T) {
+func TestServiceExecuteIsolatesPayloadBetweenStages(t *testing.T) {
 	input := validInput()
 	original := append([]byte(nil), input.Payload...)
 
@@ -428,12 +388,12 @@ func TestServiceReserveIsolatesPayloadBetweenStages(t *testing.T) {
 	)
 
 	service := mustService(t, dependencies)
-	reserved, err := service.Reserve(
+	reserved, err := service.Execute(
 		context.Background(),
 		input,
 	)
 	if err != nil {
-		t.Fatalf("Reserve: %v", err)
+		t.Fatalf("Execute: %v", err)
 	}
 	if !bytes.Equal(input.Payload, original) {
 		t.Fatalf(
@@ -442,16 +402,19 @@ func TestServiceReserveIsolatesPayloadBetweenStages(t *testing.T) {
 			original,
 		)
 	}
-	if !bytes.Equal(reserved.Prepared.Payload, original) {
+	if !bytes.Equal(
+		reserved.Reserved.Prepared.Payload,
+		original,
+	) {
 		t.Fatalf(
 			"prepared payload = %q, want %q",
-			reserved.Prepared.Payload,
+			reserved.Reserved.Prepared.Payload,
 			original,
 		)
 	}
 }
 
-func TestServiceReserveRejectsInvalidRoutePlan(t *testing.T) {
+func TestServiceExecuteRejectsInvalidRoutePlan(t *testing.T) {
 	dependencies := validDependencies(nil)
 	dependencies.RoutePlanner = planFunc(
 		func(
@@ -465,7 +428,7 @@ func TestServiceReserveRejectsInvalidRoutePlan(t *testing.T) {
 	)
 
 	service := mustService(t, dependencies)
-	_, err := service.Reserve(
+	_, err := service.Execute(
 		context.Background(),
 		validInput(),
 	)
@@ -573,23 +536,36 @@ func validDependencies(
 				return validAdmission(input), nil
 			},
 		),
-		AtomicReservation: reserveFunc(
+		Forwarding: forwardingStageFunc(
 			func(
 				_ context.Context,
-				input ReservationInput,
-			) (ReservationResult, error) {
-				record("reservation")
-				if input.LocalRequestID != "llmreq_test" ||
-					input.Principal.UserID != "user-1" ||
-					input.Route.ID != "route-1" ||
-					input.EstimatedClientAmountCents != 20 ||
-					input.EstimatedUpstreamCostCents != 10 {
-					return ReservationResult{},
+				prepared PreparedRequest,
+				admission BillingAdmissionResult,
+			) (ForwardedRequest, error) {
+				record("forwarding")
+				if prepared.LocalRequestID != "llmreq_test" ||
+					prepared.Principal.UserID != "user-1" ||
+					prepared.Plan.Route.ID != "route-1" ||
+					!admission.Allowed {
+					return ForwardedRequest{},
 						errors.New(
-							"unexpected reservation input",
+							"unexpected forwarding input",
 						)
 				}
-				return validReservation(input), nil
+				reservation := validReservation(
+					reservationInput(prepared),
+				)
+				return ForwardedRequest{
+					Reserved: ReservedRequest{
+						Prepared:    prepared,
+						Admission:   admission,
+						Reservation: reservation,
+					},
+					Response: ports.ForwardResponse{
+						StatusCode: 200,
+						Body:       []byte(`{"ok":true}`),
+					},
+				}, nil
 			},
 		),
 	}
@@ -656,14 +632,15 @@ func failingDependencies(
 				return BillingAdmissionResult{}, stageError
 			},
 		)
-	case "reservation":
-		value.AtomicReservation = reserveFunc(
+	case "forwarding":
+		value.Forwarding = forwardingStageFunc(
 			func(
 				context.Context,
-				ReservationInput,
-			) (ReservationResult, error) {
+				PreparedRequest,
+				BillingAdmissionResult,
+			) (ForwardedRequest, error) {
 				record()
-				return ReservationResult{}, stageError
+				return ForwardedRequest{}, stageError
 			},
 		)
 	default:
