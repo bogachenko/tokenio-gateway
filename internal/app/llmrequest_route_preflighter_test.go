@@ -26,13 +26,13 @@ func (function llmRequestSecretPresenceFunc) Exists(
 
 type llmRequestRouteCapacityFunc func(
 	context.Context,
-	llmrequest.RouteCapacityInput,
-) (llmrequest.RouteCapacityResult, error)
+	ports.RouteCapacityCheckInput,
+) (ports.RouteCapacityResult, error)
 
 func (function llmRequestRouteCapacityFunc) Check(
 	ctx context.Context,
-	input llmrequest.RouteCapacityInput,
-) (llmrequest.RouteCapacityResult, error) {
+	input ports.RouteCapacityCheckInput,
+) (ports.RouteCapacityResult, error) {
 	return function(ctx, input)
 }
 
@@ -65,7 +65,7 @@ func TestLLMRequestRoutePreflighterBuildsCompleteFacts(t *testing.T) {
 	originalPayload := append([]byte(nil), input.Payload...)
 
 	var gotSecretName string
-	var gotCapacity llmrequest.RouteCapacityInput
+	var gotCapacity ports.RouteCapacityCheckInput
 	var gotEstimateClientModel string
 	var gotEstimateBody []byte
 	var gotRewriteAPI domain.APIFamily
@@ -108,10 +108,10 @@ func TestLLMRequestRoutePreflighterBuildsCompleteFacts(t *testing.T) {
 		llmRequestRouteCapacityFunc(
 			func(
 				_ context.Context,
-				value llmrequest.RouteCapacityInput,
-			) (llmrequest.RouteCapacityResult, error) {
+				value ports.RouteCapacityCheckInput,
+			) (ports.RouteCapacityResult, error) {
 				gotCapacity = value
-				return llmrequest.RouteCapacityResult{
+				return ports.RouteCapacityResult{
 					RateLimitAllowed:   true,
 					ConcurrencyAllowed: true,
 				}, nil
@@ -207,10 +207,10 @@ func TestLLMRequestRoutePreflighterMissingPriceIsUnavailable(
 		llmRequestRouteCapacityFunc(
 			func(
 				context.Context,
-				llmrequest.RouteCapacityInput,
-			) (llmrequest.RouteCapacityResult, error) {
+				ports.RouteCapacityCheckInput,
+			) (ports.RouteCapacityResult, error) {
 				capacityCalled = true
-				return llmrequest.RouteCapacityResult{}, nil
+				return ports.RouteCapacityResult{}, nil
 			},
 		),
 		allowedLLMRequestRewrite(),
@@ -264,10 +264,10 @@ func TestLLMRequestRoutePreflighterPricingErrorMarksUnavailable(
 		llmRequestRouteCapacityFunc(
 			func(
 				context.Context,
-				llmrequest.RouteCapacityInput,
-			) (llmrequest.RouteCapacityResult, error) {
+				ports.RouteCapacityCheckInput,
+			) (ports.RouteCapacityResult, error) {
 				capacityCalled = true
-				return llmrequest.RouteCapacityResult{}, nil
+				return ports.RouteCapacityResult{}, nil
 			},
 		),
 		allowedLLMRequestRewrite(),
@@ -306,9 +306,9 @@ func TestLLMRequestRoutePreflighterPreservesCapacityDenials(
 		llmRequestRouteCapacityFunc(
 			func(
 				context.Context,
-				llmrequest.RouteCapacityInput,
-			) (llmrequest.RouteCapacityResult, error) {
-				return llmrequest.RouteCapacityResult{
+				ports.RouteCapacityCheckInput,
+			) (ports.RouteCapacityResult, error) {
+				return ports.RouteCapacityResult{
 					RateLimitAllowed:   false,
 					ConcurrencyAllowed: false,
 				}, nil
@@ -384,7 +384,7 @@ func TestLLMRequestRoutePreflighterPropagatesOperationalErrors(
 	tests := []struct {
 		name     string
 		secrets  ports.SecretPresenceChecker
-		capacity llmrequest.RouteCapacityChecker
+		capacity ports.RouteCapacityChecker
 	}{
 		{
 			name: "secret presence",
@@ -404,9 +404,9 @@ func TestLLMRequestRoutePreflighterPropagatesOperationalErrors(
 			capacity: llmRequestRouteCapacityFunc(
 				func(
 					context.Context,
-					llmrequest.RouteCapacityInput,
-				) (llmrequest.RouteCapacityResult, error) {
-					return llmrequest.RouteCapacityResult{},
+					ports.RouteCapacityCheckInput,
+				) (ports.RouteCapacityResult, error) {
+					return ports.RouteCapacityResult{},
 						dependencyError
 				},
 			),
@@ -455,7 +455,7 @@ func TestNewLLMRequestRoutePreflighterRequiresDependencies(
 		name     string
 		secrets  ports.SecretPresenceChecker
 		pricer   *pricing.PreflightPricer
-		capacity llmrequest.RouteCapacityChecker
+		capacity ports.RouteCapacityChecker
 		rewrite  ports.ModelIdentifierRewriteSupport
 	}{
 		{
@@ -509,7 +509,7 @@ func mustLLMRequestRoutePreflighter(
 	t *testing.T,
 	secrets ports.SecretPresenceChecker,
 	pricer *pricing.PreflightPricer,
-	capacity llmrequest.RouteCapacityChecker,
+	capacity ports.RouteCapacityChecker,
 	rewrite ports.ModelIdentifierRewriteSupport,
 ) *LLMRequestRoutePreflighter {
 	t.Helper()
@@ -593,13 +593,13 @@ func alwaysPresentLLMRequestSecret() ports.SecretPresenceChecker {
 	)
 }
 
-func allowedLLMRequestCapacity() llmrequest.RouteCapacityChecker {
+func allowedLLMRequestCapacity() ports.RouteCapacityChecker {
 	return llmRequestRouteCapacityFunc(
 		func(
 			context.Context,
-			llmrequest.RouteCapacityInput,
-		) (llmrequest.RouteCapacityResult, error) {
-			return llmrequest.RouteCapacityResult{
+			ports.RouteCapacityCheckInput,
+		) (ports.RouteCapacityResult, error) {
+			return ports.RouteCapacityResult{
 				RateLimitAllowed:   true,
 				ConcurrencyAllowed: true,
 			}, nil

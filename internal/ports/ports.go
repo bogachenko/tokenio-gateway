@@ -56,6 +56,56 @@ type RoutePriceRepository interface {
 	FindByRouteIDs(ctx context.Context, routeIDs []string) (map[string]domain.RoutePrice, error)
 }
 
+type RouteCapacityCheckInput struct {
+	Route          domain.Route
+	Reseller       domain.Reseller
+	EstimatedUsage domain.TokenUsage
+}
+
+type RouteCapacityResult struct {
+	RateLimitAllowed   bool
+	ConcurrencyAllowed bool
+}
+
+type RouteCapacityChecker interface {
+	Check(
+		context.Context,
+		RouteCapacityCheckInput,
+	) (RouteCapacityResult, error)
+}
+
+type RouteCapacityAcquireInput struct {
+	LocalRequestID string
+	Route          domain.Route
+	Reseller       domain.Reseller
+	EstimatedUsage domain.TokenUsage
+}
+
+type RouteCapacityReservation struct {
+	LocalRequestID string
+	RouteID        string
+}
+
+type RouteCapacityManager interface {
+	RouteCapacityChecker
+
+	// Acquire atomically re-checks route limits and records one selected
+	// request against RPM, TPM, and concurrency. Repeated acquisition for the
+	// same LocalRequestID must be idempotent.
+	Acquire(
+		context.Context,
+		RouteCapacityAcquireInput,
+	) (RouteCapacityReservation, error)
+
+	// Release removes only the in-flight concurrency slot. RPM and TPM usage
+	// remain accounted for until their limiter window expires. Repeated release
+	// of the same reservation must be idempotent.
+	Release(
+		context.Context,
+		RouteCapacityReservation,
+	) error
+}
+
 type SecretResolver interface {
 	Resolve(ctx context.Context, name string) (string, error)
 }

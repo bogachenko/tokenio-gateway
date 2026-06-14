@@ -36,24 +36,6 @@ type RouteCandidatePreflightResult struct {
 	ModelIdentifierRewriteAllowed bool
 }
 
-type RouteCapacityInput struct {
-	Route          domain.Route
-	Reseller       domain.Reseller
-	EstimatedUsage domain.TokenUsage
-}
-
-type RouteCapacityResult struct {
-	RateLimitAllowed   bool
-	ConcurrencyAllowed bool
-}
-
-type RouteCapacityChecker interface {
-	Check(
-		context.Context,
-		RouteCapacityInput,
-	) (RouteCapacityResult, error)
-}
-
 type RouteCandidatePreflighter interface {
 	Evaluate(
 		context.Context,

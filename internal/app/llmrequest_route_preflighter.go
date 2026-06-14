@@ -14,7 +14,7 @@ import (
 type LLMRequestRoutePreflighter struct {
 	secrets        ports.SecretPresenceChecker
 	pricer         *pricing.PreflightPricer
-	capacity       llmrequest.RouteCapacityChecker
+	capacity       ports.RouteCapacityChecker
 	rewriteSupport ports.ModelIdentifierRewriteSupport
 }
 
@@ -23,7 +23,7 @@ var _ llmrequest.RouteCandidatePreflighter = (*LLMRequestRoutePreflighter)(nil)
 func NewLLMRequestRoutePreflighter(
 	secrets ports.SecretPresenceChecker,
 	pricer *pricing.PreflightPricer,
-	capacity llmrequest.RouteCapacityChecker,
+	capacity ports.RouteCapacityChecker,
 	rewriteSupport ports.ModelIdentifierRewriteSupport,
 ) (*LLMRequestRoutePreflighter, error) {
 	if secrets == nil ||
@@ -123,7 +123,7 @@ func (p *LLMRequestRoutePreflighter) Evaluate(
 
 	capacity, err := p.capacity.Check(
 		ctx,
-		llmrequest.RouteCapacityInput{
+		ports.RouteCapacityCheckInput{
 			Route:          input.Route,
 			Reseller:       input.Reseller,
 			EstimatedUsage: priced.EstimatedUsage,
