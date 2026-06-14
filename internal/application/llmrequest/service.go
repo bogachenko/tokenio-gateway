@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
@@ -16,13 +17,17 @@ type Service struct {
 	requestParser      RequestParser
 	capabilityDetector CapabilityDetector
 	routePlanner       RoutePlanner
+	billingAdmitter    BillingAdmitter
+	atomicReservation  AtomicReservation
 }
 
 func NewService(dependencies Dependencies) (*Service, error) {
 	if dependencies.Authenticator == nil ||
 		dependencies.RequestParser == nil ||
 		dependencies.CapabilityDetector == nil ||
-		dependencies.RoutePlanner == nil {
+		dependencies.RoutePlanner == nil ||
+		dependencies.BillingAdmitter == nil ||
+		dependencies.AtomicReservation == nil {
 		return nil, ErrDependencyRequired
 	}
 
@@ -31,26 +36,79 @@ func NewService(dependencies Dependencies) (*Service, error) {
 		requestParser:      dependencies.RequestParser,
 		capabilityDetector: dependencies.CapabilityDetector,
 		routePlanner:       dependencies.RoutePlanner,
+		billingAdmitter:    dependencies.BillingAdmitter,
+		atomicReservation:  dependencies.AtomicReservation,
 	}, nil
 }
 
-func (s *Service) Prepare(
+func (s *Service) Reserve(
 	ctx context.Context,
 	input Input,
-) (PreparedRequest, error) {
+) (ReservedRequest, error) {
 	if s == nil ||
 		s.authenticator == nil ||
 		s.requestParser == nil ||
 		s.capabilityDetector == nil ||
-		s.routePlanner == nil {
-		return PreparedRequest{}, ErrDependencyRequired
+		s.routePlanner == nil ||
+		s.billingAdmitter == nil ||
+		s.atomicReservation == nil {
+		return ReservedRequest{}, ErrDependencyRequired
 	}
 	if ctx == nil {
-		return PreparedRequest{}, fmt.Errorf(
+		return ReservedRequest{}, fmt.Errorf(
 			"%w: nil context",
 			ErrInvalidInput,
 		)
 	}
+
+	prepared, err := s.prepare(ctx, input)
+	if err != nil {
+		return ReservedRequest{}, err
+	}
+
+	admission, err := s.billingAdmitter.Admit(
+		ctx,
+		BillingAdmissionInput{
+			Principal:            prepared.Principal,
+			RequiredReserveCents: prepared.Plan.EstimatedClientAmountCents,
+			Currency:             prepared.Plan.Currency,
+		},
+	)
+	if err != nil {
+		return ReservedRequest{}, fmt.Errorf(
+			"admit billing reserve: %w",
+			err,
+		)
+	}
+	if err := validateBillingAdmission(prepared, admission); err != nil {
+		return ReservedRequest{}, err
+	}
+
+	reservation, err := s.atomicReservation.Reserve(
+		ctx,
+		reservationInput(prepared),
+	)
+	if err != nil {
+		return ReservedRequest{}, fmt.Errorf(
+			"reserve usage and reseller balance: %w",
+			err,
+		)
+	}
+	if err := validateReservation(prepared, reservation); err != nil {
+		return ReservedRequest{}, err
+	}
+
+	return ReservedRequest{
+		Prepared:    clonePreparedRequest(prepared),
+		Admission:   admission,
+		Reservation: cloneReservationResult(reservation),
+	}, nil
+}
+
+func (s *Service) prepare(
+	ctx context.Context,
+	input Input,
+) (PreparedRequest, error) {
 	if err := validateInput(input); err != nil {
 		return PreparedRequest{}, err
 	}
@@ -191,6 +249,7 @@ func validateRoutePlan(
 		strings.TrimSpace(route.ProviderModel) == "" ||
 		strings.TrimSpace(reseller.ID) == "" ||
 		strings.TrimSpace(price.RouteID) == "" ||
+		strings.TrimSpace(plan.BillingModel) == "" ||
 		route.APIFamily != input.APIFamily ||
 		route.EndpointKind != input.EndpointKind ||
 		route.ClientModel != parsed.ClientModel ||
@@ -211,6 +270,137 @@ func validateRoutePlan(
 			"%w: invalid route plan",
 			ErrStageContractViolation,
 		)
+	}
+	return nil
+}
+
+func validateBillingAdmission(
+	prepared PreparedRequest,
+	admission BillingAdmissionResult,
+) error {
+	if !admission.Allowed ||
+		admission.Currency != prepared.Plan.Currency ||
+		admission.RequiredReserveCents !=
+			prepared.Plan.EstimatedClientAmountCents ||
+		admission.RemoteBalanceCents < 0 ||
+		admission.PendingAmountCents < 0 ||
+		admission.RemoteBalanceCents <
+			admission.PendingAmountCents ||
+		admission.EffectiveBalanceCents !=
+			admission.RemoteBalanceCents-
+				admission.PendingAmountCents ||
+		admission.EffectiveBalanceCents <
+			admission.RequiredReserveCents {
+		return fmt.Errorf(
+			"%w: invalid billing admission",
+			ErrStageContractViolation,
+		)
+	}
+	return nil
+}
+
+func reservationInput(
+	prepared PreparedRequest,
+) ReservationInput {
+	return ReservationInput{
+		LocalRequestID: prepared.LocalRequestID,
+		IdempotencyKey: cloneStringPointer(
+			prepared.IdempotencyKey,
+		),
+		Principal:      prepared.Principal,
+		APIFamily:      prepared.APIFamily,
+		EndpointKind:   prepared.EndpointKind,
+		ClientModel:    prepared.ClientModel,
+		BillingModel:   prepared.Plan.BillingModel,
+		Route:          prepared.Plan.Route,
+		Reseller:       prepared.Plan.Reseller,
+		EstimatedUsage: prepared.Plan.EstimatedUsage,
+		EstimatedClientAmountCents: prepared.Plan.
+			EstimatedClientAmountCents,
+		EstimatedUpstreamCostCents: prepared.Plan.
+			EstimatedUpstreamCostCents,
+		Currency: prepared.Plan.Currency,
+	}
+}
+
+func validateReservation(
+	prepared PreparedRequest,
+	result ReservationResult,
+) error {
+	usage := result.Usage
+	expectedIdempotencyKey := ""
+	if prepared.IdempotencyKey != nil {
+		expectedIdempotencyKey = *prepared.IdempotencyKey
+	}
+
+	if result.Disposition != ReservationDispositionCreated &&
+		result.Disposition !=
+			ReservationDispositionAlreadyReserved ||
+		usage.LocalRequestID != prepared.LocalRequestID ||
+		usage.IdempotencyKey != expectedIdempotencyKey ||
+		usage.UserID != prepared.Principal.UserID ||
+		usage.APIKeyID != prepared.Principal.APIKeyID ||
+		usage.APIFamily != prepared.APIFamily ||
+		usage.EndpointKind != prepared.EndpointKind ||
+		usage.ClientModel != prepared.ClientModel ||
+		usage.BillingModel != prepared.Plan.BillingModel ||
+		usage.SelectedRouteID != prepared.Plan.Route.ID ||
+		usage.SelectedResellerID != prepared.Plan.Reseller.ID ||
+		usage.ProviderType != prepared.Plan.Route.ProviderType ||
+		usage.ProviderModel != prepared.Plan.Route.ProviderModel ||
+		usage.EstimatedUsage != prepared.Plan.EstimatedUsage ||
+		usage.EstimatedClientAmountCents !=
+			prepared.Plan.EstimatedClientAmountCents ||
+		usage.EstimatedUpstreamCostCents !=
+			prepared.Plan.EstimatedUpstreamCostCents ||
+		usage.Currency != prepared.Plan.Currency ||
+		usage.UsageCompleteness != "missing" ||
+		usage.Status != domain.UsageStatusReserved ||
+		usage.Usage != (domain.TokenUsage{}) ||
+		usage.ClientAmountCents != 0 ||
+		usage.ChargedAmountCents != 0 ||
+		usage.RemainingAmountCents != 0 ||
+		usage.ActualUpstreamCostCents != 0 ||
+		usage.ReservedAt == nil ||
+		usage.ReleasedAt != nil ||
+		usage.BillableAt != nil ||
+		usage.ChargedAt != nil ||
+		usage.FailedAt != nil ||
+		usage.CreatedAt.IsZero() ||
+		usage.UpdatedAt.IsZero() ||
+		usage.CreatedAt.Location() != time.UTC ||
+		usage.ReservedAt.Location() != time.UTC ||
+		usage.UpdatedAt.Location() != time.UTC ||
+		!usage.CreatedAt.Equal(*usage.ReservedAt) ||
+		!usage.UpdatedAt.Equal(*usage.ReservedAt) ||
+		strings.TrimSpace(usage.FailureReason) != "" ||
+		strings.TrimSpace(usage.BillingChargeRequestID) != "" {
+		return fmt.Errorf(
+			"%w: invalid atomic reservation",
+			ErrStageContractViolation,
+		)
+	}
+
+	switch result.Disposition {
+	case ReservationDispositionCreated:
+		if result.Reseller == nil ||
+			result.Reseller.ID != prepared.Plan.Reseller.ID ||
+			result.Reseller.ProviderType !=
+				prepared.Plan.Reseller.ProviderType ||
+			result.Reseller.ReservedCents <
+				prepared.Plan.EstimatedUpstreamCostCents {
+			return fmt.Errorf(
+				"%w: invalid created reseller reserve",
+				ErrStageContractViolation,
+			)
+		}
+	case ReservationDispositionAlreadyReserved:
+		if result.Reseller != nil {
+			return fmt.Errorf(
+				"%w: replay returned mutable reseller snapshot",
+				ErrStageContractViolation,
+			)
+		}
 	}
 	return nil
 }
@@ -242,6 +432,46 @@ func nonNegativeUsage(value domain.TokenUsage) bool {
 		value.ImageGenerationUnits >= 0
 }
 
+func clonePreparedRequest(
+	value PreparedRequest,
+) PreparedRequest {
+	result := value
+	result.IdempotencyKey = cloneStringPointer(
+		value.IdempotencyKey,
+	)
+	result.Payload = cloneBytes(value.Payload)
+	return result
+}
+
+func cloneReservationResult(
+	value ReservationResult,
+) ReservationResult {
+	result := value
+	result.Usage.ReservedAt = cloneTimePointer(
+		value.Usage.ReservedAt,
+	)
+	result.Usage.ReleasedAt = cloneTimePointer(
+		value.Usage.ReleasedAt,
+	)
+	result.Usage.BillableAt = cloneTimePointer(
+		value.Usage.BillableAt,
+	)
+	result.Usage.ChargedAt = cloneTimePointer(
+		value.Usage.ChargedAt,
+	)
+	result.Usage.FailedAt = cloneTimePointer(
+		value.Usage.FailedAt,
+	)
+	if value.Reseller != nil {
+		reseller := *value.Reseller
+		reseller.DisabledAt = cloneTimePointer(
+			value.Reseller.DisabledAt,
+		)
+		result.Reseller = &reseller
+	}
+	return result
+}
+
 func cloneBytes(value []byte) []byte {
 	if value == nil {
 		return nil
@@ -250,6 +480,14 @@ func cloneBytes(value []byte) []byte {
 }
 
 func cloneStringPointer(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	copyValue := *value
+	return &copyValue
+}
+
+func cloneTimePointer(value *time.Time) *time.Time {
 	if value == nil {
 		return nil
 	}

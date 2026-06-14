@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 )
@@ -58,6 +59,30 @@ func (function planFunc) Plan(
 	return function(ctx, input)
 }
 
+type admitFunc func(
+	context.Context,
+	BillingAdmissionInput,
+) (BillingAdmissionResult, error)
+
+func (function admitFunc) Admit(
+	ctx context.Context,
+	input BillingAdmissionInput,
+) (BillingAdmissionResult, error) {
+	return function(ctx, input)
+}
+
+type reserveFunc func(
+	context.Context,
+	ReservationInput,
+) (ReservationResult, error)
+
+func (function reserveFunc) Reserve(
+	ctx context.Context,
+	input ReservationInput,
+) (ReservationResult, error) {
+	return function(ctx, input)
+}
+
 func TestNewServiceRequiresEveryDependency(t *testing.T) {
 	valid := validDependencies(nil)
 
@@ -93,6 +118,20 @@ func TestNewServiceRequiresEveryDependency(t *testing.T) {
 				return value
 			},
 		},
+		{
+			name: "billing admitter",
+			mutate: func(value Dependencies) Dependencies {
+				value.BillingAdmitter = nil
+				return value
+			},
+		},
+		{
+			name: "atomic reservation",
+			mutate: func(value Dependencies) Dependencies {
+				value.AtomicReservation = nil
+				return value
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -108,17 +147,17 @@ func TestNewServiceRequiresEveryDependency(t *testing.T) {
 	}
 }
 
-func TestServicePrepareExecutesCanonicalOrder(t *testing.T) {
+func TestServiceReserveExecutesCanonicalOrder(t *testing.T) {
 	var calls []string
 	service := mustService(t, validDependencies(&calls))
 	input := validInput()
 
-	prepared, err := service.Prepare(
+	reserved, err := service.Reserve(
 		context.Background(),
 		input,
 	)
 	if err != nil {
-		t.Fatalf("Prepare: %v", err)
+		t.Fatalf("Reserve: %v", err)
 	}
 
 	wantCalls := []string{
@@ -126,21 +165,28 @@ func TestServicePrepareExecutesCanonicalOrder(t *testing.T) {
 		"parse",
 		"capabilities",
 		"route",
+		"admission",
+		"reservation",
 	}
 	if !reflect.DeepEqual(calls, wantCalls) {
 		t.Fatalf("calls = %#v, want %#v", calls, wantCalls)
 	}
-	if prepared.LocalRequestID != input.LocalRequestID ||
-		prepared.Principal.UserID != "user-1" ||
-		prepared.ClientModel != "model-1" ||
-		!prepared.RequestedCapabilities.Chat ||
-		prepared.Plan.Route.ID != "route-1" ||
-		!bytes.Equal(prepared.Payload, input.Payload) {
-		t.Fatalf("prepared = %+v", prepared)
+	if reserved.Prepared.LocalRequestID != input.LocalRequestID ||
+		reserved.Prepared.Principal.UserID != "user-1" ||
+		reserved.Prepared.ClientModel != "model-1" ||
+		!reserved.Prepared.RequestedCapabilities.Chat ||
+		reserved.Prepared.Plan.Route.ID != "route-1" ||
+		!bytes.Equal(reserved.Prepared.Payload, input.Payload) ||
+		!reserved.Admission.Allowed ||
+		reserved.Reservation.Disposition !=
+			ReservationDispositionCreated ||
+		reserved.Reservation.Usage.Status !=
+			domain.UsageStatusReserved {
+		t.Fatalf("reserved = %+v", reserved)
 	}
 }
 
-func TestServicePrepareStopsAtFirstFailedStage(t *testing.T) {
+func TestServiceReserveStopsAtFirstFailedStage(t *testing.T) {
 	stageError := errors.New("stage failed")
 
 	tests := []struct {
@@ -177,6 +223,29 @@ func TestServicePrepareStopsAtFirstFailedStage(t *testing.T) {
 				"route",
 			},
 		},
+		{
+			name:      "billing admission",
+			failStage: "admission",
+			wantCalls: []string{
+				"authenticate",
+				"parse",
+				"capabilities",
+				"route",
+				"admission",
+			},
+		},
+		{
+			name:      "atomic reservation",
+			failStage: "reservation",
+			wantCalls: []string{
+				"authenticate",
+				"parse",
+				"capabilities",
+				"route",
+				"admission",
+				"reservation",
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -191,7 +260,7 @@ func TestServicePrepareStopsAtFirstFailedStage(t *testing.T) {
 			)
 			service := mustService(t, dependencies)
 
-			_, err := service.Prepare(
+			_, err := service.Reserve(
 				context.Background(),
 				validInput(),
 			)
@@ -209,7 +278,107 @@ func TestServicePrepareStopsAtFirstFailedStage(t *testing.T) {
 	}
 }
 
-func TestServicePrepareIsolatesPayloadBetweenStages(t *testing.T) {
+func TestServiceReserveDoesNotCallReservationWhenAdmissionDenied(
+	t *testing.T,
+) {
+	var calls []string
+	dependencies := validDependencies(&calls)
+	dependencies.BillingAdmitter = admitFunc(
+		func(
+			_ context.Context,
+			input BillingAdmissionInput,
+		) (BillingAdmissionResult, error) {
+			calls = append(calls, "admission")
+			result := validAdmission(input)
+			result.Allowed = false
+			return result, nil
+		},
+	)
+
+	service := mustService(t, dependencies)
+	_, err := service.Reserve(
+		context.Background(),
+		validInput(),
+	)
+	if !errors.Is(err, ErrStageContractViolation) {
+		t.Fatalf(
+			"error = %v, want stage contract violation",
+			err,
+		)
+	}
+	wantCalls := []string{
+		"authenticate",
+		"parse",
+		"capabilities",
+		"route",
+		"admission",
+	}
+	if !reflect.DeepEqual(calls, wantCalls) {
+		t.Fatalf("calls = %#v, want %#v", calls, wantCalls)
+	}
+}
+
+func TestServiceReserveRejectsReservationIdentityMutation(
+	t *testing.T,
+) {
+	dependencies := validDependencies(nil)
+	dependencies.AtomicReservation = reserveFunc(
+		func(
+			_ context.Context,
+			input ReservationInput,
+		) (ReservationResult, error) {
+			result := validReservation(input)
+			result.Usage.SelectedRouteID = "other-route"
+			return result, nil
+		},
+	)
+
+	service := mustService(t, dependencies)
+	_, err := service.Reserve(
+		context.Background(),
+		validInput(),
+	)
+	if !errors.Is(err, ErrStageContractViolation) {
+		t.Fatalf(
+			"error = %v, want stage contract violation",
+			err,
+		)
+	}
+}
+
+func TestServiceReserveAcceptsAlreadyReservedWithoutResellerSnapshot(
+	t *testing.T,
+) {
+	dependencies := validDependencies(nil)
+	dependencies.AtomicReservation = reserveFunc(
+		func(
+			_ context.Context,
+			input ReservationInput,
+		) (ReservationResult, error) {
+			result := validReservation(input)
+			result.Disposition =
+				ReservationDispositionAlreadyReserved
+			result.Reseller = nil
+			return result, nil
+		},
+	)
+
+	service := mustService(t, dependencies)
+	result, err := service.Reserve(
+		context.Background(),
+		validInput(),
+	)
+	if err != nil {
+		t.Fatalf("Reserve: %v", err)
+	}
+	if result.Reservation.Disposition !=
+		ReservationDispositionAlreadyReserved ||
+		result.Reservation.Reseller != nil {
+		t.Fatalf("reservation = %+v", result.Reservation)
+	}
+}
+
+func TestServiceReserveIsolatesPayloadBetweenStages(t *testing.T) {
 	input := validInput()
 	original := append([]byte(nil), input.Payload...)
 
@@ -259,12 +428,12 @@ func TestServicePrepareIsolatesPayloadBetweenStages(t *testing.T) {
 	)
 
 	service := mustService(t, dependencies)
-	prepared, err := service.Prepare(
+	reserved, err := service.Reserve(
 		context.Background(),
 		input,
 	)
 	if err != nil {
-		t.Fatalf("Prepare: %v", err)
+		t.Fatalf("Reserve: %v", err)
 	}
 	if !bytes.Equal(input.Payload, original) {
 		t.Fatalf(
@@ -273,16 +442,16 @@ func TestServicePrepareIsolatesPayloadBetweenStages(t *testing.T) {
 			original,
 		)
 	}
-	if !bytes.Equal(prepared.Payload, original) {
+	if !bytes.Equal(reserved.Prepared.Payload, original) {
 		t.Fatalf(
 			"prepared payload = %q, want %q",
-			prepared.Payload,
+			reserved.Prepared.Payload,
 			original,
 		)
 	}
 }
 
-func TestServicePrepareRejectsInvalidRoutePlan(t *testing.T) {
+func TestServiceReserveRejectsInvalidRoutePlan(t *testing.T) {
 	dependencies := validDependencies(nil)
 	dependencies.RoutePlanner = planFunc(
 		func(
@@ -290,13 +459,13 @@ func TestServicePrepareRejectsInvalidRoutePlan(t *testing.T) {
 			RoutePlanInput,
 		) (RoutePlan, error) {
 			plan := validRoutePlan()
-			plan.Route.ClientModel = "other-model"
+			plan.BillingModel = ""
 			return plan, nil
 		},
 	)
 
 	service := mustService(t, dependencies)
-	_, err := service.Prepare(
+	_, err := service.Reserve(
 		context.Background(),
 		validInput(),
 	)
@@ -387,6 +556,42 @@ func validDependencies(
 				return validRoutePlan(), nil
 			},
 		),
+		BillingAdmitter: admitFunc(
+			func(
+				_ context.Context,
+				input BillingAdmissionInput,
+			) (BillingAdmissionResult, error) {
+				record("admission")
+				if input.Principal.UserID != "user-1" ||
+					input.RequiredReserveCents != 20 ||
+					input.Currency != "RUB" {
+					return BillingAdmissionResult{},
+						errors.New(
+							"unexpected admission input",
+						)
+				}
+				return validAdmission(input), nil
+			},
+		),
+		AtomicReservation: reserveFunc(
+			func(
+				_ context.Context,
+				input ReservationInput,
+			) (ReservationResult, error) {
+				record("reservation")
+				if input.LocalRequestID != "llmreq_test" ||
+					input.Principal.UserID != "user-1" ||
+					input.Route.ID != "route-1" ||
+					input.EstimatedClientAmountCents != 20 ||
+					input.EstimatedUpstreamCostCents != 10 {
+					return ReservationResult{},
+						errors.New(
+							"unexpected reservation input",
+						)
+				}
+				return validReservation(input), nil
+			},
+		),
 	}
 }
 
@@ -441,6 +646,26 @@ func failingDependencies(
 				return RoutePlan{}, stageError
 			},
 		)
+	case "admission":
+		value.BillingAdmitter = admitFunc(
+			func(
+				context.Context,
+				BillingAdmissionInput,
+			) (BillingAdmissionResult, error) {
+				record()
+				return BillingAdmissionResult{}, stageError
+			},
+		)
+	case "reservation":
+		value.AtomicReservation = reserveFunc(
+			func(
+				context.Context,
+				ReservationInput,
+			) (ReservationResult, error) {
+				record()
+				return ReservationResult{}, stageError
+			},
+		)
 	default:
 		panic("unknown stage")
 	}
@@ -481,6 +706,7 @@ func validRoutePlan() RoutePlan {
 			Currency: "RUB",
 			Enabled:  true,
 		},
+		BillingModel: "openai:model-1",
 		EstimatedUsage: domain.TokenUsage{
 			InputTokens:  10,
 			OutputTokens: 5,
@@ -489,6 +715,69 @@ func validRoutePlan() RoutePlan {
 		EstimatedUpstreamCostCents: 10,
 		Currency:                   "RUB",
 		Confidence:                 "conservative",
+	}
+}
+
+func validAdmission(
+	input BillingAdmissionInput,
+) BillingAdmissionResult {
+	return BillingAdmissionResult{
+		Allowed:               true,
+		RemoteBalanceCents:    1000,
+		PendingAmountCents:    100,
+		EffectiveBalanceCents: 900,
+		RequiredReserveCents:  input.RequiredReserveCents,
+		Currency:              input.Currency,
+	}
+}
+
+func validReservation(
+	input ReservationInput,
+) ReservationResult {
+	reservedAt := time.Date(
+		2026,
+		time.June,
+		14,
+		12,
+		0,
+		0,
+		0,
+		time.UTC,
+	)
+	idempotencyKey := ""
+	if input.IdempotencyKey != nil {
+		idempotencyKey = *input.IdempotencyKey
+	}
+	reseller := input.Reseller
+	reseller.ReservedCents = 10
+	return ReservationResult{
+		Disposition: ReservationDispositionCreated,
+		Usage: domain.UsageRecord{
+			LocalRequestID:     input.LocalRequestID,
+			IdempotencyKey:     idempotencyKey,
+			UserID:             input.Principal.UserID,
+			APIKeyID:           input.Principal.APIKeyID,
+			APIFamily:          input.APIFamily,
+			EndpointKind:       input.EndpointKind,
+			ClientModel:        input.ClientModel,
+			BillingModel:       input.BillingModel,
+			SelectedRouteID:    input.Route.ID,
+			SelectedResellerID: input.Reseller.ID,
+			ProviderType:       input.Route.ProviderType,
+			ProviderModel:      input.Route.ProviderModel,
+			EstimatedUsage:     input.EstimatedUsage,
+			EstimatedClientAmountCents: input.
+				EstimatedClientAmountCents,
+			EstimatedUpstreamCostCents: input.
+				EstimatedUpstreamCostCents,
+			Currency:          input.Currency,
+			UsageCompleteness: "missing",
+			Status:            domain.UsageStatusReserved,
+			CreatedAt:         reservedAt,
+			ReservedAt:        &reservedAt,
+			UpdatedAt:         reservedAt,
+		},
+		Reseller: &reseller,
 	}
 }
 

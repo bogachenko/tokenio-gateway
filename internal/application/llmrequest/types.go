@@ -51,6 +51,7 @@ type RoutePlan struct {
 	Reseller domain.Reseller
 	Price    domain.RoutePrice
 
+	BillingModel   string
 	EstimatedUsage domain.TokenUsage
 
 	EstimatedClientAmountCents int64
@@ -73,4 +74,61 @@ type PreparedRequest struct {
 
 	Payload []byte
 	Plan    RoutePlan
+}
+
+type BillingAdmissionInput struct {
+	Principal Principal
+
+	RequiredReserveCents int64
+	Currency             string
+}
+
+type BillingAdmissionResult struct {
+	Allowed bool
+
+	RemoteBalanceCents    int64
+	PendingAmountCents    int64
+	EffectiveBalanceCents int64
+	RequiredReserveCents  int64
+	Currency              string
+}
+
+type ReservationInput struct {
+	LocalRequestID string
+	IdempotencyKey *string
+
+	Principal Principal
+
+	APIFamily    domain.APIFamily
+	EndpointKind domain.EndpointKind
+	ClientModel  string
+	BillingModel string
+
+	Route    domain.Route
+	Reseller domain.Reseller
+
+	EstimatedUsage domain.TokenUsage
+
+	EstimatedClientAmountCents int64
+	EstimatedUpstreamCostCents int64
+	Currency                   string
+}
+
+type ReservationDisposition string
+
+const (
+	ReservationDispositionCreated         ReservationDisposition = "created"
+	ReservationDispositionAlreadyReserved ReservationDisposition = "already_reserved"
+)
+
+type ReservationResult struct {
+	Disposition ReservationDisposition
+	Usage       domain.UsageRecord
+	Reseller    *domain.Reseller
+}
+
+type ReservedRequest struct {
+	Prepared    PreparedRequest
+	Admission   BillingAdmissionResult
+	Reservation ReservationResult
 }
