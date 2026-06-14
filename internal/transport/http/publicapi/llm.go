@@ -291,6 +291,13 @@ func setKnownBillingHeaders(
 		strconv.FormatInt(record.Usage.OutputTokens, 10),
 	)
 	headers.Set(
+		"X-Billing-Image-Generation-Units",
+		strconv.FormatInt(
+			record.Usage.ImageGenerationUnits,
+			10,
+		),
+	)
+	headers.Set(
 		"X-Billing-Usage-Completeness",
 		record.UsageCompleteness,
 	)
