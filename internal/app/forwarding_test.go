@@ -34,6 +34,9 @@ func TestNewForwardingInfrastructureGraph(
 			"OpenAI-compatible adapter support is absent",
 		)
 	}
+	if graph.UsageExtractor == nil {
+		t.Fatal("usage extractor is not wired")
+	}
 	if graph.ModelRewriteSupport.
 		SupportsModelIdentifierRewrite(
 			domain.APIFamilyAnthropicNative,

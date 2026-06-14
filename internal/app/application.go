@@ -23,6 +23,7 @@ type ApplicationGraph struct {
 	Ledger               *ledgerapp.Service
 	AutoCharge           *billingapp.AutoChargeService
 	FailedBatchRetry     *billingapp.FailedBatchRetryService
+	UsageResolver        *pricingapp.UsageResolver
 	LLMRequest           *llmrequest.Service
 	Admin                *adminapp.Service
 }
@@ -188,6 +189,18 @@ func NewApplicationGraph(
 			err,
 		)
 	}
+	usageResolver, err := pricingapp.NewUsageResolver(
+		forwardingInfrastructure.UsageExtractor,
+		tokenEstimator,
+		pricingCalculator,
+	)
+	if err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"construct LLM-request usage resolver: %w",
+			err,
+		)
+	}
+
 	preflightPricer, err := pricingapp.NewPreflightPricer(
 		tokenEstimator,
 		pricingCalculator,
@@ -326,6 +339,7 @@ func NewApplicationGraph(
 		Ledger:               ledgerService,
 		AutoCharge:           autoCharge,
 		FailedBatchRetry:     failedBatchRetry,
+		UsageResolver:        usageResolver,
 		LLMRequest:           llmRequestService,
 		Admin:                adminService,
 	}
@@ -354,6 +368,8 @@ func (g ApplicationGraph) Validate() error {
 		return fmt.Errorf("auto-charge service is nil")
 	case g.FailedBatchRetry == nil:
 		return fmt.Errorf("failed billing batch retry service is nil")
+	case g.UsageResolver == nil:
+		return fmt.Errorf("LLM-request usage resolver is nil")
 	case g.LLMRequest == nil:
 		return fmt.Errorf("LLM-request service is nil")
 	case g.Admin == nil:

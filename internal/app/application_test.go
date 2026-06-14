@@ -203,6 +203,9 @@ func TestNewApplicationGraphWiresExistingPorts(t *testing.T) {
 	if graph.ModelCatalog == nil {
 		t.Fatal("model catalog service is not wired")
 	}
+	if graph.UsageResolver == nil {
+		t.Fatal("LLM-request usage resolver is not wired")
+	}
 	if graph.LLMRequest == nil {
 		t.Fatal("LLM-request service is not wired")
 	}
