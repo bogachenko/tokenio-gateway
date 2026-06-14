@@ -10,6 +10,8 @@ var (
 	ErrModelRequired                 = errors.New("model required")
 	ErrStreamingUnsupported          = errors.New("streaming unsupported")
 	ErrUnknownModel                  = errors.New("unknown model")
+	ErrUnsupportedCapability         = errors.New("unsupported capability")
+	ErrNoRouteAvailable              = errors.New("no route available")
 	ErrLocalRequestConflict          = errors.New("local request conflict")
 	ErrRequestInProgress             = errors.New("request in progress")
 	ErrIdempotencyReplayNotAvailable = errors.New("idempotency replay not available")
