@@ -76,6 +76,7 @@ type RouteCapacityChecker interface {
 
 type RouteCapacityAcquireInput struct {
 	LocalRequestID string
+	ReservationID  string
 	Route          domain.Route
 	Reseller       domain.Reseller
 	EstimatedUsage domain.TokenUsage
@@ -83,15 +84,17 @@ type RouteCapacityAcquireInput struct {
 
 type RouteCapacityReservation struct {
 	LocalRequestID string
+	ReservationID  string
 	RouteID        string
 }
 
 type RouteCapacityManager interface {
 	RouteCapacityChecker
 
-	// Acquire atomically re-checks route limits and records one selected
-	// request against RPM, TPM, and concurrency. Repeated acquisition for the
-	// same LocalRequestID must be idempotent.
+	// Acquire atomically re-checks route limits and records one route attempt
+	// against RPM, TPM, and concurrency. Repeated acquisition for the same
+	// ReservationID must be idempotent. LocalRequestID is correlation only and
+	// may be shared by multiple sequential attempt reservations.
 	Acquire(
 		context.Context,
 		RouteCapacityAcquireInput,

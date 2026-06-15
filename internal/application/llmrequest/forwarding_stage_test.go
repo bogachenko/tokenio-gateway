@@ -566,6 +566,7 @@ func validForwardingCapacityManager(
 			record("acquire")
 			return ports.RouteCapacityReservation{
 				LocalRequestID: input.LocalRequestID,
+				ReservationID:  input.ReservationID,
 				RouteID:        input.Route.ID,
 			}, nil
 		},

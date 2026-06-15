@@ -110,6 +110,10 @@ func (s *ForwardingStage) Execute(
 		ctx,
 		ports.RouteCapacityAcquireInput{
 			LocalRequestID: prepared.LocalRequestID,
+			ReservationID: forwardingCapacityReservationID(
+				prepared.LocalRequestID,
+				1,
+			),
 			Route:          prepared.Plan.Route,
 			Reseller:       prepared.Plan.Reseller,
 			EstimatedUsage: prepared.Plan.EstimatedUsage,
@@ -139,6 +143,10 @@ func (s *ForwardingStage) Execute(
 	}()
 
 	if lease.LocalRequestID != prepared.LocalRequestID ||
+		lease.ReservationID != forwardingCapacityReservationID(
+			prepared.LocalRequestID,
+			1,
+		) ||
 		lease.RouteID != prepared.Plan.Route.ID {
 		return ForwardedRequest{}, fmt.Errorf(
 			"%w: invalid route capacity reservation",
@@ -283,6 +291,17 @@ func (s *ForwardingStage) Execute(
 		},
 		Response: cloneForwardResponse(execution.Response),
 	}, nil
+}
+
+func forwardingCapacityReservationID(
+	localRequestID string,
+	attemptNumber int,
+) string {
+	return fmt.Sprintf(
+		"%s:attempt:%d",
+		localRequestID,
+		attemptNumber,
+	)
 }
 
 func forwardingStageNow(clock ports.Clock) (time.Time, error) {

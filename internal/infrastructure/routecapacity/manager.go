@@ -87,9 +87,13 @@ func (m *Manager) Acquire(
 	if err := validateContext(ctx); err != nil {
 		return ports.RouteCapacityReservation{}, err
 	}
-	if strings.TrimSpace(input.LocalRequestID) == "" {
+	if strings.TrimSpace(input.LocalRequestID) == "" ||
+		strings.TrimSpace(input.ReservationID) == "" {
 		return ports.RouteCapacityReservation{},
-			fmt.Errorf("%w: blank local request id", ErrInvalidInput)
+			fmt.Errorf(
+				"%w: blank capacity reservation identity",
+				ErrInvalidInput,
+			)
 	}
 	tokens, err := validateCapacityInput(
 		input.Route,
@@ -109,13 +113,14 @@ func (m *Manager) Acquire(
 	}
 	m.pruneLocked(now)
 
-	if existing, ok := m.index[input.LocalRequestID]; ok {
-		if existing.reservation.RouteID != input.Route.ID ||
+	if existing, ok := m.index[input.ReservationID]; ok {
+		if existing.reservation.LocalRequestID != input.LocalRequestID ||
+			existing.reservation.RouteID != input.Route.ID ||
 			existing.tokens != tokens {
 			return ports.RouteCapacityReservation{}, fmt.Errorf(
-				"%w: local request id %q",
+				"%w: reservation id %q",
 				ErrReservationConflict,
-				input.LocalRequestID,
+				input.ReservationID,
 			)
 		}
 		return existing.reservation, nil
@@ -130,6 +135,7 @@ func (m *Manager) Acquire(
 
 	reservation := ports.RouteCapacityReservation{
 		LocalRequestID: input.LocalRequestID,
+		ReservationID:  input.ReservationID,
 		RouteID:        input.Route.ID,
 	}
 	entry := &reservationEntry{
@@ -143,8 +149,8 @@ func (m *Manager) Acquire(
 		routeEntries = make(map[string]*reservationEntry)
 		m.routes[input.Route.ID] = routeEntries
 	}
-	routeEntries[input.LocalRequestID] = entry
-	m.index[input.LocalRequestID] = entry
+	routeEntries[input.ReservationID] = entry
+	m.index[input.ReservationID] = entry
 
 	return reservation, nil
 }
@@ -160,6 +166,7 @@ func (m *Manager) Release(
 		return err
 	}
 	if strings.TrimSpace(reservation.LocalRequestID) == "" ||
+		strings.TrimSpace(reservation.ReservationID) == "" ||
 		strings.TrimSpace(reservation.RouteID) == "" {
 		return fmt.Errorf(
 			"%w: invalid reservation identity",
@@ -176,15 +183,16 @@ func (m *Manager) Release(
 	}
 	m.pruneLocked(now)
 
-	entry, ok := m.index[reservation.LocalRequestID]
+	entry, ok := m.index[reservation.ReservationID]
 	if !ok {
 		return nil
 	}
-	if entry.reservation.RouteID != reservation.RouteID {
+	if entry.reservation.LocalRequestID != reservation.LocalRequestID ||
+		entry.reservation.RouteID != reservation.RouteID {
 		return fmt.Errorf(
-			"%w: local request id %q",
+			"%w: reservation id %q",
 			ErrReservationConflict,
-			reservation.LocalRequestID,
+			reservation.ReservationID,
 		)
 	}
 
@@ -242,12 +250,12 @@ func (m *Manager) usageLocked(
 func (m *Manager) pruneLocked(now time.Time) {
 	cutoff := now.Add(-accountingWindow)
 	for routeID, entries := range m.routes {
-		for requestID, entry := range entries {
+		for reservationID, entry := range entries {
 			if entry.active || entry.acquiredAt.After(cutoff) {
 				continue
 			}
-			delete(entries, requestID)
-			delete(m.index, requestID)
+			delete(entries, reservationID)
+			delete(m.index, reservationID)
 		}
 		if len(entries) == 0 {
 			delete(m.routes, routeID)

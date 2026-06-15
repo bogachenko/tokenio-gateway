@@ -175,6 +175,55 @@ func TestManagerAcquireIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestManagerAllowsSameRequestAcrossAttemptReservations(
+	t *testing.T,
+) {
+	manager, _ := newTestManager(t)
+	primary := validCheckInput()
+	primaryReservation, err := manager.Acquire(
+		context.Background(),
+		acquireAttemptInput(
+			"request-1",
+			"request-1:attempt:1",
+			primary,
+		),
+	)
+	if err != nil {
+		t.Fatalf("primary Acquire: %v", err)
+	}
+	if err := manager.Release(
+		context.Background(),
+		primaryReservation,
+	); err != nil {
+		t.Fatalf("primary Release: %v", err)
+	}
+
+	fallback := primary
+	fallback.Route.ID = "route-2"
+	fallback.Route.ResellerID = "reseller-2"
+	fallback.Reseller.ID = "reseller-2"
+	fallbackReservation, err := manager.Acquire(
+		context.Background(),
+		acquireAttemptInput(
+			"request-1",
+			"request-1:attempt:2",
+			fallback,
+		),
+	)
+	if err != nil {
+		t.Fatalf("fallback Acquire: %v", err)
+	}
+	if fallbackReservation.LocalRequestID != "request-1" ||
+		fallbackReservation.ReservationID !=
+			"request-1:attempt:2" ||
+		fallbackReservation.RouteID != "route-2" {
+		t.Fatalf(
+			"fallback reservation = %+v",
+			fallbackReservation,
+		)
+	}
+}
+
 func TestManagerAcquireRejectsIdentityConflict(t *testing.T) {
 	manager, _ := newTestManager(t)
 	input := validCheckInput()
@@ -388,8 +437,21 @@ func acquireInput(
 	localRequestID string,
 	input ports.RouteCapacityCheckInput,
 ) ports.RouteCapacityAcquireInput {
+	return acquireAttemptInput(
+		localRequestID,
+		localRequestID,
+		input,
+	)
+}
+
+func acquireAttemptInput(
+	localRequestID string,
+	reservationID string,
+	input ports.RouteCapacityCheckInput,
+) ports.RouteCapacityAcquireInput {
 	return ports.RouteCapacityAcquireInput{
 		LocalRequestID: localRequestID,
+		ReservationID:  reservationID,
 		Route:          input.Route,
 		Reseller:       input.Reseller,
 		EstimatedUsage: input.EstimatedUsage,
