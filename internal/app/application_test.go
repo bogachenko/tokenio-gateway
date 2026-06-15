@@ -39,20 +39,23 @@ func validApplicationGraphInputs(
 			[]byte{0x42},
 			32,
 		),
-		APIKeyProvisioningKeyVersion:          "v1",
-		APIKeyProvisioningTTL:                 24 * time.Hour,
-		APIKeyProvisioningExpirationInterval:  time.Minute,
-		APIKeyProvisioningExpirationBatchSize: 100,
-		ForwardingAttemptRecoveryStaleAfter:   5 * time.Minute,
-		ForwardingAttemptRecoveryInterval:     time.Minute,
-		ForwardingAttemptRecoveryBatchSize:    100,
-		CostCurrency:                          "RUB",
-		AutoChargeThresholdCents:              1000,
-		MinChargeAmountCents:                  100,
-		TokenEstimationSafetyFactor:           1.25,
-		CostEstimationSafetyFactor:            1.10,
-		RequestBodyMaxBytes:                   1024,
-		UpstreamResponseBodyMaxBytes:          1024,
+		APIKeyProvisioningKeyVersion:           "v1",
+		APIKeyProvisioningTTL:                  24 * time.Hour,
+		APIKeyProvisioningExpirationInterval:   time.Minute,
+		APIKeyProvisioningExpirationBatchSize:  100,
+		ForwardingAttemptRecoveryStaleAfter:    5 * time.Minute,
+		ForwardingAttemptRecoveryInterval:      time.Minute,
+		ForwardingAttemptRecoveryBatchSize:     100,
+		TelegramStaleAttemptRecoveryStaleAfter: 5 * time.Minute,
+		TelegramStaleAttemptRecoveryInterval:   time.Minute,
+		TelegramStaleAttemptRecoveryBatchSize:  100,
+		CostCurrency:                           "RUB",
+		AutoChargeThresholdCents:               1000,
+		MinChargeAmountCents:                   100,
+		TokenEstimationSafetyFactor:            1.25,
+		CostEstimationSafetyFactor:             1.10,
+		RequestBodyMaxBytes:                    1024,
+		UpstreamResponseBodyMaxBytes:           1024,
 	}
 	security, err := NewSecurityGraph(cfg)
 	if err != nil {
@@ -133,6 +136,9 @@ func validApplicationGraphInputs(
 		}{},
 		ForwardingAttempts: &struct {
 			ports.ForwardingAttemptStore
+		}{},
+		TelegramDeliveryAttempts: &struct {
+			ports.TelegramDeliveryAttemptStore
 		}{},
 		LLMRequestAtomicReservation: &struct {
 			llmrequest.AtomicReservation
@@ -223,6 +229,11 @@ func TestNewApplicationGraphWiresExistingPorts(t *testing.T) {
 	if graph.ForwardingAttemptRecovery == nil {
 		t.Fatal(
 			"forwarding attempt recovery is not wired",
+		)
+	}
+	if graph.TelegramStaleAttemptRecovery == nil {
+		t.Fatal(
+			"Telegram stale-attempt recovery is not wired",
 		)
 	}
 	if !graph.ProvisioningEnabled ||

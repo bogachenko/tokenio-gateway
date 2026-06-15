@@ -11,22 +11,24 @@ import (
 	modelcatalogapp "github.com/bogachenko/tokenio-gateway/internal/application/modelcatalog"
 	pricingapp "github.com/bogachenko/tokenio-gateway/internal/application/pricing"
 	provisioningapp "github.com/bogachenko/tokenio-gateway/internal/application/provisioning"
+	telegramalert "github.com/bogachenko/tokenio-gateway/internal/application/telegramalert"
 	"github.com/bogachenko/tokenio-gateway/internal/config"
 	requestmetaopenaicompat "github.com/bogachenko/tokenio-gateway/internal/infrastructure/requestmeta/openaicompat"
 )
 
 type ApplicationGraph struct {
-	PublicAuthentication      *authenticateapp.UseCase
-	ModelCatalog              *modelcatalogapp.Service
-	ProvisioningEnabled       bool
-	Provisioning              *provisioningapp.Service
-	Ledger                    *ledgerapp.Service
-	AutoCharge                *billingapp.AutoChargeService
-	FailedBatchRetry          *billingapp.FailedBatchRetryService
-	UsageResolver             *pricingapp.UsageResolver
-	LLMRequest                *llmrequest.Service
-	ForwardingAttemptRecovery *llmrequest.ForwardingAttemptRecovery
-	Admin                     *adminapp.Service
+	PublicAuthentication         *authenticateapp.UseCase
+	ModelCatalog                 *modelcatalogapp.Service
+	ProvisioningEnabled          bool
+	Provisioning                 *provisioningapp.Service
+	Ledger                       *ledgerapp.Service
+	AutoCharge                   *billingapp.AutoChargeService
+	FailedBatchRetry             *billingapp.FailedBatchRetryService
+	UsageResolver                *pricingapp.UsageResolver
+	LLMRequest                   *llmrequest.Service
+	ForwardingAttemptRecovery    *llmrequest.ForwardingAttemptRecovery
+	TelegramStaleAttemptRecovery *telegramalert.StaleAttemptRecoveryService
+	Admin                        *adminapp.Service
 }
 
 func NewApplicationGraph(
@@ -216,6 +218,18 @@ func NewApplicationGraph(
 			err,
 		)
 	}
+	telegramStaleAttemptRecovery, err :=
+		telegramalert.NewStaleAttemptRecoveryService(
+			repositories.TelegramDeliveryAttempts,
+			primitives.Clock,
+			cfg.TelegramStaleAttemptRecoveryStaleAfter,
+		)
+	if err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"construct Telegram stale-attempt recovery service: %w",
+			err,
+		)
+	}
 
 	requestMetadata := requestmetaopenaicompat.NewAdapter()
 	tokenEstimator := requestmetaopenaicompat.NewTokenEstimator()
@@ -394,17 +408,18 @@ func NewApplicationGraph(
 	}
 
 	graph := ApplicationGraph{
-		PublicAuthentication:      publicAuthentication,
-		ModelCatalog:              modelCatalog,
-		ProvisioningEnabled:       provisioningInfrastructure.Enabled,
-		Provisioning:              provisioningService,
-		Ledger:                    ledgerService,
-		AutoCharge:                autoCharge,
-		FailedBatchRetry:          failedBatchRetry,
-		UsageResolver:             pricingUsageResolver,
-		LLMRequest:                llmRequestService,
-		ForwardingAttemptRecovery: forwardingAttemptRecovery,
-		Admin:                     adminService,
+		PublicAuthentication:         publicAuthentication,
+		ModelCatalog:                 modelCatalog,
+		ProvisioningEnabled:          provisioningInfrastructure.Enabled,
+		Provisioning:                 provisioningService,
+		Ledger:                       ledgerService,
+		AutoCharge:                   autoCharge,
+		FailedBatchRetry:             failedBatchRetry,
+		UsageResolver:                pricingUsageResolver,
+		LLMRequest:                   llmRequestService,
+		ForwardingAttemptRecovery:    forwardingAttemptRecovery,
+		TelegramStaleAttemptRecovery: telegramStaleAttemptRecovery,
+		Admin:                        adminService,
 	}
 	if err := graph.Validate(); err != nil {
 		return ApplicationGraph{}, fmt.Errorf(
@@ -438,6 +453,10 @@ func (g ApplicationGraph) Validate() error {
 	case g.ForwardingAttemptRecovery == nil:
 		return fmt.Errorf(
 			"forwarding attempt recovery service is nil",
+		)
+	case g.TelegramStaleAttemptRecovery == nil:
+		return fmt.Errorf(
+			"Telegram stale-attempt recovery service is nil",
 		)
 	case g.Admin == nil:
 		return fmt.Errorf("admin service is nil")

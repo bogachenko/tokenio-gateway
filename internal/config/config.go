@@ -38,6 +38,10 @@ type Config struct {
 	ForwardingAttemptRecoveryInterval   time.Duration
 	ForwardingAttemptRecoveryBatchSize  int
 
+	TelegramStaleAttemptRecoveryStaleAfter time.Duration
+	TelegramStaleAttemptRecoveryInterval   time.Duration
+	TelegramStaleAttemptRecoveryBatchSize  int
+
 	CostCurrency                 string
 	AutoChargeThresholdCents     int64
 	MinChargeAmountCents         int64
@@ -117,6 +121,18 @@ func Load() (Config, error) {
 		),
 		ForwardingAttemptRecoveryBatchSize: l.int(
 			"TOKENIO_FORWARDING_ATTEMPT_RECOVERY_BATCH_SIZE",
+			100,
+		),
+		TelegramStaleAttemptRecoveryStaleAfter: l.duration(
+			"TOKENIO_TELEGRAM_STALE_ATTEMPT_RECOVERY_STALE_AFTER",
+			5*time.Minute,
+		),
+		TelegramStaleAttemptRecoveryInterval: l.duration(
+			"TOKENIO_TELEGRAM_STALE_ATTEMPT_RECOVERY_INTERVAL",
+			time.Minute,
+		),
+		TelegramStaleAttemptRecoveryBatchSize: l.int(
+			"TOKENIO_TELEGRAM_STALE_ATTEMPT_RECOVERY_BATCH_SIZE",
 			100,
 		),
 
@@ -303,6 +319,21 @@ func validate(cfg Config) error {
 	if cfg.ForwardingAttemptRecoveryBatchSize < 1 {
 		return fmt.Errorf(
 			"TOKENIO_FORWARDING_ATTEMPT_RECOVERY_BATCH_SIZE must be >= 1",
+		)
+	}
+	if cfg.TelegramStaleAttemptRecoveryStaleAfter <= 0 {
+		return fmt.Errorf(
+			"TOKENIO_TELEGRAM_STALE_ATTEMPT_RECOVERY_STALE_AFTER must be positive",
+		)
+	}
+	if cfg.TelegramStaleAttemptRecoveryInterval <= 0 {
+		return fmt.Errorf(
+			"TOKENIO_TELEGRAM_STALE_ATTEMPT_RECOVERY_INTERVAL must be positive",
+		)
+	}
+	if cfg.TelegramStaleAttemptRecoveryBatchSize < 1 {
+		return fmt.Errorf(
+			"TOKENIO_TELEGRAM_STALE_ATTEMPT_RECOVERY_BATCH_SIZE must be >= 1",
 		)
 	}
 	if keyLength := len(cfg.APIKeyProvisioningEncryptionKey); keyLength != 0 && keyLength != 32 {

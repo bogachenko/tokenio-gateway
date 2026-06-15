@@ -9,14 +9,15 @@ import (
 )
 
 type RepositoryGraph struct {
-	Users              ports.UserRepository
-	APIKeys            ports.APIKeyRepository
-	Resellers          ports.ResellerQueryRepository
-	Routes             ports.RouteRepository
-	ModelCatalogRoutes ports.ModelCatalogRouteRepository
-	RoutePrices        ports.RoutePriceRepository
-	UsageLedger        ports.UsageLedger
-	ForwardingAttempts ports.ForwardingAttemptStore
+	Users                    ports.UserRepository
+	APIKeys                  ports.APIKeyRepository
+	Resellers                ports.ResellerQueryRepository
+	Routes                   ports.RouteRepository
+	ModelCatalogRoutes       ports.ModelCatalogRouteRepository
+	RoutePrices              ports.RoutePriceRepository
+	UsageLedger              ports.UsageLedger
+	ForwardingAttempts       ports.ForwardingAttemptStore
+	TelegramDeliveryAttempts ports.TelegramDeliveryAttemptStore
 
 	LLMRequestAtomicReservation        llmrequest.AtomicReservation
 	LLMRequestRouteReservationTransfer llmrequest.RouteReservationTransfer
@@ -88,6 +89,14 @@ func NewRepositoryGraph(
 	if err != nil {
 		return RepositoryGraph{}, fmt.Errorf(
 			"construct forwarding-attempt store: %w",
+			err,
+		)
+	}
+	telegramDeliveryAttempts, err :=
+		postgres.NewTelegramDeliveryAttemptStore(db)
+	if err != nil {
+		return RepositoryGraph{}, fmt.Errorf(
+			"construct Telegram delivery-attempt store: %w",
 			err,
 		)
 	}
@@ -198,14 +207,15 @@ func NewRepositoryGraph(
 	}
 
 	return RepositoryGraph{
-		Users:              users,
-		APIKeys:            apiKeys,
-		Resellers:          resellers,
-		Routes:             routes,
-		ModelCatalogRoutes: routes,
-		RoutePrices:        routePrices,
-		UsageLedger:        usageLedger,
-		ForwardingAttempts: forwardingAttempts,
+		Users:                    users,
+		APIKeys:                  apiKeys,
+		Resellers:                resellers,
+		Routes:                   routes,
+		ModelCatalogRoutes:       routes,
+		RoutePrices:              routePrices,
+		UsageLedger:              usageLedger,
+		ForwardingAttempts:       forwardingAttempts,
+		TelegramDeliveryAttempts: telegramDeliveryAttempts,
 
 		LLMRequestAtomicReservation:        atomicReservation,
 		LLMRequestRouteReservationTransfer: routeReservationTransfer,
@@ -247,6 +257,10 @@ func (g RepositoryGraph) Validate() error {
 		return fmt.Errorf("usage ledger is nil")
 	case g.ForwardingAttempts == nil:
 		return fmt.Errorf("forwarding-attempt store is nil")
+	case g.TelegramDeliveryAttempts == nil:
+		return fmt.Errorf(
+			"Telegram delivery-attempt store is nil",
+		)
 	case g.LLMRequestAtomicReservation == nil:
 		return fmt.Errorf(
 			"LLM-request atomic reservation is nil",
