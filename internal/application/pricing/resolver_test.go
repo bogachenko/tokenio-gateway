@@ -66,7 +66,13 @@ func TestUsageResolverCompletenessPriority(t *testing.T) {
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			extractor := &fakeExtractor{result: ports.UsageExtractionResult{Usage: tt.usage, Completeness: tt.completeness, ProviderRequestID: "req-1", ProviderResponseModel: "response-model"}}
+			presence := ports.UsageDimensionPresence{}
+			if tt.completeness == "detailed" ||
+				tt.completeness == "aggregate" {
+				presence.InputTokens = true
+				presence.OutputTokens = true
+			}
+			extractor := &fakeExtractor{result: ports.UsageExtractionResult{Usage: tt.usage, Presence: presence, Completeness: tt.completeness, ProviderRequestID: "req-1", ProviderResponseModel: "response-model"}}
 			estimator := &fakeEstimator{estimate: ports.TokenEstimate{Usage: domain.TokenUsage{InputTokens: 10_000}, Confidence: "ok"}}
 			result, err := newResolver(t, extractor, estimator).Resolve(context.Background(), input)
 			if err != nil {
@@ -79,6 +85,170 @@ func TestUsageResolverCompletenessPriority(t *testing.T) {
 				t.Fatalf("metadata not preserved: %+v", result)
 			}
 		})
+	}
+}
+
+func TestUsageResolverMergesOnlyMissingRequiredDimensions(
+	t *testing.T,
+) {
+	route := testRoute()
+	route.EndpointKind = domain.EndpointChat
+	input := ResolveUsageInput{
+		Route:        route,
+		Price:        testPrice(),
+		RequestBody:  []byte(`{"prompt":"x"}`),
+		ResponseBody: []byte(`{"usage":{}}`),
+	}
+	extractor := &fakeExtractor{
+		result: ports.UsageExtractionResult{
+			Usage: domain.TokenUsage{
+				InputTokens: 1_000_000,
+			},
+			Presence: ports.UsageDimensionPresence{
+				InputTokens: true,
+			},
+			Completeness:          "aggregate",
+			ProviderRequestID:     "req-partial",
+			ProviderResponseModel: "response-model",
+		},
+	}
+	estimator := &fakeEstimator{
+		estimate: ports.TokenEstimate{
+			Usage: domain.TokenUsage{
+				InputTokens:     9_000_000,
+				OutputTokens:    4_000,
+				ReasoningTokens: 4_000,
+			},
+			Confidence: "conservative",
+		},
+	}
+	result, err := newResolver(
+		t,
+		extractor,
+		estimator,
+	).Resolve(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if estimator.calls != 1 {
+		t.Fatalf("estimator calls = %d", estimator.calls)
+	}
+	if result.Usage.InputTokens != 1_000_000 {
+		t.Fatalf("actual input changed: %+v", result.Usage)
+	}
+	if result.Usage.OutputTokens != 5_000 {
+		t.Fatalf("estimated output = %d", result.Usage.OutputTokens)
+	}
+	if result.Usage.ReasoningTokens != 0 {
+		t.Fatalf("optional reasoning was invented: %+v", result.Usage)
+	}
+	if !result.Estimated ||
+		result.Completeness != UsageCompletenessAggregate {
+		t.Fatalf("result = %+v", result)
+	}
+	if result.UpstreamCostCents != 102 {
+		t.Fatalf(
+			"upstream cents = %d, want 102",
+			result.UpstreamCostCents,
+		)
+	}
+	if result.ProviderRequestID != "req-partial" ||
+		result.ProviderResponseModel != "response-model" {
+		t.Fatalf("metadata lost: %+v", result)
+	}
+}
+
+func TestUsageResolverPreservesPresentActualZero(
+	t *testing.T,
+) {
+	route := testRoute()
+	route.EndpointKind = domain.EndpointChat
+	input := ResolveUsageInput{
+		Route:        route,
+		Price:        testPrice(),
+		RequestBody:  []byte(`{"prompt":"x"}`),
+		ResponseBody: []byte(`{"usage":{}}`),
+	}
+	extractor := &fakeExtractor{
+		result: ports.UsageExtractionResult{
+			Usage: domain.TokenUsage{
+				InputTokens: 0,
+			},
+			Presence: ports.UsageDimensionPresence{
+				InputTokens: true,
+			},
+			Completeness: "aggregate",
+		},
+	}
+	estimator := &fakeEstimator{
+		estimate: ports.TokenEstimate{
+			Usage: domain.TokenUsage{
+				InputTokens:  10_000,
+				OutputTokens: 4_000,
+			},
+			Confidence: "conservative",
+		},
+	}
+	result, err := newResolver(
+		t,
+		extractor,
+		estimator,
+	).Resolve(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if result.Usage.InputTokens != 0 ||
+		result.Usage.OutputTokens != 5_000 {
+		t.Fatalf("usage = %+v", result.Usage)
+	}
+}
+
+func TestUsageResolverDoesNotEstimateCompleteEmbeddingAggregate(
+	t *testing.T,
+) {
+	route := testRoute()
+	route.EndpointKind = domain.EndpointEmbeddings
+	input := ResolveUsageInput{
+		Route:        route,
+		Price:        testPrice(),
+		RequestBody:  []byte(`{"input":"x"}`),
+		ResponseBody: []byte(`{"usage":{}}`),
+	}
+	extractor := &fakeExtractor{
+		result: ports.UsageExtractionResult{
+			Usage: domain.TokenUsage{
+				InputTokens: 10_000,
+			},
+			Presence: ports.UsageDimensionPresence{
+				InputTokens: true,
+			},
+			Completeness: "aggregate",
+		},
+	}
+	estimator := &fakeEstimator{
+		estimate: ports.TokenEstimate{
+			Usage: domain.TokenUsage{
+				InputTokens: 99_999,
+			},
+			Confidence: "conservative",
+		},
+	}
+	result, err := newResolver(
+		t,
+		extractor,
+		estimator,
+	).Resolve(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if estimator.calls != 0 ||
+		result.Usage.InputTokens != 10_000 ||
+		result.Estimated {
+		t.Fatalf(
+			"result=%+v estimator calls=%d",
+			result,
+			estimator.calls,
+		)
 	}
 }
 

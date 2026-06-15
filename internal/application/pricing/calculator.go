@@ -32,6 +32,16 @@ type EstimateCalculationInput struct {
 	Modalities InputModalities
 }
 
+type MixedCalculationInput struct {
+	ActualUsage    domain.TokenUsage
+	EstimatedUsage domain.TokenUsage
+	Price          domain.RoutePrice
+
+	ActualInputMode    InputPricingMode
+	EstimatedInputMode InputPricingMode
+	Modalities         InputModalities
+}
+
 type CalculationResult struct {
 	Usage domain.TokenUsage
 
@@ -70,6 +80,84 @@ func (c *Calculator) CalculateEstimate(input EstimateCalculationInput) (Calculat
 		return CalculationResult{}, err
 	}
 	return c.calculate(usage, input.Price, input.InputMode, input.Modalities, true)
+}
+
+func (c *Calculator) CalculateMixed(
+	input MixedCalculationInput,
+) (CalculationResult, error) {
+	if c == nil {
+		return CalculationResult{}, fmt.Errorf(
+			"%w: nil calculator",
+			ErrInvalidPricingInput,
+		)
+	}
+	if err := ValidateUsage(input.ActualUsage); err != nil {
+		return CalculationResult{}, err
+	}
+	if err := ValidateUsage(input.EstimatedUsage); err != nil {
+		return CalculationResult{}, err
+	}
+	if err := ValidateRoutePrice(input.Price); err != nil {
+		return CalculationResult{}, err
+	}
+	estimatedUsage, err := applyTokenSafetyFactor(
+		input.EstimatedUsage,
+		c.tokenSafetyFactor,
+	)
+	if err != nil {
+		return CalculationResult{}, err
+	}
+	actualRaw, err := rawCostBasis(
+		input.ActualUsage,
+		input.Price,
+		input.ActualInputMode,
+		input.Modalities,
+	)
+	if err != nil {
+		return CalculationResult{}, err
+	}
+	estimatedRaw, err := rawCostBasis(
+		estimatedUsage,
+		input.Price,
+		input.EstimatedInputMode,
+		input.Modalities,
+	)
+	if err != nil {
+		return CalculationResult{}, err
+	}
+	usage, err := addUsage(input.ActualUsage, estimatedUsage)
+	if err != nil {
+		return CalculationResult{}, err
+	}
+	markup, err := markupRat(input.Price.MarkupCoefficient)
+	if err != nil {
+		return CalculationResult{}, err
+	}
+	totalRaw := new(big.Rat).SetInt64(actualRaw)
+	totalRaw.Add(
+		totalRaw,
+		new(big.Rat).Mul(
+			new(big.Rat).SetInt64(estimatedRaw),
+			c.costSafetyFactor,
+		),
+	)
+	upstream, err := ceilRawRatCents(totalRaw)
+	if err != nil {
+		return CalculationResult{}, err
+	}
+	client, err := ceilRawRatCents(
+		new(big.Rat).Mul(totalRaw, markup),
+	)
+	if err != nil {
+		return CalculationResult{}, err
+	}
+	return CalculationResult{
+		Usage:             usage,
+		UpstreamCostCents: upstream,
+		ClientAmountCents: client,
+		Currency:          input.Price.Currency,
+		Estimated:         true,
+	}, nil
 }
 
 func (c *Calculator) calculate(usage domain.TokenUsage, price domain.RoutePrice, mode InputPricingMode, modalities InputModalities, estimated bool) (CalculationResult, error) {
@@ -280,7 +368,17 @@ func ceilRawCents(raw int64, factor *big.Rat) (int64, error) {
 	}
 	r := new(big.Rat).SetInt64(raw)
 	r.Mul(r, factor)
-	r.Quo(r, big.NewRat(microCentsPerCent, 1))
+	return ceilRawRatCents(r)
+}
+
+func ceilRawRatCents(raw *big.Rat) (int64, error) {
+	if raw == nil || raw.Sign() == 0 {
+		return 0, nil
+	}
+	r := new(big.Rat).Quo(
+		new(big.Rat).Set(raw),
+		big.NewRat(microCentsPerCent, 1),
+	)
 	value := ceilRat(r)
 	if value.Cmp(maxInt64Big) > 0 {
 		return 0, fmt.Errorf("%w: final amount", ErrAmountOverflow)
@@ -319,6 +417,45 @@ func floatToRat(value float64) (*big.Rat, error) {
 		return nil, fmt.Errorf("%w: decimal coefficient", ErrInvalidPricingInput)
 	}
 	return rat, nil
+}
+
+func addUsage(
+	left domain.TokenUsage,
+	right domain.TokenUsage,
+) (domain.TokenUsage, error) {
+	out := left
+	var err error
+	if out.InputTokens, err = checkedAdd(left.InputTokens, right.InputTokens); err != nil {
+		return domain.TokenUsage{}, err
+	}
+	if out.CachedInputTokens, err = checkedAdd(left.CachedInputTokens, right.CachedInputTokens); err != nil {
+		return domain.TokenUsage{}, err
+	}
+	if out.OutputTokens, err = checkedAdd(left.OutputTokens, right.OutputTokens); err != nil {
+		return domain.TokenUsage{}, err
+	}
+	if out.ReasoningTokens, err = checkedAdd(left.ReasoningTokens, right.ReasoningTokens); err != nil {
+		return domain.TokenUsage{}, err
+	}
+	if out.ImageInputTokens, err = checkedAdd(left.ImageInputTokens, right.ImageInputTokens); err != nil {
+		return domain.TokenUsage{}, err
+	}
+	if out.AudioInputTokens, err = checkedAdd(left.AudioInputTokens, right.AudioInputTokens); err != nil {
+		return domain.TokenUsage{}, err
+	}
+	if out.AudioOutputTokens, err = checkedAdd(left.AudioOutputTokens, right.AudioOutputTokens); err != nil {
+		return domain.TokenUsage{}, err
+	}
+	if out.FileInputTokens, err = checkedAdd(left.FileInputTokens, right.FileInputTokens); err != nil {
+		return domain.TokenUsage{}, err
+	}
+	if out.VideoInputTokens, err = checkedAdd(left.VideoInputTokens, right.VideoInputTokens); err != nil {
+		return domain.TokenUsage{}, err
+	}
+	if out.ImageGenerationUnits, err = checkedAdd(left.ImageGenerationUnits, right.ImageGenerationUnits); err != nil {
+		return domain.TokenUsage{}, err
+	}
+	return out, nil
 }
 
 func applyTokenSafetyFactor(usage domain.TokenUsage, factor *big.Rat) (domain.TokenUsage, error) {

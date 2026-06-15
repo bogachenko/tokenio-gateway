@@ -31,6 +31,47 @@ func actual(t *testing.T, usage domain.TokenUsage, price domain.RoutePrice) Calc
 	return got
 }
 
+func TestCalculateMixedAppliesSafetyOnlyToEstimate(
+	t *testing.T,
+) {
+	calculator := newTestCalculator(t)
+	result, err := calculator.CalculateMixed(
+		MixedCalculationInput{
+			ActualUsage: domain.TokenUsage{
+				InputTokens: 1_000_000,
+			},
+			EstimatedUsage: domain.TokenUsage{
+				OutputTokens: 4_000,
+			},
+			Price:              testPrice(),
+			ActualInputMode:    InputPricingModeAggregateMax,
+			EstimatedInputMode: InputPricingModeDetailed,
+		},
+	)
+	if err != nil {
+		t.Fatalf("CalculateMixed: %v", err)
+	}
+	if result.Usage.InputTokens != 1_000_000 ||
+		result.Usage.OutputTokens != 5_000 {
+		t.Fatalf("usage = %+v", result.Usage)
+	}
+	if result.UpstreamCostCents != 102 {
+		t.Fatalf(
+			"upstream cents = %d, want 102",
+			result.UpstreamCostCents,
+		)
+	}
+	if result.ClientAmountCents != 152 {
+		t.Fatalf(
+			"client cents = %d, want 152",
+			result.ClientAmountCents,
+		)
+	}
+	if !result.Estimated {
+		t.Fatal("mixed result must be marked estimated")
+	}
+}
+
 func TestActualDetailedPricingAllCategories(t *testing.T) {
 	price := testPrice()
 	cases := []struct {

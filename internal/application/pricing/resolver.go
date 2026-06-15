@@ -76,6 +76,16 @@ func (r *UsageResolver) Resolve(ctx context.Context, input ResolveUsageInput) (R
 	if err != nil {
 		return ResolvedUsageResult{}, err
 	}
+	required := requiredUsagePresence(input.Route.EndpointKind)
+	if completeness == UsageCompletenessAggregate &&
+		!presenceContains(extracted.Presence, required) {
+		return r.partialActualResult(
+			ctx,
+			input,
+			extracted,
+			required,
+		)
+	}
 	if IsZeroUsage(extracted.Usage) && !input.ZeroUsageAllowed {
 		return r.estimateFallback(ctx, input, UsageCompletenessEstimated, nil)
 	}
@@ -91,6 +101,46 @@ func (r *UsageResolver) Resolve(ctx context.Context, input ResolveUsageInput) (R
 	default:
 		return ResolvedUsageResult{}, fmt.Errorf("%w: %q", ErrInvalidUsageCompleteness, completeness)
 	}
+}
+
+func (r *UsageResolver) partialActualResult(
+	ctx context.Context,
+	input ResolveUsageInput,
+	extracted ports.UsageExtractionResult,
+	required ports.UsageDimensionPresence,
+) (ResolvedUsageResult, error) {
+	estimate, err := r.estimate(ctx, input)
+	if err != nil {
+		return ResolvedUsageResult{}, fmt.Errorf(
+			"%w: estimate missing usage: %v",
+			ErrUsageUnresolved,
+			err,
+		)
+	}
+	estimatedUsage := selectMissingRequiredUsage(
+		estimate.Usage,
+		extracted.Presence,
+		required,
+	)
+	calculation, err := r.calculator.CalculateMixed(
+		MixedCalculationInput{
+			ActualUsage:        extracted.Usage,
+			EstimatedUsage:     estimatedUsage,
+			Price:              input.Price,
+			ActualInputMode:    InputPricingModeAggregateMax,
+			EstimatedInputMode: InputPricingModeDetailed,
+			Modalities:         input.Modalities,
+		},
+	)
+	if err != nil {
+		return ResolvedUsageResult{}, err
+	}
+	return resolvedFromCalculation(
+		calculation,
+		UsageCompletenessAggregate,
+		extracted.ProviderRequestID,
+		extracted.ProviderResponseModel,
+	), nil
 }
 
 func (r *UsageResolver) actualResult(extracted ports.UsageExtractionResult, completeness UsageCompleteness, price domain.RoutePrice, mode InputPricingMode, modalities InputModalities) (ResolvedUsageResult, error) {
@@ -110,6 +160,24 @@ func (r *UsageResolver) estimatedResult(extracted ports.UsageExtractionResult, c
 }
 
 func (r *UsageResolver) estimateFallback(ctx context.Context, input ResolveUsageInput, completeness UsageCompleteness, cause error) (ResolvedUsageResult, error) {
+	estimate, err := r.estimate(ctx, input)
+	if err != nil {
+		if cause != nil {
+			return ResolvedUsageResult{}, fmt.Errorf("%w: extract usage failed: %w; estimate usage failed: %v", ErrUsageUnresolved, cause, err)
+		}
+		return ResolvedUsageResult{}, fmt.Errorf("%w: estimate usage failed: %v", ErrUsageUnresolved, err)
+	}
+	calculation, err := r.calculator.CalculateEstimate(EstimateCalculationInput{Usage: estimate.Usage, Price: input.Price, InputMode: InputPricingModeDetailed, Modalities: input.Modalities})
+	if err != nil {
+		return ResolvedUsageResult{}, err
+	}
+	return resolvedFromCalculation(calculation, completeness, "", ""), nil
+}
+
+func (r *UsageResolver) estimate(
+	ctx context.Context,
+	input ResolveUsageInput,
+) (ports.TokenEstimate, error) {
 	estimate, err := r.estimator.Estimate(ctx, ports.TokenEstimateRequest{
 		APIFamily:              input.Route.APIFamily,
 		EndpointKind:           input.Route.EndpointKind,
@@ -119,19 +187,89 @@ func (r *UsageResolver) estimateFallback(ctx context.Context, input ResolveUsage
 		RequestedCapabilities:  input.RequestedCapabilities,
 	})
 	if err != nil {
-		if cause != nil {
-			return ResolvedUsageResult{}, fmt.Errorf("%w: extract usage failed: %w; estimate usage failed: %w", ErrUsageUnresolved, cause, err)
-		}
-		return ResolvedUsageResult{}, fmt.Errorf("%w: estimate usage failed: %w", ErrUsageUnresolved, err)
+		return ports.TokenEstimate{}, err
 	}
 	if err := ValidateUsage(estimate.Usage); err != nil {
-		return ResolvedUsageResult{}, err
+		return ports.TokenEstimate{}, err
 	}
-	calculation, err := r.calculator.CalculateEstimate(EstimateCalculationInput{Usage: estimate.Usage, Price: input.Price, InputMode: InputPricingModeDetailed, Modalities: input.Modalities})
-	if err != nil {
-		return ResolvedUsageResult{}, err
+	return estimate, nil
+}
+
+func requiredUsagePresence(
+	endpoint domain.EndpointKind,
+) ports.UsageDimensionPresence {
+	switch endpoint {
+	case domain.EndpointChat:
+		return ports.UsageDimensionPresence{
+			InputTokens:  true,
+			OutputTokens: true,
+		}
+	case domain.EndpointEmbeddings:
+		return ports.UsageDimensionPresence{
+			InputTokens: true,
+		}
+	case domain.EndpointImagesGeneration:
+		return ports.UsageDimensionPresence{
+			ImageGenerationUnits: true,
+		}
+	default:
+		return ports.UsageDimensionPresence{}
 	}
-	return resolvedFromCalculation(calculation, completeness, "", ""), nil
+}
+
+func presenceContains(
+	actual ports.UsageDimensionPresence,
+	required ports.UsageDimensionPresence,
+) bool {
+	return (!required.InputTokens || actual.InputTokens) &&
+		(!required.CachedInputTokens || actual.CachedInputTokens) &&
+		(!required.OutputTokens || actual.OutputTokens) &&
+		(!required.ReasoningTokens || actual.ReasoningTokens) &&
+		(!required.ImageInputTokens || actual.ImageInputTokens) &&
+		(!required.AudioInputTokens || actual.AudioInputTokens) &&
+		(!required.AudioOutputTokens || actual.AudioOutputTokens) &&
+		(!required.FileInputTokens || actual.FileInputTokens) &&
+		(!required.VideoInputTokens || actual.VideoInputTokens) &&
+		(!required.ImageGenerationUnits || actual.ImageGenerationUnits)
+}
+
+func selectMissingRequiredUsage(
+	estimate domain.TokenUsage,
+	actual ports.UsageDimensionPresence,
+	required ports.UsageDimensionPresence,
+) domain.TokenUsage {
+	var selected domain.TokenUsage
+	if required.InputTokens && !actual.InputTokens {
+		selected.InputTokens = estimate.InputTokens
+	}
+	if required.CachedInputTokens && !actual.CachedInputTokens {
+		selected.CachedInputTokens = estimate.CachedInputTokens
+	}
+	if required.OutputTokens && !actual.OutputTokens {
+		selected.OutputTokens = estimate.OutputTokens
+	}
+	if required.ReasoningTokens && !actual.ReasoningTokens {
+		selected.ReasoningTokens = estimate.ReasoningTokens
+	}
+	if required.ImageInputTokens && !actual.ImageInputTokens {
+		selected.ImageInputTokens = estimate.ImageInputTokens
+	}
+	if required.AudioInputTokens && !actual.AudioInputTokens {
+		selected.AudioInputTokens = estimate.AudioInputTokens
+	}
+	if required.AudioOutputTokens && !actual.AudioOutputTokens {
+		selected.AudioOutputTokens = estimate.AudioOutputTokens
+	}
+	if required.FileInputTokens && !actual.FileInputTokens {
+		selected.FileInputTokens = estimate.FileInputTokens
+	}
+	if required.VideoInputTokens && !actual.VideoInputTokens {
+		selected.VideoInputTokens = estimate.VideoInputTokens
+	}
+	if required.ImageGenerationUnits && !actual.ImageGenerationUnits {
+		selected.ImageGenerationUnits = estimate.ImageGenerationUnits
+	}
+	return selected
 }
 
 func resolvedFromCalculation(calculation CalculationResult, completeness UsageCompleteness, requestID, responseModel string) ResolvedUsageResult {
