@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -38,13 +39,29 @@ func (r *testRecoverer) Recover(
 }
 
 type testObserver struct {
+	mu     sync.Mutex
 	cycles []Cycle
+	notify chan struct{}
 }
 
 func (o *testObserver) ObserveForwardingAttemptRecoveryCycle(
 	cycle Cycle,
 ) {
+	o.mu.Lock()
 	o.cycles = append(o.cycles, cycle)
+	notify := o.notify
+	o.mu.Unlock()
+
+	if notify != nil {
+		notify <- struct{}{}
+	}
+}
+
+func (o *testObserver) snapshot() []Cycle {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	return append([]Cycle(nil), o.cycles...)
 }
 
 type testTicker struct {
@@ -75,7 +92,9 @@ func TestWorkerRunsInitialCycleBeforeTicker(
 		},
 		cancelFunc: cancel,
 	}
-	observer := &testObserver{}
+	observer := &testObserver{
+		notify: make(chan struct{}, 2),
+	}
 	factoryCalls := 0
 	worker, err := newWithTickerFactory(
 		recoverer,
@@ -105,13 +124,14 @@ func TestWorkerRunsInitialCycleBeforeTicker(
 			recoverer.calls,
 		)
 	}
-	if len(observer.cycles) != 1 ||
-		observer.cycles[0].Result.Loaded != 2 ||
-		observer.cycles[0].Result.Completed != 2 ||
-		observer.cycles[0].Err != nil {
+	cycles := observer.snapshot()
+	if len(cycles) != 1 ||
+		cycles[0].Result.Loaded != 2 ||
+		cycles[0].Result.Completed != 2 ||
+		cycles[0].Err != nil {
 		t.Fatalf(
 			"cycles = %#v",
-			observer.cycles,
+			cycles,
 		)
 	}
 	if factoryCalls != 0 {
@@ -131,7 +151,9 @@ func TestWorkerObservesCycleErrorAndContinues(
 	recoverer := &testRecoverer{
 		errors: []error{cycleErr, nil},
 	}
-	observer := &testObserver{}
+	observer := &testObserver{
+		notify: make(chan struct{}, 2),
+	}
 	ticker := &testTicker{
 		channel: make(chan time.Time, 1),
 	}
@@ -159,12 +181,16 @@ func TestWorkerObservesCycleErrorAndContinues(
 		done <- worker.Run(ctx)
 	}()
 
-	for len(observer.cycles) == 0 {
-		time.Sleep(time.Millisecond)
+	select {
+	case <-observer.notify:
+	case <-time.After(time.Second):
+		t.Fatal("initial cycle was not observed")
 	}
 	ticker.channel <- time.Now()
-	for len(observer.cycles) < 2 {
-		time.Sleep(time.Millisecond)
+	select {
+	case <-observer.notify:
+	case <-time.After(time.Second):
+		t.Fatal("ticker cycle was not observed")
 	}
 	cancel()
 
@@ -183,19 +209,23 @@ func TestWorkerObservesCycleErrorAndContinues(
 			recoverer.calls,
 		)
 	}
+	cycles := observer.snapshot()
+	if len(cycles) != 2 {
+		t.Fatalf("cycles = %#v", cycles)
+	}
 	if !errors.Is(
-		observer.cycles[0].Err,
+		cycles[0].Err,
 		cycleErr,
 	) {
 		t.Fatalf(
 			"first cycle error = %v",
-			observer.cycles[0].Err,
+			cycles[0].Err,
 		)
 	}
-	if observer.cycles[1].Err != nil {
+	if cycles[1].Err != nil {
 		t.Fatalf(
 			"second cycle error = %v",
-			observer.cycles[1].Err,
+			cycles[1].Err,
 		)
 	}
 	if !ticker.stopped {
