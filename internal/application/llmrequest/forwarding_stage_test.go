@@ -88,6 +88,14 @@ func (*forwardingAttemptStoreStub) LoadAttempts(
 	return nil, nil
 }
 
+func (*forwardingAttemptStoreStub) LoadStartedBefore(
+	context.Context,
+	time.Time,
+	int,
+) ([]domain.ForwardingAttempt, error) {
+	return nil, nil
+}
+
 type routeReservationTransferStub struct{}
 
 func (*routeReservationTransferStub) Transfer(

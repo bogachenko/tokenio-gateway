@@ -314,6 +314,17 @@ type ForwardingAttemptStore interface {
 		context.Context,
 		string,
 	) ([]domain.ForwardingAttempt, error)
+
+	// LoadStartedBefore returns at most limit durable attempts that are
+	// still started and have started_at strictly before cutoff. Results
+	// are ordered by started_at ASC, local_request_id ASC, then
+	// attempt_number ASC so recovery can process bounded deterministic
+	// batches. cutoff must be non-zero UTC and limit must be positive.
+	LoadStartedBefore(
+		context.Context,
+		time.Time,
+		int,
+	) ([]domain.ForwardingAttempt, error)
 }
 
 type UsageExposureSnapshot struct {

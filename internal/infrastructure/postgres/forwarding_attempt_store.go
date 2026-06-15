@@ -72,6 +72,19 @@ WHERE local_request_id = $1
 ORDER BY attempt_number ASC
 `
 
+const loadStartedForwardingAttemptsBeforeSQL = `
+SELECT
+` + forwardingAttemptColumns + `
+FROM tokenio_forwarding_attempts
+WHERE status = 'started'
+  AND started_at < $1
+ORDER BY
+    started_at ASC,
+    local_request_id ASC,
+    attempt_number ASC
+LIMIT $2
+`
+
 type ForwardingAttemptStore struct {
 	db *DB
 }
@@ -273,6 +286,78 @@ func (s *ForwardingAttemptStore) LoadAttempts(
 		return nil, NormalizeError(err)
 	}
 	return result, nil
+}
+
+func (s *ForwardingAttemptStore) LoadStartedBefore(
+	ctx context.Context,
+	cutoff time.Time,
+	limit int,
+) ([]domain.ForwardingAttempt, error) {
+	if s == nil || s.db == nil || s.db.pool == nil {
+		return nil, ErrInvalidDatabaseConfig
+	}
+	if ctx == nil ||
+		cutoff.IsZero() ||
+		cutoff.Location() != time.UTC ||
+		limit <= 0 {
+		return nil, ports.ErrStoreContractViolation
+	}
+
+	rows, err := s.db.Query(
+		ctx,
+		loadStartedForwardingAttemptsBeforeSQL,
+		cutoff,
+		limit,
+	)
+	if err != nil {
+		return nil, NormalizeError(err)
+	}
+	defer rows.Close()
+
+	result := make([]domain.ForwardingAttempt, 0, limit)
+	var previous *domain.ForwardingAttempt
+	for rows.Next() {
+		attempt, err := scanForwardingAttempt(rows)
+		if err != nil {
+			return nil, err
+		}
+		if attempt.Status != domain.ForwardingAttemptStatusStarted ||
+			!attempt.StartedAt.Before(cutoff) {
+			return nil, ports.ErrStoreContractViolation
+		}
+		if previous != nil &&
+			!forwardingRecoveryOrderBefore(*previous, attempt) {
+			return nil, ports.ErrStoreContractViolation
+		}
+		result = append(result, attempt)
+		copyAttempt := attempt
+		previous = &copyAttempt
+	}
+	if err := rows.Err(); err != nil {
+		return nil, NormalizeError(err)
+	}
+	if len(result) > limit {
+		return nil, ports.ErrStoreContractViolation
+	}
+	return result, nil
+}
+
+func forwardingRecoveryOrderBefore(
+	left domain.ForwardingAttempt,
+	right domain.ForwardingAttempt,
+) bool {
+	switch {
+	case left.StartedAt.Before(right.StartedAt):
+		return true
+	case right.StartedAt.Before(left.StartedAt):
+		return false
+	case left.LocalRequestID < right.LocalRequestID:
+		return true
+	case left.LocalRequestID > right.LocalRequestID:
+		return false
+	default:
+		return left.AttemptNumber < right.AttemptNumber
+	}
 }
 
 func lockForwardingAttempt(

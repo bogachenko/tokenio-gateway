@@ -93,6 +93,37 @@ func TestValidateTerminalForwardingAttempt(t *testing.T) {
 	}
 }
 
+func TestForwardingRecoveryOrder(t *testing.T) {
+	base := validStartedForwardingAttempt()
+
+	later := base
+	later.StartedAt = base.StartedAt.Add(time.Second)
+	if !forwardingRecoveryOrderBefore(base, later) {
+		t.Fatal("earlier started_at must sort first")
+	}
+
+	sameTimeNextRequest := base
+	sameTimeNextRequest.LocalRequestID = "llmreq_test_b"
+	if !forwardingRecoveryOrderBefore(
+		base,
+		sameTimeNextRequest,
+	) {
+		t.Fatal("local_request_id tie-breaker is invalid")
+	}
+
+	sameRequestNextAttempt := base
+	sameRequestNextAttempt.AttemptNumber = 2
+	if !forwardingRecoveryOrderBefore(
+		base,
+		sameRequestNextAttempt,
+	) {
+		t.Fatal("attempt_number tie-breaker is invalid")
+	}
+	if forwardingRecoveryOrderBefore(base, base) {
+		t.Fatal("equal attempts must not compare before")
+	}
+}
+
 func TestForwardingAttemptIdentityAndTerminalEquality(t *testing.T) {
 	started := validStartedForwardingAttempt()
 	replay := started
