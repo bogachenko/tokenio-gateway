@@ -18,7 +18,8 @@ type RepositoryGraph struct {
 	UsageLedger        ports.UsageLedger
 	ForwardingAttempts ports.ForwardingAttemptStore
 
-	LLMRequestAtomicReservation llmrequest.AtomicReservation
+	LLMRequestAtomicReservation        llmrequest.AtomicReservation
+	LLMRequestRouteReservationTransfer llmrequest.RouteReservationTransfer
 
 	AdminUsers        ports.AdminUserRepository
 	AdminAPIKeys      ports.AdminAPIKeyRepository
@@ -95,6 +96,14 @@ func NewRepositoryGraph(
 	if err != nil {
 		return RepositoryGraph{}, fmt.Errorf(
 			"construct LLM-request atomic reservation: %w",
+			err,
+		)
+	}
+	routeReservationTransfer, err :=
+		postgres.NewLLMRequestRouteReservationTransfer(db, clock)
+	if err != nil {
+		return RepositoryGraph{}, fmt.Errorf(
+			"construct LLM-request route reservation transfer: %w",
 			err,
 		)
 	}
@@ -198,7 +207,8 @@ func NewRepositoryGraph(
 		UsageLedger:        usageLedger,
 		ForwardingAttempts: forwardingAttempts,
 
-		LLMRequestAtomicReservation: atomicReservation,
+		LLMRequestAtomicReservation:        atomicReservation,
+		LLMRequestRouteReservationTransfer: routeReservationTransfer,
 
 		AdminUsers:        adminUsers,
 		AdminAPIKeys:      adminAPIKeys,
@@ -240,6 +250,10 @@ func (g RepositoryGraph) Validate() error {
 	case g.LLMRequestAtomicReservation == nil:
 		return fmt.Errorf(
 			"LLM-request atomic reservation is nil",
+		)
+	case g.LLMRequestRouteReservationTransfer == nil:
+		return fmt.Errorf(
+			"LLM-request route reservation transfer is nil",
 		)
 	case g.AdminUsers == nil:
 		return fmt.Errorf("admin user repository is nil")

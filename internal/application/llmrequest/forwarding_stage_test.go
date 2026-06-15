@@ -88,6 +88,17 @@ func (*forwardingAttemptStoreStub) LoadAttempts(
 	return nil, nil
 }
 
+type routeReservationTransferStub struct{}
+
+func (*routeReservationTransferStub) Transfer(
+	_ context.Context,
+	input RouteReservationTransferInput,
+) (RouteReservationTransferResult, error) {
+	return RouteReservationTransferResult{
+		Usage: input.ExpectedUsage,
+	}, nil
+}
+
 type forwardingExecutorFunc func(
 	context.Context,
 	ForwardingExecutionInput,
@@ -437,6 +448,7 @@ func TestNewForwardingStageRequiresDependencies(t *testing.T) {
 			return validReservation(input), nil
 		},
 	)
+	validTransfer := &routeReservationTransferStub{}
 	validAttemptStore := &forwardingAttemptStoreStub{}
 	validClock := forwardingStageClock{
 		now: validForwardingStageTime(),
@@ -454,6 +466,7 @@ func TestNewForwardingStageRequiresDependencies(t *testing.T) {
 		name        string
 		capacity    ports.RouteCapacityManager
 		reservation AtomicReservation
+		transfer    RouteReservationTransfer
 		attempts    ports.ForwardingAttemptStore
 		clock       ports.Clock
 		forwarder   ForwardingExecutor
@@ -461,6 +474,7 @@ func TestNewForwardingStageRequiresDependencies(t *testing.T) {
 		{
 			name:        "capacity",
 			reservation: validAtomicReservation,
+			transfer:    validTransfer,
 			attempts:    validAttemptStore,
 			clock:       validClock,
 			forwarder:   validForwarder,
@@ -468,14 +482,24 @@ func TestNewForwardingStageRequiresDependencies(t *testing.T) {
 		{
 			name:      "reservation",
 			capacity:  validCapacity,
+			transfer:  validTransfer,
 			attempts:  validAttemptStore,
 			clock:     validClock,
 			forwarder: validForwarder,
 		},
 		{
+			name:        "transfer",
+			capacity:    validCapacity,
+			reservation: validAtomicReservation,
+			attempts:    validAttemptStore,
+			clock:       validClock,
+			forwarder:   validForwarder,
+		},
+		{
 			name:        "attempts",
 			capacity:    validCapacity,
 			reservation: validAtomicReservation,
+			transfer:    validTransfer,
 			clock:       validClock,
 			forwarder:   validForwarder,
 		},
@@ -483,6 +507,7 @@ func TestNewForwardingStageRequiresDependencies(t *testing.T) {
 			name:        "clock",
 			capacity:    validCapacity,
 			reservation: validAtomicReservation,
+			transfer:    validTransfer,
 			attempts:    validAttemptStore,
 			forwarder:   validForwarder,
 		},
@@ -490,6 +515,7 @@ func TestNewForwardingStageRequiresDependencies(t *testing.T) {
 			name:        "forwarder",
 			capacity:    validCapacity,
 			reservation: validAtomicReservation,
+			transfer:    validTransfer,
 			attempts:    validAttemptStore,
 			clock:       validClock,
 		},
@@ -500,6 +526,7 @@ func TestNewForwardingStageRequiresDependencies(t *testing.T) {
 			_, err := NewForwardingStage(
 				test.capacity,
 				test.reservation,
+				test.transfer,
 				test.attempts,
 				test.clock,
 				test.forwarder,
@@ -525,6 +552,7 @@ func mustForwardingStage(
 	stage, err := NewForwardingStage(
 		capacity,
 		reservation,
+		&routeReservationTransferStub{},
 		&forwardingAttemptStoreStub{},
 		forwardingStageClock{
 			now: validForwardingStageTime(),

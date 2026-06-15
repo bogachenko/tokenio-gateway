@@ -38,6 +38,7 @@ type ForwardingFailure interface {
 type ForwardingStage struct {
 	capacity    ports.RouteCapacityManager
 	reservation AtomicReservation
+	transfer    RouteReservationTransfer
 	attempts    ports.ForwardingAttemptStore
 	clock       ports.Clock
 	forwarder   ForwardingExecutor
@@ -54,12 +55,14 @@ type ForwardedRequest struct {
 func NewForwardingStage(
 	capacity ports.RouteCapacityManager,
 	reservation AtomicReservation,
+	transfer RouteReservationTransfer,
 	attempts ports.ForwardingAttemptStore,
 	clock ports.Clock,
 	forwarder ForwardingExecutor,
 ) (*ForwardingStage, error) {
 	if capacity == nil ||
 		reservation == nil ||
+		transfer == nil ||
 		attempts == nil ||
 		clock == nil ||
 		forwarder == nil {
@@ -68,6 +71,7 @@ func NewForwardingStage(
 	return &ForwardingStage{
 		capacity:    capacity,
 		reservation: reservation,
+		transfer:    transfer,
 		attempts:    attempts,
 		clock:       clock,
 		forwarder:   forwarder,
@@ -85,6 +89,7 @@ func (s *ForwardingStage) Execute(
 	if s == nil ||
 		s.capacity == nil ||
 		s.reservation == nil ||
+		s.transfer == nil ||
 		s.attempts == nil ||
 		s.clock == nil ||
 		s.forwarder == nil {

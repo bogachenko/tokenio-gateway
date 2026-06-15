@@ -132,6 +132,9 @@ func validApplicationGraphInputs(
 		LLMRequestAtomicReservation: &struct {
 			llmrequest.AtomicReservation
 		}{},
+		LLMRequestRouteReservationTransfer: &struct {
+			llmrequest.RouteReservationTransfer
+		}{},
 		AdminUsers: &struct {
 			ports.AdminUserRepository
 		}{},
