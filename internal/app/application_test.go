@@ -39,15 +39,20 @@ func validApplicationGraphInputs(
 			[]byte{0x42},
 			32,
 		),
-		APIKeyProvisioningKeyVersion: "v1",
-		APIKeyProvisioningTTL:        24 * time.Hour,
-		CostCurrency:                 "RUB",
-		AutoChargeThresholdCents:     1000,
-		MinChargeAmountCents:         100,
-		TokenEstimationSafetyFactor:  1.25,
-		CostEstimationSafetyFactor:   1.10,
-		RequestBodyMaxBytes:          1024,
-		UpstreamResponseBodyMaxBytes: 1024,
+		APIKeyProvisioningKeyVersion:          "v1",
+		APIKeyProvisioningTTL:                 24 * time.Hour,
+		APIKeyProvisioningExpirationInterval:  time.Minute,
+		APIKeyProvisioningExpirationBatchSize: 100,
+		ForwardingAttemptRecoveryStaleAfter:   5 * time.Minute,
+		ForwardingAttemptRecoveryInterval:     time.Minute,
+		ForwardingAttemptRecoveryBatchSize:    100,
+		CostCurrency:                          "RUB",
+		AutoChargeThresholdCents:              1000,
+		MinChargeAmountCents:                  100,
+		TokenEstimationSafetyFactor:           1.25,
+		CostEstimationSafetyFactor:            1.10,
+		RequestBodyMaxBytes:                   1024,
+		UpstreamResponseBodyMaxBytes:          1024,
 	}
 	security, err := NewSecurityGraph(cfg)
 	if err != nil {
@@ -214,6 +219,11 @@ func TestNewApplicationGraphWiresExistingPorts(t *testing.T) {
 	}
 	if graph.LLMRequest == nil {
 		t.Fatal("LLM-request service is not wired")
+	}
+	if graph.ForwardingAttemptRecovery == nil {
+		t.Fatal(
+			"forwarding attempt recovery is not wired",
+		)
 	}
 	if !graph.ProvisioningEnabled ||
 		graph.Provisioning == nil {

@@ -16,16 +16,17 @@ import (
 )
 
 type ApplicationGraph struct {
-	PublicAuthentication *authenticateapp.UseCase
-	ModelCatalog         *modelcatalogapp.Service
-	ProvisioningEnabled  bool
-	Provisioning         *provisioningapp.Service
-	Ledger               *ledgerapp.Service
-	AutoCharge           *billingapp.AutoChargeService
-	FailedBatchRetry     *billingapp.FailedBatchRetryService
-	UsageResolver        *pricingapp.UsageResolver
-	LLMRequest           *llmrequest.Service
-	Admin                *adminapp.Service
+	PublicAuthentication      *authenticateapp.UseCase
+	ModelCatalog              *modelcatalogapp.Service
+	ProvisioningEnabled       bool
+	Provisioning              *provisioningapp.Service
+	Ledger                    *ledgerapp.Service
+	AutoCharge                *billingapp.AutoChargeService
+	FailedBatchRetry          *billingapp.FailedBatchRetryService
+	UsageResolver             *pricingapp.UsageResolver
+	LLMRequest                *llmrequest.Service
+	ForwardingAttemptRecovery *llmrequest.ForwardingAttemptRecovery
+	Admin                     *adminapp.Service
 }
 
 func NewApplicationGraph(
@@ -177,6 +178,19 @@ func NewApplicationGraph(
 	if err != nil {
 		return ApplicationGraph{}, fmt.Errorf(
 			"construct LLM-request forwarding stage: %w",
+			err,
+		)
+	}
+
+	forwardingAttemptRecovery, err :=
+		llmrequest.NewForwardingAttemptRecovery(
+			repositories.ForwardingAttempts,
+			primitives.Clock,
+			cfg.ForwardingAttemptRecoveryStaleAfter,
+		)
+	if err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"construct forwarding attempt recovery service: %w",
 			err,
 		)
 	}
@@ -368,16 +382,17 @@ func NewApplicationGraph(
 	}
 
 	graph := ApplicationGraph{
-		PublicAuthentication: publicAuthentication,
-		ModelCatalog:         modelCatalog,
-		ProvisioningEnabled:  provisioningInfrastructure.Enabled,
-		Provisioning:         provisioningService,
-		Ledger:               ledgerService,
-		AutoCharge:           autoCharge,
-		FailedBatchRetry:     failedBatchRetry,
-		UsageResolver:        pricingUsageResolver,
-		LLMRequest:           llmRequestService,
-		Admin:                adminService,
+		PublicAuthentication:      publicAuthentication,
+		ModelCatalog:              modelCatalog,
+		ProvisioningEnabled:       provisioningInfrastructure.Enabled,
+		Provisioning:              provisioningService,
+		Ledger:                    ledgerService,
+		AutoCharge:                autoCharge,
+		FailedBatchRetry:          failedBatchRetry,
+		UsageResolver:             pricingUsageResolver,
+		LLMRequest:                llmRequestService,
+		ForwardingAttemptRecovery: forwardingAttemptRecovery,
+		Admin:                     adminService,
 	}
 	if err := graph.Validate(); err != nil {
 		return ApplicationGraph{}, fmt.Errorf(
@@ -408,6 +423,10 @@ func (g ApplicationGraph) Validate() error {
 		return fmt.Errorf("LLM-request usage resolver is nil")
 	case g.LLMRequest == nil:
 		return fmt.Errorf("LLM-request service is nil")
+	case g.ForwardingAttemptRecovery == nil:
+		return fmt.Errorf(
+			"forwarding attempt recovery service is nil",
+		)
 	case g.Admin == nil:
 		return fmt.Errorf("admin service is nil")
 	default:

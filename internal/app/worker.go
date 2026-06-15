@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/bogachenko/tokenio-gateway/internal/config"
+	forwardingattemptrecovery "github.com/bogachenko/tokenio-gateway/internal/worker/forwardingattemptrecovery"
 	provisioningexpiration "github.com/bogachenko/tokenio-gateway/internal/worker/provisioningexpiration"
 )
 
@@ -20,12 +22,39 @@ type WorkerRunner interface {
 type WorkerGraph struct {
 	ProvisioningExpirationEnabled bool
 	ProvisioningExpiration        WorkerRunner
+
+	ForwardingAttemptRecoveryEnabled bool
+	ForwardingAttemptRecovery        WorkerRunner
 }
 
 func NewWorkerGraph(
 	cfg config.Config,
 	applications ApplicationGraph,
-	observer provisioningexpiration.Observer,
+	provisioningObserver provisioningexpiration.Observer,
+) (WorkerGraph, error) {
+	recoveryObserver, err :=
+		NewForwardingAttemptRecoveryLogObserver(
+			log.Default(),
+		)
+	if err != nil {
+		return WorkerGraph{}, fmt.Errorf(
+			"construct forwarding attempt recovery observer: %w",
+			err,
+		)
+	}
+	return newWorkerGraphWithObservers(
+		cfg,
+		applications,
+		provisioningObserver,
+		recoveryObserver,
+	)
+}
+
+func newWorkerGraphWithObservers(
+	cfg config.Config,
+	applications ApplicationGraph,
+	provisioningObserver provisioningexpiration.Observer,
+	recoveryObserver forwardingattemptrecovery.Observer,
 ) (WorkerGraph, error) {
 	if err := applications.Validate(); err != nil {
 		return WorkerGraph{}, fmt.Errorf(
@@ -34,34 +63,40 @@ func NewWorkerGraph(
 		)
 	}
 
-	if !applications.ProvisioningEnabled {
-		graph := WorkerGraph{}
-		if err := graph.Validate(); err != nil {
-			return WorkerGraph{}, fmt.Errorf(
-				"validate disabled worker graph: %w",
-				err,
-			)
-		}
-		return graph, nil
-	}
-
-	worker, err := provisioningexpiration.New(
-		applications.Provisioning,
-		observer,
-		cfg.APIKeyProvisioningExpirationInterval,
-		cfg.APIKeyProvisioningExpirationBatchSize,
+	recoveryWorker, err := forwardingattemptrecovery.New(
+		applications.ForwardingAttemptRecovery,
+		recoveryObserver,
+		cfg.ForwardingAttemptRecoveryInterval,
+		cfg.ForwardingAttemptRecoveryBatchSize,
 	)
 	if err != nil {
 		return WorkerGraph{}, fmt.Errorf(
-			"construct provisioning expiration worker: %w",
+			"construct forwarding attempt recovery worker: %w",
 			err,
 		)
 	}
 
 	graph := WorkerGraph{
-		ProvisioningExpirationEnabled: true,
-		ProvisioningExpiration:        worker,
+		ForwardingAttemptRecoveryEnabled: true,
+		ForwardingAttemptRecovery:        recoveryWorker,
 	}
+	if applications.ProvisioningEnabled {
+		provisioningWorker, err := provisioningexpiration.New(
+			applications.Provisioning,
+			provisioningObserver,
+			cfg.APIKeyProvisioningExpirationInterval,
+			cfg.APIKeyProvisioningExpirationBatchSize,
+		)
+		if err != nil {
+			return WorkerGraph{}, fmt.Errorf(
+				"construct provisioning expiration worker: %w",
+				err,
+			)
+		}
+		graph.ProvisioningExpirationEnabled = true
+		graph.ProvisioningExpiration = provisioningWorker
+	}
+
 	if err := graph.Validate(); err != nil {
 		return WorkerGraph{}, fmt.Errorf(
 			"validate worker graph: %w",
@@ -83,6 +118,16 @@ func (g WorkerGraph) Validate() error {
 		return fmt.Errorf(
 			"disabled provisioning expiration worker is non-nil",
 		)
+	case g.ForwardingAttemptRecoveryEnabled &&
+		g.ForwardingAttemptRecovery == nil:
+		return fmt.Errorf(
+			"enabled forwarding attempt recovery worker is nil",
+		)
+	case !g.ForwardingAttemptRecoveryEnabled &&
+		g.ForwardingAttemptRecovery != nil:
+		return fmt.Errorf(
+			"disabled forwarding attempt recovery worker is non-nil",
+		)
 	default:
 		return nil
 	}
@@ -100,9 +145,44 @@ func (g WorkerGraph) Run(ctx context.Context) error {
 		)
 	}
 
-	if !g.ProvisioningExpirationEnabled {
+	runners := make([]WorkerRunner, 0, 2)
+	if g.ProvisioningExpirationEnabled {
+		runners = append(
+			runners,
+			g.ProvisioningExpiration,
+		)
+	}
+	if g.ForwardingAttemptRecoveryEnabled {
+		runners = append(
+			runners,
+			g.ForwardingAttemptRecovery,
+		)
+	}
+	if len(runners) == 0 {
 		<-ctx.Done()
 		return nil
 	}
-	return g.ProvisioningExpiration.Run(ctx)
+
+	runContext, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	results := make(chan error, len(runners))
+	for _, runner := range runners {
+		current := runner
+		go func() {
+			results <- current.Run(runContext)
+		}()
+	}
+
+	var result error
+	for range runners {
+		currentErr := <-results
+		if result == nil {
+			result = currentErr
+			cancel()
+		} else {
+			result = errors.Join(result, currentErr)
+		}
+	}
+	return result
 }

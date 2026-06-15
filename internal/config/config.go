@@ -34,6 +34,10 @@ type Config struct {
 	APIKeyProvisioningExpirationInterval  time.Duration
 	APIKeyProvisioningExpirationBatchSize int
 
+	ForwardingAttemptRecoveryStaleAfter time.Duration
+	ForwardingAttemptRecoveryInterval   time.Duration
+	ForwardingAttemptRecoveryBatchSize  int
+
 	CostCurrency                 string
 	AutoChargeThresholdCents     int64
 	MinChargeAmountCents         int64
@@ -100,6 +104,19 @@ func Load() (Config, error) {
 		),
 		APIKeyProvisioningExpirationBatchSize: l.int(
 			"TOKENIO_API_KEY_PROVISIONING_EXPIRATION_BATCH_SIZE",
+			100,
+		),
+
+		ForwardingAttemptRecoveryStaleAfter: l.duration(
+			"TOKENIO_FORWARDING_ATTEMPT_RECOVERY_STALE_AFTER",
+			5*time.Minute,
+		),
+		ForwardingAttemptRecoveryInterval: l.duration(
+			"TOKENIO_FORWARDING_ATTEMPT_RECOVERY_INTERVAL",
+			time.Minute,
+		),
+		ForwardingAttemptRecoveryBatchSize: l.int(
+			"TOKENIO_FORWARDING_ATTEMPT_RECOVERY_BATCH_SIZE",
 			100,
 		),
 
@@ -271,6 +288,21 @@ func validate(cfg Config) error {
 	if cfg.APIKeyProvisioningExpirationBatchSize < 1 {
 		return fmt.Errorf(
 			"TOKENIO_API_KEY_PROVISIONING_EXPIRATION_BATCH_SIZE must be >= 1",
+		)
+	}
+	if cfg.ForwardingAttemptRecoveryStaleAfter <= 0 {
+		return fmt.Errorf(
+			"TOKENIO_FORWARDING_ATTEMPT_RECOVERY_STALE_AFTER must be positive",
+		)
+	}
+	if cfg.ForwardingAttemptRecoveryInterval <= 0 {
+		return fmt.Errorf(
+			"TOKENIO_FORWARDING_ATTEMPT_RECOVERY_INTERVAL must be positive",
+		)
+	}
+	if cfg.ForwardingAttemptRecoveryBatchSize < 1 {
+		return fmt.Errorf(
+			"TOKENIO_FORWARDING_ATTEMPT_RECOVERY_BATCH_SIZE must be >= 1",
 		)
 	}
 	if keyLength := len(cfg.APIKeyProvisioningEncryptionKey); keyLength != 0 && keyLength != 32 {
