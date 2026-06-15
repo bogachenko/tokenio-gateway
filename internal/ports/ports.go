@@ -276,6 +276,32 @@ type UsageTransitionResult struct {
 	Current *domain.UsageRecord
 }
 
+type ForwardingAttemptStore interface {
+	// StartAttempt durably inserts exactly one started attempt before any
+	// upstream network write. The pair local_request_id + attempt_number is
+	// unique. Repeating an identical command is idempotent; conflicting facts
+	// must return ErrStoreConflict or ErrStoreContractViolation.
+	StartAttempt(
+		context.Context,
+		domain.ForwardingAttempt,
+	) (domain.ForwardingAttempt, error)
+
+	// CompleteAttempt atomically transitions the exact persisted started
+	// attempt to succeeded or failed. Terminal attempts are immutable.
+	// Repeating the identical completion is idempotent.
+	CompleteAttempt(
+		context.Context,
+		domain.ForwardingAttempt,
+	) (domain.ForwardingAttempt, error)
+
+	// LoadAttempts returns every persisted attempt for one request ordered by
+	// attempt_number ASC. Missing requests return an empty slice.
+	LoadAttempts(
+		context.Context,
+		string,
+	) ([]domain.ForwardingAttempt, error)
+}
+
 type UsageExposureSnapshot struct {
 	Currency string
 

@@ -163,6 +163,48 @@ type RoutePrice struct {
 	UpdatedAt                            time.Time               `json:"-"`
 }
 
+type ForwardingAttemptStatus string
+
+const (
+	ForwardingAttemptStatusStarted   ForwardingAttemptStatus = "started"
+	ForwardingAttemptStatusSucceeded ForwardingAttemptStatus = "succeeded"
+	ForwardingAttemptStatusFailed    ForwardingAttemptStatus = "failed"
+)
+
+type ForwardingAttemptState string
+
+const (
+	ForwardingAttemptStateNotSent          ForwardingAttemptState = "not_sent"
+	ForwardingAttemptStateSentNoResponse   ForwardingAttemptState = "sent_no_response"
+	ForwardingAttemptStateResponseReceived ForwardingAttemptState = "response_received"
+)
+
+type ForwardingAttempt struct {
+	LocalRequestID string `json:"local_request_id"`
+	AttemptNumber  int    `json:"attempt_number"`
+
+	RouteID    string `json:"route_id"`
+	ResellerID string `json:"reseller_id"`
+
+	APIFamily    APIFamily    `json:"api_family"`
+	EndpointKind EndpointKind `json:"endpoint_kind"`
+	ClientModel  string       `json:"client_model"`
+
+	ProviderType  ProviderType `json:"provider_type"`
+	ProviderModel string       `json:"provider_model"`
+
+	Status       ForwardingAttemptStatus `json:"status"`
+	AttemptState ForwardingAttemptState  `json:"attempt_state,omitempty"`
+
+	UpstreamStatusCode int    `json:"upstream_status_code,omitempty"`
+	FailureKind        string `json:"failure_kind,omitempty"`
+
+	RouteRetryCandidate bool `json:"route_retry_candidate"`
+
+	StartedAt   time.Time  `json:"started_at"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
+}
+
 type UsageStatus string
 
 const (
