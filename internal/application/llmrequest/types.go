@@ -49,6 +49,21 @@ type RoutePlanInput struct {
 	Payload               []byte
 }
 
+type RouteFallbackPlan struct {
+	Route    domain.Route
+	Reseller domain.Reseller
+	Price    domain.RoutePrice
+
+	BillingModel   string
+	EstimatedUsage domain.TokenUsage
+
+	EstimatedClientAmountCents int64
+	EstimatedUpstreamCostCents int64
+
+	Currency   string
+	Confidence string
+}
+
 type RoutePlan struct {
 	Route    domain.Route
 	Reseller domain.Reseller
@@ -62,6 +77,8 @@ type RoutePlan struct {
 
 	Currency   string
 	Confidence string
+
+	Fallbacks []RouteFallbackPlan
 }
 
 type PreparedRequest struct {

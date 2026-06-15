@@ -153,7 +153,8 @@ func TestRepositoryRoutePlannerBuildsDeterministicCandidateSet(
 			) (RouteSelectionResult, error) {
 				selectorInput = value
 				return RouteSelectionResult{
-					SelectedRouteID: "route-b",
+					SelectedRouteID:  "route-b",
+					FallbackRouteIDs: []string{"route-a"},
 				}, nil
 			},
 		),
@@ -196,6 +197,15 @@ func TestRepositoryRoutePlannerBuildsDeterministicCandidateSet(
 		plan.BillingModel != "openai:provider-route-b" ||
 		plan.EstimatedUpstreamCostCents != 20 {
 		t.Fatalf("plan = %+v", plan)
+	}
+	if len(plan.Fallbacks) != 1 ||
+		plan.Fallbacks[0].Route.ID != "route-a" ||
+		plan.Fallbacks[0].Reseller.ID != "reseller-a" ||
+		plan.Fallbacks[0].Price.RouteID != "route-a" ||
+		plan.Fallbacks[0].BillingModel !=
+			"openai:provider-route-a" ||
+		plan.Fallbacks[0].EstimatedUpstreamCostCents != 10 {
+		t.Fatalf("fallbacks = %+v", plan.Fallbacks)
 	}
 }
 
@@ -340,6 +350,34 @@ func TestRepositoryRoutePlannerRejectsUnknownSelectorRoute(
 		) (RouteSelectionResult, error) {
 			return RouteSelectionResult{
 				SelectedRouteID: "unknown-route",
+			}, nil
+		},
+	)
+
+	_, err := planner.Plan(
+		context.Background(),
+		validRoutePlanInput(),
+	)
+	if !errors.Is(err, ErrStageContractViolation) {
+		t.Fatalf(
+			"error = %v, want stage contract violation",
+			err,
+		)
+	}
+}
+
+func TestRepositoryRoutePlannerRejectsSelectedRouteAsFallback(
+	t *testing.T,
+) {
+	planner := plannerWithSingleCandidate(
+		t,
+		func(
+			context.Context,
+			RouteSelectionInput,
+		) (RouteSelectionResult, error) {
+			return RouteSelectionResult{
+				SelectedRouteID:  "route-a",
+				FallbackRouteIDs: []string{"route-a"},
 			}, nil
 		},
 	)

@@ -96,8 +96,16 @@ func (s *LLMRequestRouteSelector) Select(
 			mapLLMRequestRouteSelectionError(err)
 	}
 
+	fallbackRouteIDs := make(
+		[]string,
+		len(selected.Fallbacks),
+	)
+	for index, fallback := range selected.Fallbacks {
+		fallbackRouteIDs[index] = fallback.Route.ID
+	}
 	return llmrequest.RouteSelectionResult{
-		SelectedRouteID: selected.Selected.Route.ID,
+		SelectedRouteID:  selected.Selected.Route.ID,
+		FallbackRouteIDs: fallbackRouteIDs,
 	}, nil
 }
 

@@ -61,7 +61,8 @@ type RouteSelectionInput struct {
 }
 
 type RouteSelectionResult struct {
-	SelectedRouteID string
+	SelectedRouteID  string
+	FallbackRouteIDs []string
 }
 
 type RouteCandidateSelector interface {
@@ -251,6 +252,24 @@ func (p *RepositoryRoutePlanner) Plan(
 	if err := validateSelectedRouteCandidate(selected); err != nil {
 		return RoutePlan{}, err
 	}
+	fallbackCandidates, err := selectedRouteFallbacks(
+		candidates,
+		selection.SelectedRouteID,
+		selection.FallbackRouteIDs,
+	)
+	if err != nil {
+		return RoutePlan{}, err
+	}
+	fallbacks := make(
+		[]RouteFallbackPlan,
+		len(fallbackCandidates),
+	)
+	for index, candidate := range fallbackCandidates {
+		if err := validateSelectedRouteCandidate(candidate); err != nil {
+			return RoutePlan{}, err
+		}
+		fallbacks[index] = routeFallbackPlan(candidate)
+	}
 
 	return RoutePlan{
 		Route:          selected.Route,
@@ -264,6 +283,7 @@ func (p *RepositoryRoutePlanner) Plan(
 			EstimatedUpstreamCostCents,
 		Currency:   selected.Preflight.Currency,
 		Confidence: selected.Preflight.Confidence,
+		Fallbacks:  fallbacks,
 	}, nil
 }
 
@@ -360,6 +380,70 @@ func selectedRouteCandidate(
 		)
 	}
 	return *selected, nil
+}
+
+func selectedRouteFallbacks(
+	candidates []RouteSelectionCandidate,
+	selectedRouteID string,
+	fallbackRouteIDs []string,
+) ([]RouteSelectionCandidate, error) {
+	result := make(
+		[]RouteSelectionCandidate,
+		0,
+		len(fallbackRouteIDs),
+	)
+	seen := map[string]struct{}{selectedRouteID: {}}
+	byID := make(
+		map[string]RouteSelectionCandidate,
+		len(candidates),
+	)
+	for _, candidate := range candidates {
+		byID[candidate.Route.ID] = candidate
+	}
+	for _, routeID := range fallbackRouteIDs {
+		if strings.TrimSpace(routeID) == "" {
+			return nil, fmt.Errorf(
+				"%w: selector returned blank fallback route id",
+				ErrStageContractViolation,
+			)
+		}
+		if _, exists := seen[routeID]; exists {
+			return nil, fmt.Errorf(
+				"%w: selector returned duplicate fallback route id %q",
+				ErrStageContractViolation,
+				routeID,
+			)
+		}
+		candidate, exists := byID[routeID]
+		if !exists {
+			return nil, fmt.Errorf(
+				"%w: selector returned unknown fallback route id %q",
+				ErrStageContractViolation,
+				routeID,
+			)
+		}
+		seen[routeID] = struct{}{}
+		result = append(result, candidate)
+	}
+	return result, nil
+}
+
+func routeFallbackPlan(
+	candidate RouteSelectionCandidate,
+) RouteFallbackPlan {
+	return RouteFallbackPlan{
+		Route:          candidate.Route,
+		Reseller:       candidate.Reseller,
+		Price:          *candidate.Price,
+		BillingModel:   billingModel(candidate.Route),
+		EstimatedUsage: candidate.Preflight.EstimatedUsage,
+		EstimatedClientAmountCents: candidate.Preflight.
+			EstimatedClientAmountCents,
+		EstimatedUpstreamCostCents: candidate.Preflight.
+			EstimatedUpstreamCostCents,
+		Currency:   candidate.Preflight.Currency,
+		Confidence: candidate.Preflight.Confidence,
+	}
 }
 
 func validateSelectedRouteCandidate(

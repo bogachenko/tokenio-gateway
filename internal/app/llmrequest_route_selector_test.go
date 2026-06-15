@@ -56,6 +56,13 @@ func TestLLMRequestRouteSelectorDelegatesDeterministicSelection(
 			result.SelectedRouteID,
 		)
 	}
+	if len(result.FallbackRouteIDs) != 1 ||
+		result.FallbackRouteIDs[0] != "route-b" {
+		t.Fatalf(
+			"fallback routes = %#v, want route-b",
+			result.FallbackRouteIDs,
+		)
+	}
 	if input.Candidates[0].Route.ID != "route-b" ||
 		input.Candidates[1].Route.ID != "route-a" {
 		t.Fatalf("input candidate order was mutated")

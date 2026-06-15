@@ -601,7 +601,19 @@ func clonePreparedRequest(
 		value.IdempotencyKey,
 	)
 	result.Payload = cloneBytes(value.Payload)
+	result.Plan.Fallbacks = cloneRouteFallbackPlans(
+		value.Plan.Fallbacks,
+	)
 	return result
+}
+
+func cloneRouteFallbackPlans(
+	values []RouteFallbackPlan,
+) []RouteFallbackPlan {
+	if values == nil {
+		return nil
+	}
+	return append([]RouteFallbackPlan(nil), values...)
 }
 
 func cloneReservationResult(
