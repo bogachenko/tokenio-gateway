@@ -45,7 +45,11 @@ func TestUsageExtractorExtractsDetailedChatUsageWithoutMutation(
 		result.Usage.InputTokens != 120 ||
 		result.Usage.CachedInputTokens != 20 ||
 		result.Usage.OutputTokens != 30 ||
-		result.Usage.ReasoningTokens != 7 {
+		result.Usage.ReasoningTokens != 7 ||
+		!result.Presence.InputTokens ||
+		!result.Presence.CachedInputTokens ||
+		!result.Presence.OutputTokens ||
+		!result.Presence.ReasoningTokens {
 		t.Fatalf("result = %+v", result)
 	}
 	if !bytes.Equal(response, original) {
@@ -110,7 +114,9 @@ func TestUsageExtractorExtractsDetailedEmbeddingUsage(
 		result.ProviderResponseModel !=
 			"provider-embedding-model" ||
 		result.Usage.InputTokens != 17 ||
-		result.Usage.OutputTokens != 0 {
+		result.Usage.OutputTokens != 0 ||
+		!result.Presence.InputTokens ||
+		result.Presence.OutputTokens {
 		t.Fatalf("result = %+v", result)
 	}
 }
@@ -199,7 +205,8 @@ func TestUsageExtractorExtractsImageGenerationUnits(
 	if result.Completeness != "detailed" ||
 		result.Usage.ImageGenerationUnits != 2 ||
 		result.Usage.InputTokens != 0 ||
-		result.Usage.OutputTokens != 0 {
+		result.Usage.OutputTokens != 0 ||
+		!result.Presence.ImageGenerationUnits {
 		t.Fatalf("result = %+v", result)
 	}
 	if !bytes.Equal(response, original) {
@@ -260,6 +267,34 @@ func TestUsageExtractorRejectsMalformedImageResponseData(
 				err,
 			)
 		}
+	}
+}
+
+func TestUsageExtractorReportsPresenceForPartialActualUsage(
+	t *testing.T,
+) {
+	extractor := NewUsageExtractor()
+	result, err := extractor.Extract(
+		context.Background(),
+		ports.UsageExtractionRequest{
+			APIFamily:    domain.APIFamilyOpenAICompatible,
+			EndpointKind: domain.EndpointChat,
+			ClientModel:  "client-model",
+			ResponseBody: []byte(`{
+				"usage":{"prompt_tokens":0}
+			}`),
+		},
+	)
+	if err != nil {
+		t.Fatalf("Extract: %v", err)
+	}
+	if result.Completeness != "aggregate" ||
+		result.Usage.InputTokens != 0 ||
+		!result.Presence.InputTokens ||
+		result.Presence.OutputTokens ||
+		result.Presence.CachedInputTokens ||
+		result.Presence.ReasoningTokens {
+		t.Fatalf("result = %+v", result)
 	}
 }
 

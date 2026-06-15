@@ -136,6 +136,12 @@ func (e *UsageExtractor) Extract(
 		OutputTokens:      outputTokens,
 		ReasoningTokens:   reasoningTokens,
 	}
+	result.Presence = ports.UsageDimensionPresence{
+		InputTokens:       inputPresent,
+		CachedInputTokens: cachedPresent,
+		OutputTokens:      outputPresent,
+		ReasoningTokens:   reasoningPresent,
+	}
 	if inputPresent && outputPresent {
 		result.Completeness = "detailed"
 	} else {
@@ -187,6 +193,7 @@ func extractImageGenerationUsage(
 	result.Usage = domain.TokenUsage{
 		ImageGenerationUnits: int64(len(data)),
 	}
+	result.Presence.ImageGenerationUnits = true
 	result.Completeness = "detailed"
 	return result, nil
 }
@@ -217,11 +224,13 @@ func extractEmbeddingUsage(
 		result.Usage = domain.TokenUsage{
 			InputTokens: inputTokens,
 		}
+		result.Presence.InputTokens = true
 		result.Completeness = "detailed"
 	case totalPresent:
 		result.Usage = domain.TokenUsage{
 			InputTokens: totalTokens,
 		}
+		result.Presence.InputTokens = true
 		result.Completeness = "aggregate"
 	default:
 		return result, nil

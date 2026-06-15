@@ -215,8 +215,22 @@ type UsageExtractionRequest struct {
 	ResponseBody []byte
 }
 
+type UsageDimensionPresence struct {
+	InputTokens          bool
+	CachedInputTokens    bool
+	OutputTokens         bool
+	ReasoningTokens      bool
+	ImageInputTokens     bool
+	AudioInputTokens     bool
+	AudioOutputTokens    bool
+	FileInputTokens      bool
+	VideoInputTokens     bool
+	ImageGenerationUnits bool
+}
+
 type UsageExtractionResult struct {
 	Usage                 domain.TokenUsage
+	Presence              UsageDimensionPresence
 	Completeness          string
 	ProviderRequestID     string
 	ProviderResponseModel string
