@@ -2,9 +2,20 @@ package telegramalert
 
 import "context"
 
+type MessageDeliveryOutcome string
+
+const (
+	MessageDeliveryOutcomeNotSent          MessageDeliveryOutcome = "not_sent"
+	MessageDeliveryOutcomeSentNoResponse   MessageDeliveryOutcome = "sent_no_response"
+	MessageDeliveryOutcomeResponseReceived MessageDeliveryOutcome = "response_received"
+)
+
 // MessageSender delivers an already composed Telegram message.
-// It does not decide whether an alert is required and does not mutate
-// persisted alert lifecycle state.
+// Outcome deterministically describes how far the external side effect reached.
+// The sender does not mutate persisted alert or attempt lifecycle state.
 type MessageSender interface {
-	SendMessage(context.Context, string) error
+	SendMessage(
+		context.Context,
+		string,
+	) (MessageDeliveryOutcome, error)
 }
