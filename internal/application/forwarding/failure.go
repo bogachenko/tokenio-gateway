@@ -62,6 +62,31 @@ func (f *Failure) Error() string {
 	return fmt.Sprintf("forwarding failure: kind=%s attempt_state=%s route_retry_candidate=%t", f.Kind, f.AttemptState, f.RouteRetryCandidate)
 }
 
+func (f *Failure) FailureKindValue() string {
+	if f == nil {
+		return ""
+	}
+	return string(f.Kind)
+}
+
+func (f *Failure) FailureStatusCode() int {
+	if f == nil {
+		return 0
+	}
+	return f.StatusCode
+}
+
+func (f *Failure) FailureAttemptStateValue() string {
+	if f == nil {
+		return ""
+	}
+	return string(f.AttemptState)
+}
+
+func (f *Failure) FailureRouteRetryCandidate() bool {
+	return f != nil && f.RouteRetryCandidate
+}
+
 func (f *Failure) Unwrap() error {
 	if f == nil {
 		return nil

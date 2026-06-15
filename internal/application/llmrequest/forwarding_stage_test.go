@@ -6,6 +6,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
@@ -41,19 +42,42 @@ func (manager *forwardingCapacityManager) Release(
 	return manager.releaseFunc(ctx, reservation)
 }
 
-type forwardingAttemptStoreStub struct{}
+type forwardingStageClock struct {
+	now time.Time
+}
 
-func (*forwardingAttemptStoreStub) StartAttempt(
-	_ context.Context,
+func (clock forwardingStageClock) Now() time.Time {
+	return clock.now
+}
+
+type forwardingAttemptStoreStub struct {
+	startFunc func(
+		context.Context,
+		domain.ForwardingAttempt,
+	) (domain.ForwardingAttempt, error)
+	completeFunc func(
+		context.Context,
+		domain.ForwardingAttempt,
+	) (domain.ForwardingAttempt, error)
+}
+
+func (store *forwardingAttemptStoreStub) StartAttempt(
+	ctx context.Context,
 	attempt domain.ForwardingAttempt,
 ) (domain.ForwardingAttempt, error) {
+	if store.startFunc != nil {
+		return store.startFunc(ctx, attempt)
+	}
 	return attempt, nil
 }
 
-func (*forwardingAttemptStoreStub) CompleteAttempt(
-	_ context.Context,
+func (store *forwardingAttemptStoreStub) CompleteAttempt(
+	ctx context.Context,
 	attempt domain.ForwardingAttempt,
 ) (domain.ForwardingAttempt, error) {
+	if store.completeFunc != nil {
+		return store.completeFunc(ctx, attempt)
+	}
 	return attempt, nil
 }
 
@@ -414,6 +438,9 @@ func TestNewForwardingStageRequiresDependencies(t *testing.T) {
 		},
 	)
 	validAttemptStore := &forwardingAttemptStoreStub{}
+	validClock := forwardingStageClock{
+		now: validForwardingStageTime(),
+	}
 	validForwarder := forwardingExecutorFunc(
 		func(
 			context.Context,
@@ -428,24 +455,35 @@ func TestNewForwardingStageRequiresDependencies(t *testing.T) {
 		capacity    ports.RouteCapacityManager
 		reservation AtomicReservation
 		attempts    ports.ForwardingAttemptStore
+		clock       ports.Clock
 		forwarder   ForwardingExecutor
 	}{
 		{
 			name:        "capacity",
 			reservation: validAtomicReservation,
 			attempts:    validAttemptStore,
+			clock:       validClock,
 			forwarder:   validForwarder,
 		},
 		{
 			name:      "reservation",
 			capacity:  validCapacity,
 			attempts:  validAttemptStore,
+			clock:     validClock,
 			forwarder: validForwarder,
 		},
 		{
 			name:        "attempts",
 			capacity:    validCapacity,
 			reservation: validAtomicReservation,
+			clock:       validClock,
+			forwarder:   validForwarder,
+		},
+		{
+			name:        "clock",
+			capacity:    validCapacity,
+			reservation: validAtomicReservation,
+			attempts:    validAttemptStore,
 			forwarder:   validForwarder,
 		},
 		{
@@ -453,6 +491,7 @@ func TestNewForwardingStageRequiresDependencies(t *testing.T) {
 			capacity:    validCapacity,
 			reservation: validAtomicReservation,
 			attempts:    validAttemptStore,
+			clock:       validClock,
 		},
 	}
 
@@ -462,6 +501,7 @@ func TestNewForwardingStageRequiresDependencies(t *testing.T) {
 				test.capacity,
 				test.reservation,
 				test.attempts,
+				test.clock,
 				test.forwarder,
 			)
 			if !errors.Is(err, ErrDependencyRequired) {
@@ -486,12 +526,28 @@ func mustForwardingStage(
 		capacity,
 		reservation,
 		&forwardingAttemptStoreStub{},
+		forwardingStageClock{
+			now: validForwardingStageTime(),
+		},
 		forwarder,
 	)
 	if err != nil {
 		t.Fatalf("NewForwardingStage: %v", err)
 	}
 	return stage
+}
+
+func validForwardingStageTime() time.Time {
+	return time.Date(
+		2026,
+		time.June,
+		15,
+		12,
+		0,
+		0,
+		0,
+		time.UTC,
+	)
 }
 
 func validForwardingCapacityManager(

@@ -170,6 +170,7 @@ func NewApplicationGraph(
 		primitives.RouteCapacity,
 		repositories.LLMRequestAtomicReservation,
 		repositories.ForwardingAttempts,
+		primitives.Clock,
 		forwardingExecutor,
 	)
 	if err != nil {
