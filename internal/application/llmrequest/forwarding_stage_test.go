@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
 
@@ -38,6 +39,29 @@ func (manager *forwardingCapacityManager) Release(
 	reservation ports.RouteCapacityReservation,
 ) error {
 	return manager.releaseFunc(ctx, reservation)
+}
+
+type forwardingAttemptStoreStub struct{}
+
+func (*forwardingAttemptStoreStub) StartAttempt(
+	_ context.Context,
+	attempt domain.ForwardingAttempt,
+) (domain.ForwardingAttempt, error) {
+	return attempt, nil
+}
+
+func (*forwardingAttemptStoreStub) CompleteAttempt(
+	_ context.Context,
+	attempt domain.ForwardingAttempt,
+) (domain.ForwardingAttempt, error) {
+	return attempt, nil
+}
+
+func (*forwardingAttemptStoreStub) LoadAttempts(
+	context.Context,
+	string,
+) ([]domain.ForwardingAttempt, error) {
+	return nil, nil
 }
 
 type forwardingExecutorFunc func(
@@ -389,6 +413,7 @@ func TestNewForwardingStageRequiresDependencies(t *testing.T) {
 			return validReservation(input), nil
 		},
 	)
+	validAttemptStore := &forwardingAttemptStoreStub{}
 	validForwarder := forwardingExecutorFunc(
 		func(
 			context.Context,
@@ -402,22 +427,32 @@ func TestNewForwardingStageRequiresDependencies(t *testing.T) {
 		name        string
 		capacity    ports.RouteCapacityManager
 		reservation AtomicReservation
+		attempts    ports.ForwardingAttemptStore
 		forwarder   ForwardingExecutor
 	}{
 		{
 			name:        "capacity",
 			reservation: validAtomicReservation,
+			attempts:    validAttemptStore,
 			forwarder:   validForwarder,
 		},
 		{
 			name:      "reservation",
 			capacity:  validCapacity,
+			attempts:  validAttemptStore,
 			forwarder: validForwarder,
+		},
+		{
+			name:        "attempts",
+			capacity:    validCapacity,
+			reservation: validAtomicReservation,
+			forwarder:   validForwarder,
 		},
 		{
 			name:        "forwarder",
 			capacity:    validCapacity,
 			reservation: validAtomicReservation,
+			attempts:    validAttemptStore,
 		},
 	}
 
@@ -426,6 +461,7 @@ func TestNewForwardingStageRequiresDependencies(t *testing.T) {
 			_, err := NewForwardingStage(
 				test.capacity,
 				test.reservation,
+				test.attempts,
 				test.forwarder,
 			)
 			if !errors.Is(err, ErrDependencyRequired) {
@@ -449,6 +485,7 @@ func mustForwardingStage(
 	stage, err := NewForwardingStage(
 		capacity,
 		reservation,
+		&forwardingAttemptStoreStub{},
 		forwarder,
 	)
 	if err != nil {

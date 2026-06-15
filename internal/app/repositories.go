@@ -16,6 +16,7 @@ type RepositoryGraph struct {
 	ModelCatalogRoutes ports.ModelCatalogRouteRepository
 	RoutePrices        ports.RoutePriceRepository
 	UsageLedger        ports.UsageLedger
+	ForwardingAttempts ports.ForwardingAttemptStore
 
 	LLMRequestAtomicReservation llmrequest.AtomicReservation
 
@@ -78,6 +79,14 @@ func NewRepositoryGraph(
 	if err != nil {
 		return RepositoryGraph{}, fmt.Errorf(
 			"construct usage ledger: %w",
+			err,
+		)
+	}
+	forwardingAttempts, err :=
+		postgres.NewForwardingAttemptStore(db)
+	if err != nil {
+		return RepositoryGraph{}, fmt.Errorf(
+			"construct forwarding-attempt store: %w",
 			err,
 		)
 	}
@@ -187,6 +196,7 @@ func NewRepositoryGraph(
 		ModelCatalogRoutes: routes,
 		RoutePrices:        routePrices,
 		UsageLedger:        usageLedger,
+		ForwardingAttempts: forwardingAttempts,
 
 		LLMRequestAtomicReservation: atomicReservation,
 
@@ -225,6 +235,8 @@ func (g RepositoryGraph) Validate() error {
 		return fmt.Errorf("route-price repository is nil")
 	case g.UsageLedger == nil:
 		return fmt.Errorf("usage ledger is nil")
+	case g.ForwardingAttempts == nil:
+		return fmt.Errorf("forwarding-attempt store is nil")
 	case g.LLMRequestAtomicReservation == nil:
 		return fmt.Errorf(
 			"LLM-request atomic reservation is nil",

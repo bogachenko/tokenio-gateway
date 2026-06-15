@@ -29,6 +29,7 @@ type ForwardingExecutor interface {
 type ForwardingStage struct {
 	capacity    ports.RouteCapacityManager
 	reservation AtomicReservation
+	attempts    ports.ForwardingAttemptStore
 	forwarder   ForwardingExecutor
 }
 
@@ -43,16 +44,19 @@ type ForwardedRequest struct {
 func NewForwardingStage(
 	capacity ports.RouteCapacityManager,
 	reservation AtomicReservation,
+	attempts ports.ForwardingAttemptStore,
 	forwarder ForwardingExecutor,
 ) (*ForwardingStage, error) {
 	if capacity == nil ||
 		reservation == nil ||
+		attempts == nil ||
 		forwarder == nil {
 		return nil, ErrDependencyRequired
 	}
 	return &ForwardingStage{
 		capacity:    capacity,
 		reservation: reservation,
+		attempts:    attempts,
 		forwarder:   forwarder,
 	}, nil
 }
@@ -68,6 +72,7 @@ func (s *ForwardingStage) Execute(
 	if s == nil ||
 		s.capacity == nil ||
 		s.reservation == nil ||
+		s.attempts == nil ||
 		s.forwarder == nil {
 		return ForwardedRequest{}, ErrDependencyRequired
 	}

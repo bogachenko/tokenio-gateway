@@ -126,6 +126,9 @@ func validApplicationGraphInputs(
 		UsageLedger: &struct {
 			ports.UsageLedger
 		}{},
+		ForwardingAttempts: &struct {
+			ports.ForwardingAttemptStore
+		}{},
 		LLMRequestAtomicReservation: &struct {
 			llmrequest.AtomicReservation
 		}{},

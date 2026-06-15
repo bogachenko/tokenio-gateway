@@ -169,6 +169,7 @@ func NewApplicationGraph(
 	llmRequestForwarding, err := llmrequest.NewForwardingStage(
 		primitives.RouteCapacity,
 		repositories.LLMRequestAtomicReservation,
+		repositories.ForwardingAttempts,
 		forwardingExecutor,
 	)
 	if err != nil {
