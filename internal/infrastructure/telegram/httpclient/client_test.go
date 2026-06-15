@@ -222,23 +222,23 @@ func TestSendMessageValidatesTelegramResponse(t *testing.T) {
 }
 
 func TestSendMessageUsesBoundedContext(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(
-		func(writer http.ResponseWriter, request *http.Request) {
+	roundTripper := roundTripFunc(
+		func(request *http.Request) (*http.Response, error) {
 			<-request.Context().Done()
-			writer.WriteHeader(http.StatusGatewayTimeout)
+			return nil, request.Context().Err()
 		},
-	))
-	defer server.Close()
+	)
 
 	client := mustClient(t, Config{
-		BaseURL:              server.URL,
+		BaseURL:              "https://api.telegram.org",
 		BotToken:             "secret",
 		ChatID:               "chat",
-		RoundTripper:         server.Client().Transport,
+		RoundTripper:         roundTripper,
 		Timeout:              20 * time.Millisecond,
 		MaxResponseBodyBytes: 1024,
 	})
 
+	startedAt := time.Now()
 	err := client.SendMessage(
 		context.Background(),
 		"message",
@@ -246,9 +246,20 @@ func TestSendMessageUsesBoundedContext(t *testing.T) {
 	if !errors.Is(err, ErrTransport) {
 		t.Fatalf("error = %v, want transport", err)
 	}
+	if elapsed := time.Since(startedAt); elapsed > time.Second {
+		t.Fatalf("bounded request took %s", elapsed)
+	}
 	if strings.Contains(err.Error(), "secret") {
 		t.Fatalf("error leaks token: %v", err)
 	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(
+	request *http.Request,
+) (*http.Response, error) {
+	return f(request)
 }
 
 func TestNewValidatesConfig(t *testing.T) {
