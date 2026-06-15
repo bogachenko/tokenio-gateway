@@ -32,6 +32,22 @@ type AtomicReservation interface {
 	Reserve(context.Context, ReservationInput) (ReservationResult, error)
 }
 
+type RouteReservationTransfer interface {
+	// Transfer atomically:
+	//   1. verifies ExpectedUsage is still the current reserved usage record;
+	//   2. removes its unused estimated upstream reserve from the previous reseller;
+	//   3. adds Target.EstimatedUpstreamCostCents to the target reseller reserve;
+	//   4. replaces the reserved usage routing, pricing, and estimate snapshot with
+	//      the immutable Target snapshot.
+	//
+	// Any error must leave the usage record and both reseller balances unchanged.
+	// Repeating the identical already-committed transfer is idempotent.
+	Transfer(
+		context.Context,
+		RouteReservationTransferInput,
+	) (RouteReservationTransferResult, error)
+}
+
 type ForwardingStageExecutor interface {
 	Execute(
 		context.Context,

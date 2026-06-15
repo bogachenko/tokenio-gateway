@@ -134,6 +134,29 @@ type ReservationInput struct {
 	Currency                   string
 }
 
+type RouteReservationTransferInput struct {
+	// ExpectedUsage is the exact currently persisted reserved usage snapshot.
+	// The transfer must fail rather than overwrite a different committed state.
+	ExpectedUsage domain.UsageRecord
+
+	// Target is the immutable fallback snapshot selected during the original
+	// routing decision. The transfer must not re-query or re-price the route.
+	Target RouteFallbackPlan
+}
+
+type RouteReservationTransferResult struct {
+	// Usage is the exact committed reserved usage snapshot after the transfer.
+	Usage domain.UsageRecord
+
+	// ReleasedReseller is the committed previous reseller balance snapshot after
+	// its unused estimated upstream reserve has been removed.
+	ReleasedReseller domain.Reseller
+
+	// ReservedReseller is the committed target reseller balance snapshot after
+	// the target estimated upstream reserve has been added.
+	ReservedReseller domain.Reseller
+}
+
 type ReservationDisposition string
 
 const (
