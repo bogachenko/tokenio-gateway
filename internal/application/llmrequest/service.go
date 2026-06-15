@@ -256,6 +256,9 @@ func validateUsageResolution(
 	if resolved.Completeness == "" ||
 		resolved.UpstreamCostCents < 0 ||
 		resolved.ClientAmountCents < 0 ||
+		(hasPositiveUsage(resolved.Usage) &&
+			(resolved.UpstreamCostCents == 0 ||
+				resolved.ClientAmountCents == 0)) ||
 		resolved.Currency != forwarded.Reserved.Prepared.Plan.Currency ||
 		!nonNegativeUsage(resolved.Usage) {
 		return fmt.Errorf(
@@ -578,6 +581,19 @@ func validLocalRequestID(value string) bool {
 		}
 	}
 	return true
+}
+
+func hasPositiveUsage(value domain.TokenUsage) bool {
+	return value.InputTokens > 0 ||
+		value.CachedInputTokens > 0 ||
+		value.OutputTokens > 0 ||
+		value.ReasoningTokens > 0 ||
+		value.ImageInputTokens > 0 ||
+		value.AudioInputTokens > 0 ||
+		value.AudioOutputTokens > 0 ||
+		value.FileInputTokens > 0 ||
+		value.VideoInputTokens > 0 ||
+		value.ImageGenerationUnits > 0
 }
 
 func nonNegativeUsage(value domain.TokenUsage) bool {

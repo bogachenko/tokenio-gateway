@@ -285,6 +285,85 @@ func TestServiceExecuteExecutesCanonicalOrder(t *testing.T) {
 	}
 }
 
+func TestServiceExecuteRejectsNonzeroUsageWithZeroFinalAmount(
+	t *testing.T,
+) {
+	tests := []struct {
+		name   string
+		mutate func(*UsageResolutionResult)
+	}{
+		{
+			name: "zero upstream cost",
+			mutate: func(value *UsageResolutionResult) {
+				value.UpstreamCostCents = 0
+			},
+		},
+		{
+			name: "zero client amount",
+			mutate: func(value *UsageResolutionResult) {
+				value.ClientAmountCents = 0
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var calls []string
+			dependencies := validDependencies(&calls)
+			dependencies.UsageResolver = usageResolverFunc(
+				func(
+					context.Context,
+					UsageResolutionInput,
+				) (UsageResolutionResult, error) {
+					calls = append(calls, "usage")
+					result := UsageResolutionResult{
+						Usage: domain.TokenUsage{
+							InputTokens:  10,
+							OutputTokens: 5,
+						},
+						Completeness:      "detailed",
+						UpstreamCostCents: 10,
+						ClientAmountCents: 15,
+						Currency:          "RUB",
+					}
+					test.mutate(&result)
+					return result, nil
+				},
+			)
+
+			service := mustService(t, dependencies)
+			_, err := service.Execute(
+				context.Background(),
+				validInput(),
+			)
+			if !errors.Is(err, ErrStageContractViolation) {
+				t.Fatalf(
+					"error = %v, want stage contract violation",
+					err,
+				)
+			}
+
+			wantCalls := []string{
+				"authenticate",
+				"parse",
+				"capabilities",
+				"route",
+				"admission",
+				"forwarding",
+				"usage",
+				"pricing_failed",
+			}
+			if !reflect.DeepEqual(calls, wantCalls) {
+				t.Fatalf(
+					"calls = %#v, want %#v",
+					calls,
+					wantCalls,
+				)
+			}
+		})
+	}
+}
+
 func TestServiceExecuteStopsAtFirstFailedStage(t *testing.T) {
 	stageError := errors.New("stage failed")
 

@@ -1,0 +1,3451 @@
+REPOSITORY
+root: /home/i-b8o/src/github.com/bogachenko/tokenio-gateway
+origin: git@github.com:bogachenko/tokenio-gateway.git
+head: 4dfb4abbf09d829c51a8631f9b47669195232c9e
+
+SCOPED STATUS
+<clean>
+
+MATCHES
+
+## ClientAmountCents
+internal/application/pricing/calculator.go:49:	ClientAmountCents int64
+internal/application/pricing/calculator.go:191:		ClientAmountCents: client,
+internal/application/pricing/calculator.go:225:	return CalculationResult{Usage: usage, UpstreamCostCents: upstream, ClientAmountCents: client, Currency: price.Currency, Estimated: estimated}, nil
+internal/application/pricing/resolver.go:29:	ClientAmountCents int64
+internal/application/pricing/resolver.go:281:		ClientAmountCents:     calculation.ClientAmountCents,
+internal/application/llmrequest/service.go:86:			RequiredReserveCents: prepared.Plan.EstimatedClientAmountCents,
+internal/application/llmrequest/service.go:258:		resolved.ClientAmountCents < 0 ||
+internal/application/llmrequest/service.go:426:		plan.EstimatedClientAmountCents < 0 ||
+internal/application/llmrequest/service.go:445:			prepared.Plan.EstimatedClientAmountCents ||
+internal/application/llmrequest/service.go:479:		EstimatedClientAmountCents: prepared.Plan.
+internal/application/llmrequest/service.go:480:			EstimatedClientAmountCents,
+internal/application/llmrequest/service.go:513:		usage.EstimatedClientAmountCents !=
+internal/application/llmrequest/service.go:514:			prepared.Plan.EstimatedClientAmountCents ||
+internal/application/llmrequest/service.go:521:		usage.ClientAmountCents != 0 ||
+internal/application/llmrequest/service_test.go:279:		reserved.ResolvedUsage.ClientAmountCents != 15 ||
+internal/application/llmrequest/service_test.go:685:					ClientAmountCents: 15,
+internal/application/llmrequest/service_test.go:870:		EstimatedClientAmountCents: 20,
+internal/application/llmrequest/service_test.go:925:			EstimatedClientAmountCents: input.
+internal/application/llmrequest/service_test.go:926:				EstimatedClientAmountCents,
+internal/app/llmrequest_finalizer.go:62:			ClientAmountCents: input.ResolvedUsage.
+internal/app/llmrequest_finalizer.go:63:				ClientAmountCents,
+internal/app/llmrequest_finalizer_test.go:57:				ClientAmountCents:     11,
+internal/app/llmrequest_finalizer_test.go:69:		ledger.commitInput.ClientAmountCents != 11 ||
+internal/app/llmrequest_usage_resolver.go:75:		ClientAmountCents:     result.ClientAmountCents,
+internal/app/llmrequest_usage_resolver_test.go:97:		result.ClientAmountCents <= 0 ||
+internal/domain/domain.go:298:	EstimatedClientAmountCents int64 `json:"estimated_client_amount_cents"`
+internal/domain/domain.go:301:	ClientAmountCents       int64 `json:"client_amount_cents"`
+
+## UpstreamCostCents
+internal/application/pricing/calculator.go:48:	UpstreamCostCents int64
+internal/application/pricing/calculator.go:190:		UpstreamCostCents: upstream,
+internal/application/pricing/calculator.go:225:	return CalculationResult{Usage: usage, UpstreamCostCents: upstream, ClientAmountCents: client, Currency: price.Currency, Estimated: estimated}, nil
+internal/application/pricing/resolver.go:28:	UpstreamCostCents int64
+internal/application/pricing/resolver.go:280:		UpstreamCostCents:     calculation.UpstreamCostCents,
+internal/application/llmrequest/service.go:257:		resolved.UpstreamCostCents < 0 ||
+internal/application/llmrequest/service.go:427:		plan.EstimatedUpstreamCostCents < 0 ||
+internal/application/llmrequest/service.go:481:		EstimatedUpstreamCostCents: prepared.Plan.
+internal/application/llmrequest/service.go:482:			EstimatedUpstreamCostCents,
+internal/application/llmrequest/service.go:515:		usage.EstimatedUpstreamCostCents !=
+internal/application/llmrequest/service.go:516:			prepared.Plan.EstimatedUpstreamCostCents ||
+internal/application/llmrequest/service.go:524:		usage.ActualUpstreamCostCents != 0 ||
+internal/application/llmrequest/service.go:552:				prepared.Plan.EstimatedUpstreamCostCents {
+internal/application/llmrequest/service_test.go:684:					UpstreamCostCents: 10,
+internal/application/llmrequest/service_test.go:871:		EstimatedUpstreamCostCents: 10,
+internal/application/llmrequest/service_test.go:927:			EstimatedUpstreamCostCents: input.
+internal/application/llmrequest/service_test.go:928:				EstimatedUpstreamCostCents,
+internal/app/llmrequest_finalizer.go:64:			ActualUpstreamCostCents: input.ResolvedUsage.
+internal/app/llmrequest_finalizer.go:65:				UpstreamCostCents,
+internal/app/llmrequest_finalizer_test.go:56:				UpstreamCostCents:     7,
+internal/app/llmrequest_finalizer_test.go:70:		ledger.commitInput.ActualUpstreamCostCents != 7 ||
+internal/app/llmrequest_usage_resolver.go:74:		UpstreamCostCents:     result.UpstreamCostCents,
+internal/app/llmrequest_usage_resolver_test.go:96:		result.UpstreamCostCents <= 0 ||
+internal/domain/domain.go:299:	EstimatedUpstreamCostCents int64 `json:"estimated_upstream_cost_cents"`
+internal/domain/domain.go:304:	ActualUpstreamCostCents int64 `json:"actual_upstream_cost_cents"`
+
+## IsZeroUsage
+internal/application/pricing/resolver.go:89:	if IsZeroUsage(extracted.Usage) && !input.ZeroUsageAllowed {
+
+## ResolvedUsage
+internal/application/pricing/resolver.go:23:type ResolvedUsageResult struct {
+internal/application/pricing/resolver.go:55:func (r *UsageResolver) Resolve(ctx context.Context, input ResolveUsageInput) (ResolvedUsageResult, error) {
+internal/application/pricing/resolver.go:57:		return ResolvedUsageResult{}, fmt.Errorf("%w: nil usage resolver", ErrInvalidPricingInput)
+internal/application/pricing/resolver.go:60:		return ResolvedUsageResult{}, err
+internal/application/pricing/resolver.go:63:		return ResolvedUsageResult{}, fmt.Errorf("%w: request or response body is nil", ErrInvalidPricingInput)
+internal/application/pricing/resolver.go:77:		return ResolvedUsageResult{}, err
+internal/application/pricing/resolver.go:102:		return ResolvedUsageResult{}, fmt.Errorf("%w: %q", ErrInvalidUsageCompleteness, completeness)
+internal/application/pricing/resolver.go:111:) (ResolvedUsageResult, error) {
+internal/application/pricing/resolver.go:114:		return ResolvedUsageResult{}, fmt.Errorf(
+internal/application/pricing/resolver.go:136:		return ResolvedUsageResult{}, err
+internal/application/pricing/resolver.go:146:func (r *UsageResolver) actualResult(extracted ports.UsageExtractionResult, completeness UsageCompleteness, price domain.RoutePrice, mode InputPricingMode, modalities InputModalities) (ResolvedUsageResult, error) {
+internal/application/pricing/resolver.go:149:		return ResolvedUsageResult{}, err
+internal/application/pricing/resolver.go:154:func (r *UsageResolver) estimatedResult(extracted ports.UsageExtractionResult, completeness UsageCompleteness, price domain.RoutePrice, modalities InputModalities) (ResolvedUsageResult, error) {
+internal/application/pricing/resolver.go:157:		return ResolvedUsageResult{}, err
+internal/application/pricing/resolver.go:162:func (r *UsageResolver) estimateFallback(ctx context.Context, input ResolveUsageInput, completeness UsageCompleteness, cause error) (ResolvedUsageResult, error) {
+internal/application/pricing/resolver.go:166:			return ResolvedUsageResult{}, fmt.Errorf("%w: extract usage failed: %w; estimate usage failed: %v", ErrUsageUnresolved, cause, err)
+internal/application/pricing/resolver.go:168:		return ResolvedUsageResult{}, fmt.Errorf("%w: estimate usage failed: %v", ErrUsageUnresolved, err)
+internal/application/pricing/resolver.go:172:		return ResolvedUsageResult{}, err
+internal/application/pricing/resolver.go:275:func resolvedFromCalculation(calculation CalculationResult, completeness UsageCompleteness, requestID, responseModel string) ResolvedUsageResult {
+internal/application/pricing/resolver.go:276:	return ResolvedUsageResult{
+internal/application/llmrequest/service.go:160:			ResolvedUsage: resolved,
+internal/application/llmrequest/service.go:178:	forwarded.ResolvedUsage = resolved
+internal/application/llmrequest/service_test.go:278:		reserved.ResolvedUsage.Completeness != "detailed" ||
+internal/application/llmrequest/service_test.go:279:		reserved.ResolvedUsage.ClientAmountCents != 15 ||
+internal/app/llmrequest_finalizer.go:48:		input.ResolvedUsage.Completeness,
+internal/app/llmrequest_finalizer.go:60:			Usage:             input.ResolvedUsage.Usage,
+internal/app/llmrequest_finalizer.go:62:			ClientAmountCents: input.ResolvedUsage.
+internal/app/llmrequest_finalizer.go:64:			ActualUpstreamCostCents: input.ResolvedUsage.
+internal/app/llmrequest_finalizer.go:66:			ProviderRequestID: input.ResolvedUsage.
+internal/app/llmrequest_finalizer.go:68:			ProviderResponseModel: input.ResolvedUsage.
+internal/app/llmrequest_finalizer_test.go:40:func TestLLMRequestFinalizerCommitsResolvedUsage(t *testing.T) {
+internal/app/llmrequest_finalizer_test.go:50:			ResolvedUsage: llmrequest.UsageResolutionResult{
+
+## validateUsageResolution
+internal/application/llmrequest/service.go:138:	if err := validateUsageResolution(
+internal/application/llmrequest/service.go:252:func validateUsageResolution(
+
+## Finalize
+internal/application/llmrequest/service.go:24:	finalizer          Finalizer
+internal/application/llmrequest/service.go:36:		dependencies.Finalizer == nil ||
+internal/application/llmrequest/service.go:49:		finalizer:          dependencies.Finalizer,
+internal/application/llmrequest/service_test.go:209:				value.Finalizer = nil
+internal/application/llmrequest/service_test.go:690:		Finalizer: finalizerFunc{
+internal/app/llmrequest_finalizer.go:24:type LLMRequestFinalizer struct {
+internal/app/llmrequest_finalizer.go:28:var _ llmrequest.Finalizer = (*LLMRequestFinalizer)(nil)
+internal/app/llmrequest_finalizer.go:30:func NewLLMRequestFinalizer(
+internal/app/llmrequest_finalizer.go:32:) (*LLMRequestFinalizer, error) {
+internal/app/llmrequest_finalizer.go:36:	return &LLMRequestFinalizer{ledger: ledger}, nil
+internal/app/llmrequest_finalizer.go:39:func (f *LLMRequestFinalizer) Commit(
+internal/app/llmrequest_finalizer.go:81:func (f *LLMRequestFinalizer) MarkPricingFailed(
+internal/app/llmrequest_finalizer_test.go:40:func TestLLMRequestFinalizerCommitsResolvedUsage(t *testing.T) {
+internal/app/llmrequest_finalizer_test.go:42:	finalizer, err := NewLLMRequestFinalizer(ledger)
+internal/app/llmrequest_finalizer_test.go:80:func TestLLMRequestFinalizerMarksPricingFailure(t *testing.T) {
+internal/app/llmrequest_finalizer_test.go:82:	finalizer, err := NewLLMRequestFinalizer(ledger)
+
+## Commit
+internal/application/llmrequest/service.go:156:	finalized, err := s.finalizer.Commit(
+internal/application/llmrequest/service_test.go:116:func (function finalizerFunc) Commit(
+internal/app/llmrequest_finalizer.go:14:	CommitBillable(
+internal/app/llmrequest_finalizer.go:16:		ledgerapp.CommitBillableInput,
+internal/app/llmrequest_finalizer.go:39:func (f *LLMRequestFinalizer) Commit(
+internal/app/llmrequest_finalizer.go:56:	record, err := f.ledger.CommitBillable(
+internal/app/llmrequest_finalizer.go:58:		ledgerapp.CommitBillableInput{
+internal/app/llmrequest_finalizer_test.go:14:	commitInput  ledgerapp.CommitBillableInput
+internal/app/llmrequest_finalizer_test.go:18:func (l *finalizerLedger) CommitBillable(
+internal/app/llmrequest_finalizer_test.go:20:	input ledgerapp.CommitBillableInput,
+internal/app/llmrequest_finalizer_test.go:40:func TestLLMRequestFinalizerCommitsResolvedUsage(t *testing.T) {
+internal/app/llmrequest_finalizer_test.go:46:	result, err := finalizer.Commit(
+internal/app/llmrequest_finalizer_test.go:65:		t.Fatalf("Commit: %v", err)
+
+## MarkPricingFailed
+internal/application/llmrequest/service.go:227:	finalized, err := s.finalizer.MarkPricingFailed(
+internal/application/llmrequest/service_test.go:123:func (function finalizerFunc) MarkPricingFailed(
+internal/app/llmrequest_finalizer.go:18:	MarkPricingFailed(
+internal/app/llmrequest_finalizer.go:20:		ledgerapp.MarkPricingFailedInput,
+internal/app/llmrequest_finalizer.go:81:func (f *LLMRequestFinalizer) MarkPricingFailed(
+internal/app/llmrequest_finalizer.go:89:	record, err := f.ledger.MarkPricingFailed(
+internal/app/llmrequest_finalizer.go:91:		ledgerapp.MarkPricingFailedInput{
+internal/app/llmrequest_finalizer_test.go:15:	failureInput ledgerapp.MarkPricingFailedInput
+internal/app/llmrequest_finalizer_test.go:29:func (l *finalizerLedger) MarkPricingFailed(
+internal/app/llmrequest_finalizer_test.go:31:	input ledgerapp.MarkPricingFailedInput,
+internal/app/llmrequest_finalizer_test.go:86:	result, err := finalizer.MarkPricingFailed(
+internal/app/llmrequest_finalizer_test.go:94:		t.Fatalf("MarkPricingFailed: %v", err)
+
+## UsageStatusBillable
+internal/application/llmrequest/service.go:169:	if finalized.Usage.Status != domain.UsageStatusBillable ||
+internal/application/llmrequest/service_test.go:281:			domain.UsageStatusBillable ||
+internal/application/llmrequest/service_test.go:704:							UsageStatusBillable,
+internal/application/llmrequest/service_test.go:730:					domain.UsageStatusBillable {
+internal/app/llmrequest_finalizer_test.go:25:		Status:         domain.UsageStatusBillable,
+internal/app/llmrequest_finalizer_test.go:67:	if result.Usage.Status != domain.UsageStatusBillable ||
+internal/domain/domain.go:213:	UsageStatusBillable         UsageStatus = "billable"
+
+SELECTED FILES
+internal/application/pricing/calculator.go
+internal/application/pricing/resolver.go
+internal/application/llmrequest/service.go
+internal/application/llmrequest/service_test.go
+internal/app/llmrequest_finalizer.go
+internal/app/llmrequest_finalizer_test.go
+internal/app/llmrequest_usage_resolver.go
+internal/app/llmrequest_usage_resolver_test.go
+internal/domain/domain.go
+
+====================================================================================================
+FILE: internal/application/pricing/calculator.go
+GIT_BLOB_SHA: ab2ae307f15c5898d84ca6434ddf4a6f4d7f2914
+----------------------------------------------------------------------------------------------------
+    1: package pricing
+    2: 
+    3: import (
+    4: 	"fmt"
+    5: 	"math"
+    6: 	"math/big"
+    7: 	"strconv"
+    8: 
+    9: 	"github.com/bogachenko/tokenio-gateway/internal/domain"
+   10: )
+   11: 
+   12: const microCentsPerCent int64 = 1_000_000
+   13: 
+   14: var maxInt64Big = big.NewInt(math.MaxInt64)
+   15: 
+   16: type Calculator struct {
+   17: 	tokenSafetyFactor *big.Rat
+   18: 	costSafetyFactor  *big.Rat
+   19: }
+   20: 
+   21: type ActualCalculationInput struct {
+   22: 	Usage      domain.TokenUsage
+   23: 	Price      domain.RoutePrice
+   24: 	InputMode  InputPricingMode
+   25: 	Modalities InputModalities
+   26: }
+   27: 
+   28: type EstimateCalculationInput struct {
+   29: 	Usage      domain.TokenUsage
+   30: 	Price      domain.RoutePrice
+   31: 	InputMode  InputPricingMode
+   32: 	Modalities InputModalities
+   33: }
+   34: 
+   35: type MixedCalculationInput struct {
+   36: 	ActualUsage    domain.TokenUsage
+   37: 	EstimatedUsage domain.TokenUsage
+   38: 	Price          domain.RoutePrice
+   39: 
+   40: 	ActualInputMode    InputPricingMode
+   41: 	EstimatedInputMode InputPricingMode
+   42: 	Modalities         InputModalities
+   43: }
+   44: 
+   45: type CalculationResult struct {
+   46: 	Usage domain.TokenUsage
+   47: 
+   48: 	UpstreamCostCents int64
+   49: 	ClientAmountCents int64
+   50: 	Currency          string
+   51: 
+   52: 	Estimated bool
+   53: }
+   54: 
+   55: func NewCalculator(tokenSafetyFactor float64, costSafetyFactor float64) (*Calculator, error) {
+   56: 	token, err := positiveFiniteRat(tokenSafetyFactor, "token safety factor")
+   57: 	if err != nil {
+   58: 		return nil, err
+   59: 	}
+   60: 	cost, err := positiveFiniteRat(costSafetyFactor, "cost safety factor")
+   61: 	if err != nil {
+   62: 		return nil, err
+   63: 	}
+   64: 	return &Calculator{tokenSafetyFactor: token, costSafetyFactor: cost}, nil
+   65: }
+   66: 
+   67: func (c *Calculator) CalculateActual(input ActualCalculationInput) (CalculationResult, error) {
+   68: 	if c == nil {
+   69: 		return CalculationResult{}, fmt.Errorf("%w: nil calculator", ErrInvalidPricingInput)
+   70: 	}
+   71: 	return c.calculate(input.Usage, input.Price, input.InputMode, input.Modalities, false)
+   72: }
+   73: 
+   74: func (c *Calculator) CalculateEstimate(input EstimateCalculationInput) (CalculationResult, error) {
+   75: 	if c == nil {
+   76: 		return CalculationResult{}, fmt.Errorf("%w: nil calculator", ErrInvalidPricingInput)
+   77: 	}
+   78: 	usage, err := applyTokenSafetyFactor(input.Usage, c.tokenSafetyFactor)
+   79: 	if err != nil {
+   80: 		return CalculationResult{}, err
+   81: 	}
+   82: 	return c.calculate(usage, input.Price, input.InputMode, input.Modalities, true)
+   83: }
+   84: 
+   85: func (c *Calculator) CalculatePublicUnitPriceCents(
+   86: 	unitPriceCents int64,
+   87: 	markup float64,
+   88: ) (int64, error) {
+   89: 	if c == nil {
+   90: 		return 0, fmt.Errorf(
+   91: 			"%w: nil calculator",
+   92: 			ErrInvalidPricingInput,
+   93: 		)
+   94: 	}
+   95: 	if unitPriceCents < 0 {
+   96: 		return 0, fmt.Errorf(
+   97: 			"%w: negative public unit price",
+   98: 			ErrInvalidPricingInput,
+   99: 		)
+  100: 	}
+  101: 	ratio, err := markupRat(markup)
+  102: 	if err != nil {
+  103: 		return 0, err
+  104: 	}
+  105: 	value := new(big.Rat).Mul(
+  106: 		new(big.Rat).SetInt64(unitPriceCents),
+  107: 		ratio,
+  108: 	)
+  109: 	rounded := ceilRat(value)
+  110: 	if rounded.Cmp(maxInt64Big) > 0 {
+  111: 		return 0, fmt.Errorf(
+  112: 			"%w: public unit price",
+  113: 			ErrAmountOverflow,
+  114: 		)
+  115: 	}
+  116: 	return rounded.Int64(), nil
+  117: }
+  118: 
+  119: func (c *Calculator) CalculateMixed(
+  120: 	input MixedCalculationInput,
+  121: ) (CalculationResult, error) {
+  122: 	if c == nil {
+  123: 		return CalculationResult{}, fmt.Errorf(
+  124: 			"%w: nil calculator",
+  125: 			ErrInvalidPricingInput,
+  126: 		)
+  127: 	}
+  128: 	if err := ValidateUsage(input.ActualUsage); err != nil {
+  129: 		return CalculationResult{}, err
+  130: 	}
+  131: 	if err := ValidateUsage(input.EstimatedUsage); err != nil {
+  132: 		return CalculationResult{}, err
+  133: 	}
+  134: 	if err := ValidateRoutePrice(input.Price); err != nil {
+  135: 		return CalculationResult{}, err
+  136: 	}
+  137: 	estimatedUsage, err := applyTokenSafetyFactor(
+  138: 		input.EstimatedUsage,
+  139: 		c.tokenSafetyFactor,
+  140: 	)
+  141: 	if err != nil {
+  142: 		return CalculationResult{}, err
+  143: 	}
+  144: 	actualRaw, err := rawCostBasis(
+  145: 		input.ActualUsage,
+  146: 		input.Price,
+  147: 		input.ActualInputMode,
+  148: 		input.Modalities,
+  149: 	)
+  150: 	if err != nil {
+  151: 		return CalculationResult{}, err
+  152: 	}
+  153: 	estimatedRaw, err := rawCostBasis(
+  154: 		estimatedUsage,
+  155: 		input.Price,
+  156: 		input.EstimatedInputMode,
+  157: 		input.Modalities,
+  158: 	)
+  159: 	if err != nil {
+  160: 		return CalculationResult{}, err
+  161: 	}
+  162: 	usage, err := addUsage(input.ActualUsage, estimatedUsage)
+  163: 	if err != nil {
+  164: 		return CalculationResult{}, err
+  165: 	}
+  166: 	markup, err := markupRat(input.Price.MarkupCoefficient)
+  167: 	if err != nil {
+  168: 		return CalculationResult{}, err
+  169: 	}
+  170: 	totalRaw := new(big.Rat).SetInt64(actualRaw)
+  171: 	totalRaw.Add(
+  172: 		totalRaw,
+  173: 		new(big.Rat).Mul(
+  174: 			new(big.Rat).SetInt64(estimatedRaw),
+  175: 			c.costSafetyFactor,
+  176: 		),
+  177: 	)
+  178: 	upstream, err := ceilRawRatCents(totalRaw)
+  179: 	if err != nil {
+  180: 		return CalculationResult{}, err
+  181: 	}
+  182: 	client, err := ceilRawRatCents(
+  183: 		new(big.Rat).Mul(totalRaw, markup),
+  184: 	)
+  185: 	if err != nil {
+  186: 		return CalculationResult{}, err
+  187: 	}
+  188: 	return CalculationResult{
+  189: 		Usage:             usage,
+  190: 		UpstreamCostCents: upstream,
+  191: 		ClientAmountCents: client,
+  192: 		Currency:          input.Price.Currency,
+  193: 		Estimated:         true,
+  194: 	}, nil
+  195: }
+  196: 
+  197: func (c *Calculator) calculate(usage domain.TokenUsage, price domain.RoutePrice, mode InputPricingMode, modalities InputModalities, estimated bool) (CalculationResult, error) {
+  198: 	if err := ValidateUsage(usage); err != nil {
+  199: 		return CalculationResult{}, err
+  200: 	}
+  201: 	if err := ValidateRoutePrice(price); err != nil {
+  202: 		return CalculationResult{}, err
+  203: 	}
+  204: 	raw, err := rawCostBasis(usage, price, mode, modalities)
+  205: 	if err != nil {
+  206: 		return CalculationResult{}, err
+  207: 	}
+  208: 	markup, err := markupRat(price.MarkupCoefficient)
+  209: 	if err != nil {
+  210: 		return CalculationResult{}, err
+  211: 	}
+  212: 	costFactor := big.NewRat(1, 1)
+  213: 	if estimated {
+  214: 		costFactor = c.costSafetyFactor
+  215: 	}
+  216: 	upstream, err := ceilRawCents(raw, costFactor)
+  217: 	if err != nil {
+  218: 		return CalculationResult{}, err
+  219: 	}
+  220: 	clientFactor := new(big.Rat).Mul(costFactor, markup)
+  221: 	client, err := ceilRawCents(raw, clientFactor)
+  222: 	if err != nil {
+  223: 		return CalculationResult{}, err
+  224: 	}
+  225: 	return CalculationResult{Usage: usage, UpstreamCostCents: upstream, ClientAmountCents: client, Currency: price.Currency, Estimated: estimated}, nil
+  226: }
+  227: 
+  228: func ValidateRoutePrice(price domain.RoutePrice) error {
+  229: 	if price.RouteID == "" {
+  230: 		return fmt.Errorf("%w: route id is empty", ErrInvalidPricingInput)
+  231: 	}
+  232: 	if price.Currency != "RUB" {
+  233: 		return fmt.Errorf("%w: %q", ErrUnsupportedCurrency, price.Currency)
+  234: 	}
+  235: 	fields := []struct {
+  236: 		name  string
+  237: 		value int64
+  238: 	}{
+  239: 		{"input price", price.InputPricePer1MTokensCents},
+  240: 		{"cached input price", price.CachedInputPricePer1MTokensCents},
+  241: 		{"output price", price.OutputPricePer1MTokensCents},
+  242: 		{"reasoning price", price.ReasoningOutputPricePer1MTokensCents},
+  243: 		{"image input price", price.ImageInputPricePer1MTokensCents},
+  244: 		{"audio input price", price.AudioInputPricePer1MTokensCents},
+  245: 		{"audio output price", price.AudioOutputPricePer1MTokensCents},
+  246: 		{"file input price", price.FileInputPricePer1MTokensCents},
+  247: 		{"video input price", price.VideoInputPricePer1MTokensCents},
+  248: 		{"image generation price", price.ImageGenerationPricePerUnitCents},
+  249: 	}
+  250: 	for _, field := range fields {
+  251: 		if field.value < 0 {
+  252: 			return fmt.Errorf("%w: %s is negative", ErrInvalidPricingInput, field.name)
+  253: 		}
+  254: 	}
+  255: 	if math.IsNaN(price.MarkupCoefficient) || math.IsInf(price.MarkupCoefficient, 0) || price.MarkupCoefficient <= 0 {
+  256: 		return fmt.Errorf("%w: invalid markup coefficient", ErrInvalidMarkup)
+  257: 	}
+  258: 	return nil
+  259: }
+  260: 
+  261: func rawCostBasis(usage domain.TokenUsage, price domain.RoutePrice, mode InputPricingMode, modalities InputModalities) (int64, error) {
+  262: 	var total int64
+  263: 	addToken := func(count, unitPrice int64, name string) error {
+  264: 		if count > 0 && unitPrice == 0 {
+  265: 			return fmt.Errorf("%w: %s", ErrMissingPrice, name)
+  266: 		}
+  267: 		component, err := checkedMul(count, unitPrice)
+  268: 		if err != nil {
+  269: 			return err
+  270: 		}
+  271: 		total, err = checkedAdd(total, component)
+  272: 		return err
+  273: 	}
+  274: 	if mode == "" {
+  275: 		mode = InputPricingModeDetailed
+  276: 	}
+  277: 	switch mode {
+  278: 	case InputPricingModeDetailed:
+  279: 		if err := addToken(usage.InputTokens, price.InputPricePer1MTokensCents, "input tokens"); err != nil {
+  280: 			return 0, err
+  281: 		}
+  282: 		if err := addToken(usage.CachedInputTokens, price.CachedInputPricePer1MTokensCents, "cached input tokens"); err != nil {
+  283: 			return 0, err
+  284: 		}
+  285: 		if err := addToken(usage.ImageInputTokens, price.ImageInputPricePer1MTokensCents, "image input tokens"); err != nil {
+  286: 			return 0, err
+  287: 		}
+  288: 		if err := addToken(usage.AudioInputTokens, price.AudioInputPricePer1MTokensCents, "audio input tokens"); err != nil {
+  289: 			return 0, err
+  290: 		}
+  291: 		if err := addToken(usage.FileInputTokens, price.FileInputPricePer1MTokensCents, "file input tokens"); err != nil {
+  292: 			return 0, err
+  293: 		}
+  294: 		if err := addToken(usage.VideoInputTokens, price.VideoInputPricePer1MTokensCents, "video input tokens"); err != nil {
+  295: 			return 0, err
+  296: 		}
+  297: 	case InputPricingModeAggregateMax:
+  298: 		if usage.CachedInputTokens != 0 || usage.ImageInputTokens != 0 || usage.AudioInputTokens != 0 || usage.FileInputTokens != 0 || usage.VideoInputTokens != 0 {
+  299: 			return 0, fmt.Errorf("%w: aggregate input includes breakdown tokens", ErrInvalidUsage)
+  300: 		}
+  301: 		inputPrice, err := aggregateInputPrice(usage.InputTokens, price, modalities)
+  302: 		if err != nil {
+  303: 			return 0, err
+  304: 		}
+  305: 		if err := addToken(usage.InputTokens, inputPrice, "aggregate input tokens"); err != nil {
+  306: 			return 0, err
+  307: 		}
+  308: 	default:
+  309: 		return 0, fmt.Errorf("%w: input pricing mode", ErrInvalidPricingInput)
+  310: 	}
+  311: 	if err := addToken(usage.OutputTokens, price.OutputPricePer1MTokensCents, "output tokens"); err != nil {
+  312: 		return 0, err
+  313: 	}
+  314: 	if err := addToken(usage.ReasoningTokens, price.ReasoningOutputPricePer1MTokensCents, "reasoning tokens"); err != nil {
+  315: 		return 0, err
+  316: 	}
+  317: 	if err := addToken(usage.AudioOutputTokens, price.AudioOutputPricePer1MTokensCents, "audio output tokens"); err != nil {
+  318: 		return 0, err
+  319: 	}
+  320: 	if usage.ImageGenerationUnits > 0 {
+  321: 		if price.ImageGenerationPricePerUnitCents <= 0 || price.ImageGenerationUnitKind != domain.ImageGenerationUnitKindGeneratedImage {
+  322: 			return 0, fmt.Errorf("%w: image generation units require generated_image unit price", ErrInvalidImageGenerationPricing)
+  323: 		}
+  324: 		unitsPrice, err := checkedMul(usage.ImageGenerationUnits, price.ImageGenerationPricePerUnitCents)
+  325: 		if err != nil {
+  326: 			return 0, err
+  327: 		}
+  328: 		component, err := checkedMul(unitsPrice, microCentsPerCent)
+  329: 		if err != nil {
+  330: 			return 0, err
+  331: 		}
+  332: 		total, err = checkedAdd(total, component)
+  333: 		if err != nil {
+  334: 			return 0, err
+  335: 		}
+  336: 	}
+  337: 	return total, nil
+  338: }
+  339: 
+  340: func aggregateInputPrice(inputTokens int64, price domain.RoutePrice, modalities InputModalities) (int64, error) {
+  341: 	if inputTokens > 0 && price.InputPricePer1MTokensCents == 0 {
+  342: 		return 0, fmt.Errorf("%w: aggregate text input tokens", ErrMissingPrice)
+  343: 	}
+  344: 	max := price.InputPricePer1MTokensCents
+  345: 	if modalities.Image {
+  346: 		if price.ImageInputPricePer1MTokensCents == 0 {
+  347: 			return 0, fmt.Errorf("%w: aggregate image input tokens", ErrMissingPrice)
+  348: 		}
+  349: 		if price.ImageInputPricePer1MTokensCents > max {
+  350: 			max = price.ImageInputPricePer1MTokensCents
+  351: 		}
+  352: 	}
+  353: 	if modalities.Audio {
+  354: 		if price.AudioInputPricePer1MTokensCents == 0 {
+  355: 			return 0, fmt.Errorf("%w: aggregate audio input tokens", ErrMissingPrice)
+  356: 		}
+  357: 		if price.AudioInputPricePer1MTokensCents > max {
+  358: 			max = price.AudioInputPricePer1MTokensCents
+  359: 		}
+  360: 	}
+  361: 	if modalities.File {
+  362: 		if price.FileInputPricePer1MTokensCents == 0 {
+  363: 			return 0, fmt.Errorf("%w: aggregate file input tokens", ErrMissingPrice)
+  364: 		}
+  365: 		if price.FileInputPricePer1MTokensCents > max {
+  366: 			max = price.FileInputPricePer1MTokensCents
+  367: 		}
+  368: 	}
+  369: 	if modalities.Video {
+  370: 		if price.VideoInputPricePer1MTokensCents == 0 {
+  371: 			return 0, fmt.Errorf("%w: aggregate video input tokens", ErrMissingPrice)
+  372: 		}
+  373: 		if price.VideoInputPricePer1MTokensCents > max {
+  374: 			max = price.VideoInputPricePer1MTokensCents
+  375: 		}
+  376: 	}
+  377: 	return max, nil
+  378: }
+  379: 
+  380: func checkedMul(a, b int64) (int64, error) {
+  381: 	if a < 0 || b < 0 {
+  382: 		return 0, fmt.Errorf("%w: negative operand", ErrAmountOverflow)
+  383: 	}
+  384: 	product := new(big.Int).Mul(big.NewInt(a), big.NewInt(b))
+  385: 	if product.Cmp(maxInt64Big) > 0 {
+  386: 		return 0, fmt.Errorf("%w: multiplication", ErrAmountOverflow)
+  387: 	}
+  388: 	return product.Int64(), nil
+  389: }
+  390: 
+  391: func checkedAdd(a, b int64) (int64, error) {
+  392: 	sum := new(big.Int).Add(big.NewInt(a), big.NewInt(b))
+  393: 	if sum.Cmp(maxInt64Big) > 0 {
+  394: 		return 0, fmt.Errorf("%w: sum", ErrAmountOverflow)
+  395: 	}
+  396: 	return sum.Int64(), nil
+  397: }
+  398: 
+  399: func ceilRawCents(raw int64, factor *big.Rat) (int64, error) {
+  400: 	if raw == 0 {
+  401: 		return 0, nil
+  402: 	}
+  403: 	r := new(big.Rat).SetInt64(raw)
+  404: 	r.Mul(r, factor)
+  405: 	return ceilRawRatCents(r)
+  406: }
+  407: 
+  408: func ceilRawRatCents(raw *big.Rat) (int64, error) {
+  409: 	if raw == nil || raw.Sign() == 0 {
+  410: 		return 0, nil
+  411: 	}
+  412: 	r := new(big.Rat).Quo(
+  413: 		new(big.Rat).Set(raw),
+  414: 		big.NewRat(microCentsPerCent, 1),
+  415: 	)
+  416: 	value := ceilRat(r)
+  417: 	if value.Cmp(maxInt64Big) > 0 {
+  418: 		return 0, fmt.Errorf("%w: final amount", ErrAmountOverflow)
+  419: 	}
+  420: 	return value.Int64(), nil
+  421: }
+  422: 
+  423: func ceilRat(r *big.Rat) *big.Int {
+  424: 	n := new(big.Int).Set(r.Num())
+  425: 	d := new(big.Int).Set(r.Denom())
+  426: 	q, rem := new(big.Int).QuoRem(n, d, new(big.Int))
+  427: 	if rem.Sign() > 0 {
+  428: 		q.Add(q, big.NewInt(1))
+  429: 	}
+  430: 	return q
+  431: }
+  432: 
+  433: func positiveFiniteRat(value float64, name string) (*big.Rat, error) {
+  434: 	if value <= 0 || math.IsNaN(value) || math.IsInf(value, 0) {
+  435: 		return nil, fmt.Errorf("%w: %s", ErrInvalidPricingInput, name)
+  436: 	}
+  437: 	return floatToRat(value)
+  438: }
+  439: 
+  440: func markupRat(value float64) (*big.Rat, error) {
+  441: 	if value <= 0 || math.IsNaN(value) || math.IsInf(value, 0) {
+  442: 		return nil, fmt.Errorf("%w: markup coefficient", ErrInvalidMarkup)
+  443: 	}
+  444: 	return floatToRat(value)
+  445: }
+  446: 
+  447: func floatToRat(value float64) (*big.Rat, error) {
+  448: 	text := strconv.FormatFloat(value, 'f', -1, 64)
+  449: 	rat, ok := new(big.Rat).SetString(text)
+  450: 	if !ok {
+  451: 		return nil, fmt.Errorf("%w: decimal coefficient", ErrInvalidPricingInput)
+  452: 	}
+  453: 	return rat, nil
+  454: }
+  455: 
+  456: func addUsage(
+  457: 	left domain.TokenUsage,
+  458: 	right domain.TokenUsage,
+  459: ) (domain.TokenUsage, error) {
+  460: 	out := left
+  461: 	var err error
+  462: 	if out.InputTokens, err = checkedAdd(left.InputTokens, right.InputTokens); err != nil {
+  463: 		return domain.TokenUsage{}, err
+  464: 	}
+  465: 	if out.CachedInputTokens, err = checkedAdd(left.CachedInputTokens, right.CachedInputTokens); err != nil {
+  466: 		return domain.TokenUsage{}, err
+  467: 	}
+  468: 	if out.OutputTokens, err = checkedAdd(left.OutputTokens, right.OutputTokens); err != nil {
+  469: 		return domain.TokenUsage{}, err
+  470: 	}
+  471: 	if out.ReasoningTokens, err = checkedAdd(left.ReasoningTokens, right.ReasoningTokens); err != nil {
+  472: 		return domain.TokenUsage{}, err
+  473: 	}
+  474: 	if out.ImageInputTokens, err = checkedAdd(left.ImageInputTokens, right.ImageInputTokens); err != nil {
+  475: 		return domain.TokenUsage{}, err
+  476: 	}
+  477: 	if out.AudioInputTokens, err = checkedAdd(left.AudioInputTokens, right.AudioInputTokens); err != nil {
+  478: 		return domain.TokenUsage{}, err
+  479: 	}
+  480: 	if out.AudioOutputTokens, err = checkedAdd(left.AudioOutputTokens, right.AudioOutputTokens); err != nil {
+  481: 		return domain.TokenUsage{}, err
+  482: 	}
+  483: 	if out.FileInputTokens, err = checkedAdd(left.FileInputTokens, right.FileInputTokens); err != nil {
+  484: 		return domain.TokenUsage{}, err
+  485: 	}
+  486: 	if out.VideoInputTokens, err = checkedAdd(left.VideoInputTokens, right.VideoInputTokens); err != nil {
+  487: 		return domain.TokenUsage{}, err
+  488: 	}
+  489: 	if out.ImageGenerationUnits, err = checkedAdd(left.ImageGenerationUnits, right.ImageGenerationUnits); err != nil {
+  490: 		return domain.TokenUsage{}, err
+  491: 	}
+  492: 	return out, nil
+  493: }
+  494: 
+  495: func applyTokenSafetyFactor(usage domain.TokenUsage, factor *big.Rat) (domain.TokenUsage, error) {
+  496: 	var err error
+  497: 	out := usage
+  498: 	if out.InputTokens, err = ceilMulRat(usage.InputTokens, factor); err != nil {
+  499: 		return domain.TokenUsage{}, err
+  500: 	}
+  501: 	if out.CachedInputTokens, err = ceilMulRat(usage.CachedInputTokens, factor); err != nil {
+  502: 		return domain.TokenUsage{}, err
+  503: 	}
+  504: 	if out.OutputTokens, err = ceilMulRat(usage.OutputTokens, factor); err != nil {
+  505: 		return domain.TokenUsage{}, err
+  506: 	}
+  507: 	if out.ReasoningTokens, err = ceilMulRat(usage.ReasoningTokens, factor); err != nil {
+  508: 		return domain.TokenUsage{}, err
+  509: 	}
+  510: 	if out.ImageInputTokens, err = ceilMulRat(usage.ImageInputTokens, factor); err != nil {
+  511: 		return domain.TokenUsage{}, err
+  512: 	}
+  513: 	if out.AudioInputTokens, err = ceilMulRat(usage.AudioInputTokens, factor); err != nil {
+  514: 		return domain.TokenUsage{}, err
+  515: 	}
+  516: 	if out.AudioOutputTokens, err = ceilMulRat(usage.AudioOutputTokens, factor); err != nil {
+  517: 		return domain.TokenUsage{}, err
+  518: 	}
+  519: 	if out.FileInputTokens, err = ceilMulRat(usage.FileInputTokens, factor); err != nil {
+  520: 		return domain.TokenUsage{}, err
+  521: 	}
+  522: 	if out.VideoInputTokens, err = ceilMulRat(usage.VideoInputTokens, factor); err != nil {
+  523: 		return domain.TokenUsage{}, err
+  524: 	}
+  525: 	return out, nil
+  526: }
+  527: 
+  528: func ceilMulRat(value int64, factor *big.Rat) (int64, error) {
+  529: 	if value < 0 {
+  530: 		return 0, fmt.Errorf("%w: token safety factor negative usage", ErrInvalidUsage)
+  531: 	}
+  532: 	if value == 0 {
+  533: 		return 0, nil
+  534: 	}
+  535: 	r := new(big.Rat).Mul(new(big.Rat).SetInt64(value), factor)
+  536: 	ceil := ceilRat(r)
+  537: 	if ceil.Cmp(maxInt64Big) > 0 {
+  538: 		return 0, fmt.Errorf("%w: token estimate", ErrAmountOverflow)
+  539: 	}
+  540: 	return ceil.Int64(), nil
+  541: }
+
+====================================================================================================
+FILE: internal/application/pricing/resolver.go
+GIT_BLOB_SHA: 40b6562f5579f755d80bc0c5fc4b484179820dc7
+----------------------------------------------------------------------------------------------------
+    1: package pricing
+    2: 
+    3: import (
+    4: 	"context"
+    5: 	"fmt"
+    6: 
+    7: 	"github.com/bogachenko/tokenio-gateway/internal/domain"
+    8: 	"github.com/bogachenko/tokenio-gateway/internal/ports"
+    9: )
+   10: 
+   11: type ResolveUsageInput struct {
+   12: 	Route        domain.Route
+   13: 	Price        domain.RoutePrice
+   14: 	RequestBody  []byte
+   15: 	ResponseBody []byte
+   16: 
+   17: 	RequestedCapabilities domain.CapabilitySet
+   18: 	Modalities            InputModalities
+   19: 
+   20: 	ZeroUsageAllowed bool
+   21: }
+   22: 
+   23: type ResolvedUsageResult struct {
+   24: 	Usage        domain.TokenUsage
+   25: 	Completeness UsageCompleteness
+   26: 	Estimated    bool
+   27: 
+   28: 	UpstreamCostCents int64
+   29: 	ClientAmountCents int64
+   30: 	Currency          string
+   31: 
+   32: 	ProviderRequestID     string
+   33: 	ProviderResponseModel string
+   34: }
+   35: 
+   36: type UsageResolver struct {
+   37: 	extractor  ports.UsageExtractor
+   38: 	estimator  ports.TokenEstimator
+   39: 	calculator *Calculator
+   40: }
+   41: 
+   42: func NewUsageResolver(extractor ports.UsageExtractor, estimator ports.TokenEstimator, calculator *Calculator) (*UsageResolver, error) {
+   43: 	if extractor == nil {
+   44: 		return nil, fmt.Errorf("%w: nil usage extractor", ErrInvalidPricingInput)
+   45: 	}
+   46: 	if estimator == nil {
+   47: 		return nil, fmt.Errorf("%w: nil token estimator", ErrInvalidPricingInput)
+   48: 	}
+   49: 	if calculator == nil {
+   50: 		return nil, fmt.Errorf("%w: nil calculator", ErrInvalidPricingInput)
+   51: 	}
+   52: 	return &UsageResolver{extractor: extractor, estimator: estimator, calculator: calculator}, nil
+   53: }
+   54: 
+   55: func (r *UsageResolver) Resolve(ctx context.Context, input ResolveUsageInput) (ResolvedUsageResult, error) {
+   56: 	if r == nil || r.extractor == nil || r.estimator == nil || r.calculator == nil {
+   57: 		return ResolvedUsageResult{}, fmt.Errorf("%w: nil usage resolver", ErrInvalidPricingInput)
+   58: 	}
+   59: 	if err := validateRouteAndPrice(input.Route, input.Price); err != nil {
+   60: 		return ResolvedUsageResult{}, err
+   61: 	}
+   62: 	if input.RequestBody == nil || input.ResponseBody == nil {
+   63: 		return ResolvedUsageResult{}, fmt.Errorf("%w: request or response body is nil", ErrInvalidPricingInput)
+   64: 	}
+   65: 	extracted, err := r.extractor.Extract(ctx, ports.UsageExtractionRequest{
+   66: 		APIFamily:    input.Route.APIFamily,
+   67: 		EndpointKind: input.Route.EndpointKind,
+   68: 		ClientModel:  input.Route.ClientModel,
+   69: 		RequestBody:  append([]byte(nil), input.RequestBody...),
+   70: 		ResponseBody: append([]byte(nil), input.ResponseBody...),
+   71: 	})
+   72: 	if err != nil {
+   73: 		return r.estimateFallback(ctx, input, UsageCompletenessEstimated, err)
+   74: 	}
+   75: 	completeness, err := ParseUsageCompleteness(extracted.Completeness)
+   76: 	if err != nil {
+   77: 		return ResolvedUsageResult{}, err
+   78: 	}
+   79: 	required := requiredUsagePresence(input.Route.EndpointKind)
+   80: 	if completeness == UsageCompletenessAggregate &&
+   81: 		!presenceContains(extracted.Presence, required) {
+   82: 		return r.partialActualResult(
+   83: 			ctx,
+   84: 			input,
+   85: 			extracted,
+   86: 			required,
+   87: 		)
+   88: 	}
+   89: 	if IsZeroUsage(extracted.Usage) && !input.ZeroUsageAllowed {
+   90: 		return r.estimateFallback(ctx, input, UsageCompletenessEstimated, nil)
+   91: 	}
+   92: 	switch completeness {
+   93: 	case UsageCompletenessDetailed:
+   94: 		return r.actualResult(extracted, completeness, input.Price, InputPricingModeDetailed, input.Modalities)
+   95: 	case UsageCompletenessAggregate:
+   96: 		return r.actualResult(extracted, completeness, input.Price, InputPricingModeAggregateMax, input.Modalities)
+   97: 	case UsageCompletenessEstimated:
+   98: 		return r.estimatedResult(extracted, completeness, input.Price, input.Modalities)
+   99: 	case UsageCompletenessMissing, UsageCompletenessFailed:
+  100: 		return r.estimateFallback(ctx, input, UsageCompletenessEstimated, nil)
+  101: 	default:
+  102: 		return ResolvedUsageResult{}, fmt.Errorf("%w: %q", ErrInvalidUsageCompleteness, completeness)
+  103: 	}
+  104: }
+  105: 
+  106: func (r *UsageResolver) partialActualResult(
+  107: 	ctx context.Context,
+  108: 	input ResolveUsageInput,
+  109: 	extracted ports.UsageExtractionResult,
+  110: 	required ports.UsageDimensionPresence,
+  111: ) (ResolvedUsageResult, error) {
+  112: 	estimate, err := r.estimate(ctx, input)
+  113: 	if err != nil {
+  114: 		return ResolvedUsageResult{}, fmt.Errorf(
+  115: 			"%w: estimate missing usage: %v",
+  116: 			ErrUsageUnresolved,
+  117: 			err,
+  118: 		)
+  119: 	}
+  120: 	estimatedUsage := selectMissingRequiredUsage(
+  121: 		estimate.Usage,
+  122: 		extracted.Presence,
+  123: 		required,
+  124: 	)
+  125: 	calculation, err := r.calculator.CalculateMixed(
+  126: 		MixedCalculationInput{
+  127: 			ActualUsage:        extracted.Usage,
+  128: 			EstimatedUsage:     estimatedUsage,
+  129: 			Price:              input.Price,
+  130: 			ActualInputMode:    InputPricingModeAggregateMax,
+  131: 			EstimatedInputMode: InputPricingModeDetailed,
+  132: 			Modalities:         input.Modalities,
+  133: 		},
+  134: 	)
+  135: 	if err != nil {
+  136: 		return ResolvedUsageResult{}, err
+  137: 	}
+  138: 	return resolvedFromCalculation(
+  139: 		calculation,
+  140: 		UsageCompletenessAggregate,
+  141: 		extracted.ProviderRequestID,
+  142: 		extracted.ProviderResponseModel,
+  143: 	), nil
+  144: }
+  145: 
+  146: func (r *UsageResolver) actualResult(extracted ports.UsageExtractionResult, completeness UsageCompleteness, price domain.RoutePrice, mode InputPricingMode, modalities InputModalities) (ResolvedUsageResult, error) {
+  147: 	calculation, err := r.calculator.CalculateActual(ActualCalculationInput{Usage: extracted.Usage, Price: price, InputMode: mode, Modalities: modalities})
+  148: 	if err != nil {
+  149: 		return ResolvedUsageResult{}, err
+  150: 	}
+  151: 	return resolvedFromCalculation(calculation, completeness, extracted.ProviderRequestID, extracted.ProviderResponseModel), nil
+  152: }
+  153: 
+  154: func (r *UsageResolver) estimatedResult(extracted ports.UsageExtractionResult, completeness UsageCompleteness, price domain.RoutePrice, modalities InputModalities) (ResolvedUsageResult, error) {
+  155: 	calculation, err := r.calculator.CalculateEstimate(EstimateCalculationInput{Usage: extracted.Usage, Price: price, InputMode: InputPricingModeDetailed, Modalities: modalities})
+  156: 	if err != nil {
+  157: 		return ResolvedUsageResult{}, err
+  158: 	}
+  159: 	return resolvedFromCalculation(calculation, completeness, extracted.ProviderRequestID, extracted.ProviderResponseModel), nil
+  160: }
+  161: 
+  162: func (r *UsageResolver) estimateFallback(ctx context.Context, input ResolveUsageInput, completeness UsageCompleteness, cause error) (ResolvedUsageResult, error) {
+  163: 	estimate, err := r.estimate(ctx, input)
+  164: 	if err != nil {
+  165: 		if cause != nil {
+  166: 			return ResolvedUsageResult{}, fmt.Errorf("%w: extract usage failed: %w; estimate usage failed: %v", ErrUsageUnresolved, cause, err)
+  167: 		}
+  168: 		return ResolvedUsageResult{}, fmt.Errorf("%w: estimate usage failed: %v", ErrUsageUnresolved, err)
+  169: 	}
+  170: 	calculation, err := r.calculator.CalculateEstimate(EstimateCalculationInput{Usage: estimate.Usage, Price: input.Price, InputMode: InputPricingModeDetailed, Modalities: input.Modalities})
+  171: 	if err != nil {
+  172: 		return ResolvedUsageResult{}, err
+  173: 	}
+  174: 	return resolvedFromCalculation(calculation, completeness, "", ""), nil
+  175: }
+  176: 
+  177: func (r *UsageResolver) estimate(
+  178: 	ctx context.Context,
+  179: 	input ResolveUsageInput,
+  180: ) (ports.TokenEstimate, error) {
+  181: 	estimate, err := r.estimator.Estimate(ctx, ports.TokenEstimateRequest{
+  182: 		APIFamily:              input.Route.APIFamily,
+  183: 		EndpointKind:           input.Route.EndpointKind,
+  184: 		ClientModel:            input.Route.ClientModel,
+  185: 		RequestBody:            append([]byte(nil), input.RequestBody...),
+  186: 		DefaultMaxOutputTokens: input.Route.DefaultMaxOutputTokens,
+  187: 		RequestedCapabilities:  input.RequestedCapabilities,
+  188: 	})
+  189: 	if err != nil {
+  190: 		return ports.TokenEstimate{}, err
+  191: 	}
+  192: 	if err := ValidateUsage(estimate.Usage); err != nil {
+  193: 		return ports.TokenEstimate{}, err
+  194: 	}
+  195: 	return estimate, nil
+  196: }
+  197: 
+  198: func requiredUsagePresence(
+  199: 	endpoint domain.EndpointKind,
+  200: ) ports.UsageDimensionPresence {
+  201: 	switch endpoint {
+  202: 	case domain.EndpointChat:
+  203: 		return ports.UsageDimensionPresence{
+  204: 			InputTokens:  true,
+  205: 			OutputTokens: true,
+  206: 		}
+  207: 	case domain.EndpointEmbeddings:
+  208: 		return ports.UsageDimensionPresence{
+  209: 			InputTokens: true,
+  210: 		}
+  211: 	case domain.EndpointImagesGeneration:
+  212: 		return ports.UsageDimensionPresence{
+  213: 			ImageGenerationUnits: true,
+  214: 		}
+  215: 	default:
+  216: 		return ports.UsageDimensionPresence{}
+  217: 	}
+  218: }
+  219: 
+  220: func presenceContains(
+  221: 	actual ports.UsageDimensionPresence,
+  222: 	required ports.UsageDimensionPresence,
+  223: ) bool {
+  224: 	return (!required.InputTokens || actual.InputTokens) &&
+  225: 		(!required.CachedInputTokens || actual.CachedInputTokens) &&
+  226: 		(!required.OutputTokens || actual.OutputTokens) &&
+  227: 		(!required.ReasoningTokens || actual.ReasoningTokens) &&
+  228: 		(!required.ImageInputTokens || actual.ImageInputTokens) &&
+  229: 		(!required.AudioInputTokens || actual.AudioInputTokens) &&
+  230: 		(!required.AudioOutputTokens || actual.AudioOutputTokens) &&
+  231: 		(!required.FileInputTokens || actual.FileInputTokens) &&
+  232: 		(!required.VideoInputTokens || actual.VideoInputTokens) &&
+  233: 		(!required.ImageGenerationUnits || actual.ImageGenerationUnits)
+  234: }
+  235: 
+  236: func selectMissingRequiredUsage(
+  237: 	estimate domain.TokenUsage,
+  238: 	actual ports.UsageDimensionPresence,
+  239: 	required ports.UsageDimensionPresence,
+  240: ) domain.TokenUsage {
+  241: 	var selected domain.TokenUsage
+  242: 	if required.InputTokens && !actual.InputTokens {
+  243: 		selected.InputTokens = estimate.InputTokens
+  244: 	}
+  245: 	if required.CachedInputTokens && !actual.CachedInputTokens {
+  246: 		selected.CachedInputTokens = estimate.CachedInputTokens
+  247: 	}
+  248: 	if required.OutputTokens && !actual.OutputTokens {
+  249: 		selected.OutputTokens = estimate.OutputTokens
+  250: 	}
+  251: 	if required.ReasoningTokens && !actual.ReasoningTokens {
+  252: 		selected.ReasoningTokens = estimate.ReasoningTokens
+  253: 	}
+  254: 	if required.ImageInputTokens && !actual.ImageInputTokens {
+  255: 		selected.ImageInputTokens = estimate.ImageInputTokens
+  256: 	}
+  257: 	if required.AudioInputTokens && !actual.AudioInputTokens {
+  258: 		selected.AudioInputTokens = estimate.AudioInputTokens
+  259: 	}
+  260: 	if required.AudioOutputTokens && !actual.AudioOutputTokens {
+  261: 		selected.AudioOutputTokens = estimate.AudioOutputTokens
+  262: 	}
+  263: 	if required.FileInputTokens && !actual.FileInputTokens {
+  264: 		selected.FileInputTokens = estimate.FileInputTokens
+  265: 	}
+  266: 	if required.VideoInputTokens && !actual.VideoInputTokens {
+  267: 		selected.VideoInputTokens = estimate.VideoInputTokens
+  268: 	}
+  269: 	if required.ImageGenerationUnits && !actual.ImageGenerationUnits {
+  270: 		selected.ImageGenerationUnits = estimate.ImageGenerationUnits
+  271: 	}
+  272: 	return selected
+  273: }
+  274: 
+  275: func resolvedFromCalculation(calculation CalculationResult, completeness UsageCompleteness, requestID, responseModel string) ResolvedUsageResult {
+  276: 	return ResolvedUsageResult{
+  277: 		Usage:                 calculation.Usage,
+  278: 		Completeness:          completeness,
+  279: 		Estimated:             calculation.Estimated,
+  280: 		UpstreamCostCents:     calculation.UpstreamCostCents,
+  281: 		ClientAmountCents:     calculation.ClientAmountCents,
+  282: 		Currency:              calculation.Currency,
+  283: 		ProviderRequestID:     requestID,
+  284: 		ProviderResponseModel: responseModel,
+  285: 	}
+  286: }
+
+====================================================================================================
+FILE: internal/application/llmrequest/service.go
+GIT_BLOB_SHA: 25b3c737ee4484ea28b0d52be2af46ce0bb0003a
+----------------------------------------------------------------------------------------------------
+    1: package llmrequest
+    2: 
+    3: import (
+    4: 	"context"
+    5: 	"errors"
+    6: 	"fmt"
+    7: 	"strings"
+    8: 	"time"
+    9: 	"unicode"
+   10: 
+   11: 	"github.com/bogachenko/tokenio-gateway/internal/domain"
+   12: )
+   13: 
+   14: const localRequestIDPrefix = "llmreq_"
+   15: 
+   16: type Service struct {
+   17: 	authenticator      Authenticator
+   18: 	requestParser      RequestParser
+   19: 	capabilityDetector CapabilityDetector
+   20: 	routePlanner       RoutePlanner
+   21: 	billingAdmitter    BillingAdmitter
+   22: 	forwarding         ForwardingStageExecutor
+   23: 	usageResolver      UsageResolver
+   24: 	finalizer          Finalizer
+   25: 	autoCharger        AutoCharger
+   26: }
+   27: 
+   28: func NewService(dependencies Dependencies) (*Service, error) {
+   29: 	if dependencies.Authenticator == nil ||
+   30: 		dependencies.RequestParser == nil ||
+   31: 		dependencies.CapabilityDetector == nil ||
+   32: 		dependencies.RoutePlanner == nil ||
+   33: 		dependencies.BillingAdmitter == nil ||
+   34: 		dependencies.Forwarding == nil ||
+   35: 		dependencies.UsageResolver == nil ||
+   36: 		dependencies.Finalizer == nil ||
+   37: 		dependencies.AutoCharger == nil {
+   38: 		return nil, ErrDependencyRequired
+   39: 	}
+   40: 
+   41: 	return &Service{
+   42: 		authenticator:      dependencies.Authenticator,
+   43: 		requestParser:      dependencies.RequestParser,
+   44: 		capabilityDetector: dependencies.CapabilityDetector,
+   45: 		routePlanner:       dependencies.RoutePlanner,
+   46: 		billingAdmitter:    dependencies.BillingAdmitter,
+   47: 		forwarding:         dependencies.Forwarding,
+   48: 		usageResolver:      dependencies.UsageResolver,
+   49: 		finalizer:          dependencies.Finalizer,
+   50: 		autoCharger:        dependencies.AutoCharger,
+   51: 	}, nil
+   52: }
+   53: 
+   54: func (s *Service) Execute(
+   55: 	ctx context.Context,
+   56: 	input Input,
+   57: ) (ForwardedRequest, error) {
+   58: 	if s == nil ||
+   59: 		s.authenticator == nil ||
+   60: 		s.requestParser == nil ||
+   61: 		s.capabilityDetector == nil ||
+   62: 		s.routePlanner == nil ||
+   63: 		s.billingAdmitter == nil ||
+   64: 		s.forwarding == nil ||
+   65: 		s.usageResolver == nil ||
+   66: 		s.finalizer == nil ||
+   67: 		s.autoCharger == nil {
+   68: 		return ForwardedRequest{}, ErrDependencyRequired
+   69: 	}
+   70: 	if ctx == nil {
+   71: 		return ForwardedRequest{}, fmt.Errorf(
+   72: 			"%w: nil context",
+   73: 			ErrInvalidInput,
+   74: 		)
+   75: 	}
+   76: 
+   77: 	prepared, err := s.prepare(ctx, input)
+   78: 	if err != nil {
+   79: 		return ForwardedRequest{}, err
+   80: 	}
+   81: 
+   82: 	admission, err := s.billingAdmitter.Admit(
+   83: 		ctx,
+   84: 		BillingAdmissionInput{
+   85: 			Principal:            prepared.Principal,
+   86: 			RequiredReserveCents: prepared.Plan.EstimatedClientAmountCents,
+   87: 			Currency:             prepared.Plan.Currency,
+   88: 		},
+   89: 	)
+   90: 	if err != nil {
+   91: 		return ForwardedRequest{}, fmt.Errorf(
+   92: 			"admit billing reserve: %w",
+   93: 			err,
+   94: 		)
+   95: 	}
+   96: 	if err := validateBillingAdmission(prepared, admission); err != nil {
+   97: 		return ForwardedRequest{}, err
+   98: 	}
+   99: 
+  100: 	forwarded, err := s.forwarding.Execute(
+  101: 		ctx,
+  102: 		clonePreparedRequest(prepared),
+  103: 		admission,
+  104: 	)
+  105: 	if err != nil {
+  106: 		return ForwardedRequest{}, fmt.Errorf(
+  107: 			"execute forwarding stage: %w",
+  108: 			err,
+  109: 		)
+  110: 	}
+  111: 
+  112: 	resolved, err := s.usageResolver.Resolve(
+  113: 		ctx,
+  114: 		UsageResolutionInput{
+  115: 			Reserved: forwarded.Reserved,
+  116: 			Response: cloneForwardResponse(
+  117: 				forwarded.Response,
+  118: 			),
+  119: 		},
+  120: 	)
+  121: 	if err != nil {
+  122: 		failureErr := s.markPricingFailed(
+  123: 			ctx,
+  124: 			forwarded.Reserved,
+  125: 			"usage_resolution_failed",
+  126: 		)
+  127: 		if failureErr != nil {
+  128: 			return ForwardedRequest{}, errors.Join(
+  129: 				fmt.Errorf("resolve final usage: %w", err),
+  130: 				failureErr,
+  131: 			)
+  132: 		}
+  133: 		return ForwardedRequest{}, fmt.Errorf(
+  134: 			"resolve final usage: %w",
+  135: 			err,
+  136: 		)
+  137: 	}
+  138: 	if err := validateUsageResolution(
+  139: 		forwarded,
+  140: 		resolved,
+  141: 	); err != nil {
+  142: 		failureErr := s.markPricingFailed(
+  143: 			ctx,
+  144: 			forwarded.Reserved,
+  145: 			"usage_resolution_invalid",
+  146: 		)
+  147: 		if failureErr != nil {
+  148: 			return ForwardedRequest{}, errors.Join(
+  149: 				err,
+  150: 				failureErr,
+  151: 			)
+  152: 		}
+  153: 		return ForwardedRequest{}, err
+  154: 	}
+  155: 
+  156: 	finalized, err := s.finalizer.Commit(
+  157: 		ctx,
+  158: 		FinalizationInput{
+  159: 			Reserved:      forwarded.Reserved,
+  160: 			ResolvedUsage: resolved,
+  161: 		},
+  162: 	)
+  163: 	if err != nil {
+  164: 		return ForwardedRequest{}, fmt.Errorf(
+  165: 			"finalize billable usage: %w",
+  166: 			err,
+  167: 		)
+  168: 	}
+  169: 	if finalized.Usage.Status != domain.UsageStatusBillable ||
+  170: 		finalized.Usage.LocalRequestID !=
+  171: 			forwarded.Reserved.Prepared.LocalRequestID {
+  172: 		return ForwardedRequest{}, fmt.Errorf(
+  173: 			"%w: invalid finalization result",
+  174: 			ErrStageContractViolation,
+  175: 		)
+  176: 	}
+  177: 
+  178: 	forwarded.ResolvedUsage = resolved
+  179: 	forwarded.FinalUsageRecord = finalized.Usage
+  180: 	forwarded.AutoCharge = cloneAutoChargeResult(
+  181: 		s.autoCharger.Run(
+  182: 			ctx,
+  183: 			AutoChargeInput{
+  184: 				Principal: forwarded.Reserved.
+  185: 					Prepared.Principal,
+  186: 				FinalUsageRecord: finalized.Usage,
+  187: 			},
+  188: 		),
+  189: 	)
+  190: 	return forwarded, nil
+  191: }
+  192: 
+  193: func cloneAutoChargeResult(
+  194: 	value AutoChargeResult,
+  195: ) AutoChargeResult {
+  196: 	result := value
+  197: 	result.ProcessedBatchIDs = append(
+  198: 		[]string(nil),
+  199: 		value.ProcessedBatchIDs...,
+  200: 	)
+  201: 	if value.BillingBalanceCents != nil {
+  202: 		copied := *value.BillingBalanceCents
+  203: 		result.BillingBalanceCents = &copied
+  204: 	}
+  205: 	switch result.Status {
+  206: 	case AutoChargeStatusDeferred,
+  207: 		AutoChargeStatusProcessed,
+  208: 		AutoChargeStatusFailed:
+  209: 	default:
+  210: 		result = AutoChargeResult{
+  211: 			Status: AutoChargeStatusFailed,
+  212: 		}
+  213: 	}
+  214: 	if result.ChargedAmountCents < 0 {
+  215: 		result = AutoChargeResult{
+  216: 			Status: AutoChargeStatusFailed,
+  217: 		}
+  218: 	}
+  219: 	return result
+  220: }
+  221: 
+  222: func (s *Service) markPricingFailed(
+  223: 	ctx context.Context,
+  224: 	reserved ReservedRequest,
+  225: 	reason string,
+  226: ) error {
+  227: 	finalized, err := s.finalizer.MarkPricingFailed(
+  228: 		ctx,
+  229: 		PricingFailureInput{
+  230: 			Reserved:      reserved,
+  231: 			FailureReason: reason,
+  232: 		},
+  233: 	)
+  234: 	if err != nil {
+  235: 		return fmt.Errorf(
+  236: 			"finalize pricing failure: %w",
+  237: 			err,
+  238: 		)
+  239: 	}
+  240: 	if finalized.Usage.Status !=
+  241: 		domain.UsageStatusPricingFailed ||
+  242: 		finalized.Usage.LocalRequestID !=
+  243: 			reserved.Prepared.LocalRequestID {
+  244: 		return fmt.Errorf(
+  245: 			"%w: invalid pricing failure result",
+  246: 			ErrStageContractViolation,
+  247: 		)
+  248: 	}
+  249: 	return nil
+  250: }
+  251: 
+  252: func validateUsageResolution(
+  253: 	forwarded ForwardedRequest,
+  254: 	resolved UsageResolutionResult,
+  255: ) error {
+  256: 	if resolved.Completeness == "" ||
+  257: 		resolved.UpstreamCostCents < 0 ||
+  258: 		resolved.ClientAmountCents < 0 ||
+  259: 		resolved.Currency != forwarded.Reserved.Prepared.Plan.Currency ||
+  260: 		!nonNegativeUsage(resolved.Usage) {
+  261: 		return fmt.Errorf(
+  262: 			"%w: invalid usage resolution",
+  263: 			ErrStageContractViolation,
+  264: 		)
+  265: 	}
+  266: 	return nil
+  267: }
+  268: 
+  269: func (s *Service) prepare(
+  270: 	ctx context.Context,
+  271: 	input Input,
+  272: ) (PreparedRequest, error) {
+  273: 	if err := validateInput(input); err != nil {
+  274: 		return PreparedRequest{}, err
+  275: 	}
+  276: 
+  277: 	originalPayload := cloneBytes(input.Payload)
+  278: 
+  279: 	principal, err := s.authenticator.Authenticate(
+  280: 		ctx,
+  281: 		input.RawAPIKey,
+  282: 	)
+  283: 	if err != nil {
+  284: 		return PreparedRequest{}, fmt.Errorf(
+  285: 			"authenticate request: %w",
+  286: 			err,
+  287: 		)
+  288: 	}
+  289: 	if err := validatePrincipal(principal); err != nil {
+  290: 		return PreparedRequest{}, err
+  291: 	}
+  292: 
+  293: 	parsed, err := s.requestParser.Parse(
+  294: 		ctx,
+  295: 		ParseInput{
+  296: 			APIFamily:    input.APIFamily,
+  297: 			EndpointKind: input.EndpointKind,
+  298: 			Payload:      cloneBytes(originalPayload),
+  299: 		},
+  300: 	)
+  301: 	if err != nil {
+  302: 		return PreparedRequest{}, fmt.Errorf(
+  303: 			"parse request: %w",
+  304: 			err,
+  305: 		)
+  306: 	}
+  307: 	if strings.TrimSpace(parsed.ClientModel) == "" {
+  308: 		return PreparedRequest{}, fmt.Errorf(
+  309: 			"%w: parser returned blank client model",
+  310: 			ErrStageContractViolation,
+  311: 		)
+  312: 	}
+  313: 
+  314: 	requestedCapabilities, err := s.capabilityDetector.Detect(
+  315: 		ctx,
+  316: 		CapabilityInput{
+  317: 			APIFamily:    input.APIFamily,
+  318: 			EndpointKind: input.EndpointKind,
+  319: 			ClientModel:  parsed.ClientModel,
+  320: 			Payload:      cloneBytes(originalPayload),
+  321: 		},
+  322: 	)
+  323: 	if err != nil {
+  324: 		return PreparedRequest{}, fmt.Errorf(
+  325: 			"detect requested capabilities: %w",
+  326: 			err,
+  327: 		)
+  328: 	}
+  329: 
+  330: 	plan, err := s.routePlanner.Plan(
+  331: 		ctx,
+  332: 		RoutePlanInput{
+  333: 			Principal:             principal,
+  334: 			APIFamily:             input.APIFamily,
+  335: 			EndpointKind:          input.EndpointKind,
+  336: 			ClientModel:           parsed.ClientModel,
+  337: 			RequestedCapabilities: requestedCapabilities,
+  338: 			Payload:               cloneBytes(originalPayload),
+  339: 		},
+  340: 	)
+  341: 	if err != nil {
+  342: 		return PreparedRequest{}, fmt.Errorf(
+  343: 			"plan route: %w",
+  344: 			err,
+  345: 		)
+  346: 	}
+  347: 	if err := validateRoutePlan(
+  348: 		input,
+  349: 		parsed,
+  350: 		plan,
+  351: 	); err != nil {
+  352: 		return PreparedRequest{}, err
+  353: 	}
+  354: 
+  355: 	return PreparedRequest{
+  356: 		LocalRequestID:        input.LocalRequestID,
+  357: 		IdempotencyKey:        cloneStringPointer(input.IdempotencyKey),
+  358: 		Principal:             principal,
+  359: 		APIFamily:             input.APIFamily,
+  360: 		EndpointKind:          input.EndpointKind,
+  361: 		ClientModel:           parsed.ClientModel,
+  362: 		RequestedCapabilities: requestedCapabilities,
+  363: 		Payload:               cloneBytes(originalPayload),
+  364: 		Plan:                  plan,
+  365: 	}, nil
+  366: }
+  367: 
+  368: func validateInput(input Input) error {
+  369: 	if !validLocalRequestID(input.LocalRequestID) ||
+  370: 		strings.TrimSpace(input.RawAPIKey) == "" ||
+  371: 		input.APIFamily == "" ||
+  372: 		input.EndpointKind == "" ||
+  373: 		input.Payload == nil {
+  374: 		return ErrInvalidInput
+  375: 	}
+  376: 	if input.IdempotencyKey != nil &&
+  377: 		strings.TrimSpace(*input.IdempotencyKey) == "" {
+  378: 		return fmt.Errorf(
+  379: 			"%w: blank idempotency key",
+  380: 			ErrInvalidInput,
+  381: 		)
+  382: 	}
+  383: 	return nil
+  384: }
+  385: 
+  386: func validatePrincipal(value Principal) error {
+  387: 	if strings.TrimSpace(value.UserID) == "" ||
+  388: 		strings.TrimSpace(value.APIKeyID) == "" ||
+  389: 		strings.TrimSpace(value.BillingSubjectUserID) == "" {
+  390: 		return fmt.Errorf(
+  391: 			"%w: invalid authentication principal",
+  392: 			ErrStageContractViolation,
+  393: 		)
+  394: 	}
+  395: 	return nil
+  396: }
+  397: 
+  398: func validateRoutePlan(
+  399: 	input Input,
+  400: 	parsed ParsedRequest,
+  401: 	plan RoutePlan,
+  402: ) error {
+  403: 	route := plan.Route
+  404: 	reseller := plan.Reseller
+  405: 	price := plan.Price
+  406: 
+  407: 	if strings.TrimSpace(route.ID) == "" ||
+  408: 		strings.TrimSpace(route.ResellerID) == "" ||
+  409: 		strings.TrimSpace(route.ClientModel) == "" ||
+  410: 		strings.TrimSpace(route.ProviderModel) == "" ||
+  411: 		strings.TrimSpace(reseller.ID) == "" ||
+  412: 		strings.TrimSpace(price.RouteID) == "" ||
+  413: 		strings.TrimSpace(plan.BillingModel) == "" ||
+  414: 		route.APIFamily != input.APIFamily ||
+  415: 		route.EndpointKind != input.EndpointKind ||
+  416: 		route.ClientModel != parsed.ClientModel ||
+  417: 		route.ResellerID != reseller.ID ||
+  418: 		route.ProviderType == "" ||
+  419: 		route.ProviderType != reseller.ProviderType ||
+  420: 		price.RouteID != route.ID ||
+  421: 		!route.Enabled ||
+  422: 		!reseller.Enabled ||
+  423: 		!price.Enabled ||
+  424: 		price.Currency != "RUB" ||
+  425: 		plan.Currency != "RUB" ||
+  426: 		plan.EstimatedClientAmountCents < 0 ||
+  427: 		plan.EstimatedUpstreamCostCents < 0 ||
+  428: 		strings.TrimSpace(plan.Confidence) == "" ||
+  429: 		!nonNegativeUsage(plan.EstimatedUsage) {
+  430: 		return fmt.Errorf(
+  431: 			"%w: invalid route plan",
+  432: 			ErrStageContractViolation,
+  433: 		)
+  434: 	}
+  435: 	return nil
+  436: }
+  437: 
+  438: func validateBillingAdmission(
+  439: 	prepared PreparedRequest,
+  440: 	admission BillingAdmissionResult,
+  441: ) error {
+  442: 	if !admission.Allowed ||
+  443: 		admission.Currency != prepared.Plan.Currency ||
+  444: 		admission.RequiredReserveCents !=
+  445: 			prepared.Plan.EstimatedClientAmountCents ||
+  446: 		admission.RemoteBalanceCents < 0 ||
+  447: 		admission.PendingAmountCents < 0 ||
+  448: 		admission.RemoteBalanceCents <
+  449: 			admission.PendingAmountCents ||
+  450: 		admission.EffectiveBalanceCents !=
+  451: 			admission.RemoteBalanceCents-
+  452: 				admission.PendingAmountCents ||
+  453: 		admission.EffectiveBalanceCents <
+  454: 			admission.RequiredReserveCents {
+  455: 		return fmt.Errorf(
+  456: 			"%w: invalid billing admission",
+  457: 			ErrStageContractViolation,
+  458: 		)
+  459: 	}
+  460: 	return nil
+  461: }
+  462: 
+  463: func reservationInput(
+  464: 	prepared PreparedRequest,
+  465: ) ReservationInput {
+  466: 	return ReservationInput{
+  467: 		LocalRequestID: prepared.LocalRequestID,
+  468: 		IdempotencyKey: cloneStringPointer(
+  469: 			prepared.IdempotencyKey,
+  470: 		),
+  471: 		Principal:      prepared.Principal,
+  472: 		APIFamily:      prepared.APIFamily,
+  473: 		EndpointKind:   prepared.EndpointKind,
+  474: 		ClientModel:    prepared.ClientModel,
+  475: 		BillingModel:   prepared.Plan.BillingModel,
+  476: 		Route:          prepared.Plan.Route,
+  477: 		Reseller:       prepared.Plan.Reseller,
+  478: 		EstimatedUsage: prepared.Plan.EstimatedUsage,
+  479: 		EstimatedClientAmountCents: prepared.Plan.
+  480: 			EstimatedClientAmountCents,
+  481: 		EstimatedUpstreamCostCents: prepared.Plan.
+  482: 			EstimatedUpstreamCostCents,
+  483: 		Currency: prepared.Plan.Currency,
+  484: 	}
+  485: }
+  486: 
+  487: func validateReservation(
+  488: 	prepared PreparedRequest,
+  489: 	result ReservationResult,
+  490: ) error {
+  491: 	usage := result.Usage
+  492: 	expectedIdempotencyKey := ""
+  493: 	if prepared.IdempotencyKey != nil {
+  494: 		expectedIdempotencyKey = *prepared.IdempotencyKey
+  495: 	}
+  496: 
+  497: 	if result.Disposition != ReservationDispositionCreated &&
+  498: 		result.Disposition !=
+  499: 			ReservationDispositionAlreadyReserved ||
+  500: 		usage.LocalRequestID != prepared.LocalRequestID ||
+  501: 		usage.IdempotencyKey != expectedIdempotencyKey ||
+  502: 		usage.UserID != prepared.Principal.UserID ||
+  503: 		usage.APIKeyID != prepared.Principal.APIKeyID ||
+  504: 		usage.APIFamily != prepared.APIFamily ||
+  505: 		usage.EndpointKind != prepared.EndpointKind ||
+  506: 		usage.ClientModel != prepared.ClientModel ||
+  507: 		usage.BillingModel != prepared.Plan.BillingModel ||
+  508: 		usage.SelectedRouteID != prepared.Plan.Route.ID ||
+  509: 		usage.SelectedResellerID != prepared.Plan.Reseller.ID ||
+  510: 		usage.ProviderType != prepared.Plan.Route.ProviderType ||
+  511: 		usage.ProviderModel != prepared.Plan.Route.ProviderModel ||
+  512: 		usage.EstimatedUsage != prepared.Plan.EstimatedUsage ||
+  513: 		usage.EstimatedClientAmountCents !=
+  514: 			prepared.Plan.EstimatedClientAmountCents ||
+  515: 		usage.EstimatedUpstreamCostCents !=
+  516: 			prepared.Plan.EstimatedUpstreamCostCents ||
+  517: 		usage.Currency != prepared.Plan.Currency ||
+  518: 		usage.UsageCompleteness != "missing" ||
+  519: 		usage.Status != domain.UsageStatusReserved ||
+  520: 		usage.Usage != (domain.TokenUsage{}) ||
+  521: 		usage.ClientAmountCents != 0 ||
+  522: 		usage.ChargedAmountCents != 0 ||
+  523: 		usage.RemainingAmountCents != 0 ||
+  524: 		usage.ActualUpstreamCostCents != 0 ||
+  525: 		usage.ReservedAt == nil ||
+  526: 		usage.ReleasedAt != nil ||
+  527: 		usage.BillableAt != nil ||
+  528: 		usage.ChargedAt != nil ||
+  529: 		usage.FailedAt != nil ||
+  530: 		usage.CreatedAt.IsZero() ||
+  531: 		usage.UpdatedAt.IsZero() ||
+  532: 		usage.CreatedAt.Location() != time.UTC ||
+  533: 		usage.ReservedAt.Location() != time.UTC ||
+  534: 		usage.UpdatedAt.Location() != time.UTC ||
+  535: 		!usage.CreatedAt.Equal(*usage.ReservedAt) ||
+  536: 		!usage.UpdatedAt.Equal(*usage.ReservedAt) ||
+  537: 		strings.TrimSpace(usage.FailureReason) != "" ||
+  538: 		strings.TrimSpace(usage.BillingChargeRequestID) != "" {
+  539: 		return fmt.Errorf(
+  540: 			"%w: invalid atomic reservation",
+  541: 			ErrStageContractViolation,
+  542: 		)
+  543: 	}
+  544: 
+  545: 	switch result.Disposition {
+  546: 	case ReservationDispositionCreated:
+  547: 		if result.Reseller == nil ||
+  548: 			result.Reseller.ID != prepared.Plan.Reseller.ID ||
+  549: 			result.Reseller.ProviderType !=
+  550: 				prepared.Plan.Reseller.ProviderType ||
+  551: 			result.Reseller.ReservedCents <
+  552: 				prepared.Plan.EstimatedUpstreamCostCents {
+  553: 			return fmt.Errorf(
+  554: 				"%w: invalid created reseller reserve",
+  555: 				ErrStageContractViolation,
+  556: 			)
+  557: 		}
+  558: 	case ReservationDispositionAlreadyReserved:
+  559: 		if result.Reseller != nil {
+  560: 			return fmt.Errorf(
+  561: 				"%w: replay returned mutable reseller snapshot",
+  562: 				ErrStageContractViolation,
+  563: 			)
+  564: 		}
+  565: 	}
+  566: 	return nil
+  567: }
+  568: 
+  569: func validLocalRequestID(value string) bool {
+  570: 	if !strings.HasPrefix(value, localRequestIDPrefix) ||
+  571: 		len(value) == len(localRequestIDPrefix) {
+  572: 		return false
+  573: 	}
+  574: 	for _, current := range value {
+  575: 		if unicode.IsControl(current) ||
+  576: 			unicode.IsSpace(current) {
+  577: 			return false
+  578: 		}
+  579: 	}
+  580: 	return true
+  581: }
+  582: 
+  583: func nonNegativeUsage(value domain.TokenUsage) bool {
+  584: 	return value.InputTokens >= 0 &&
+  585: 		value.CachedInputTokens >= 0 &&
+  586: 		value.OutputTokens >= 0 &&
+  587: 		value.ReasoningTokens >= 0 &&
+  588: 		value.ImageInputTokens >= 0 &&
+  589: 		value.AudioInputTokens >= 0 &&
+  590: 		value.AudioOutputTokens >= 0 &&
+  591: 		value.FileInputTokens >= 0 &&
+  592: 		value.VideoInputTokens >= 0 &&
+  593: 		value.ImageGenerationUnits >= 0
+  594: }
+  595: 
+  596: func clonePreparedRequest(
+  597: 	value PreparedRequest,
+  598: ) PreparedRequest {
+  599: 	result := value
+  600: 	result.IdempotencyKey = cloneStringPointer(
+  601: 		value.IdempotencyKey,
+  602: 	)
+  603: 	result.Payload = cloneBytes(value.Payload)
+  604: 	result.Plan.Fallbacks = cloneRouteFallbackPlans(
+  605: 		value.Plan.Fallbacks,
+  606: 	)
+  607: 	return result
+  608: }
+  609: 
+  610: func cloneRouteFallbackPlans(
+  611: 	values []RouteFallbackPlan,
+  612: ) []RouteFallbackPlan {
+  613: 	if values == nil {
+  614: 		return nil
+  615: 	}
+  616: 	return append([]RouteFallbackPlan(nil), values...)
+  617: }
+  618: 
+  619: func cloneReservationResult(
+  620: 	value ReservationResult,
+  621: ) ReservationResult {
+  622: 	result := value
+  623: 	result.Usage.ReservedAt = cloneTimePointer(
+  624: 		value.Usage.ReservedAt,
+  625: 	)
+  626: 	result.Usage.ReleasedAt = cloneTimePointer(
+  627: 		value.Usage.ReleasedAt,
+  628: 	)
+  629: 	result.Usage.BillableAt = cloneTimePointer(
+  630: 		value.Usage.BillableAt,
+  631: 	)
+  632: 	result.Usage.ChargedAt = cloneTimePointer(
+  633: 		value.Usage.ChargedAt,
+  634: 	)
+  635: 	result.Usage.FailedAt = cloneTimePointer(
+  636: 		value.Usage.FailedAt,
+  637: 	)
+  638: 	if value.Reseller != nil {
+  639: 		reseller := *value.Reseller
+  640: 		reseller.DisabledAt = cloneTimePointer(
+  641: 			value.Reseller.DisabledAt,
+  642: 		)
+  643: 		result.Reseller = &reseller
+  644: 	}
+  645: 	return result
+  646: }
+  647: 
+  648: func cloneBytes(value []byte) []byte {
+  649: 	if value == nil {
+  650: 		return nil
+  651: 	}
+  652: 	return append([]byte(nil), value...)
+  653: }
+  654: 
+  655: func cloneStringPointer(value *string) *string {
+  656: 	if value == nil {
+  657: 		return nil
+  658: 	}
+  659: 	copyValue := *value
+  660: 	return &copyValue
+  661: }
+  662: 
+  663: func cloneTimePointer(value *time.Time) *time.Time {
+  664: 	if value == nil {
+  665: 		return nil
+  666: 	}
+  667: 	copyValue := *value
+  668: 	return &copyValue
+  669: }
+
+====================================================================================================
+FILE: internal/application/llmrequest/service_test.go
+GIT_BLOB_SHA: cf0779279ff3bdb7714ee380af0f2853f6f6900f
+----------------------------------------------------------------------------------------------------
+    1: package llmrequest
+    2: 
+    3: import (
+    4: 	"bytes"
+    5: 	"context"
+    6: 	"errors"
+    7: 	"reflect"
+    8: 	"testing"
+    9: 	"time"
+   10: 
+   11: 	"github.com/bogachenko/tokenio-gateway/internal/domain"
+   12: 	"github.com/bogachenko/tokenio-gateway/internal/ports"
+   13: )
+   14: 
+   15: type authenticateFunc func(
+   16: 	context.Context,
+   17: 	string,
+   18: ) (Principal, error)
+   19: 
+   20: func (function authenticateFunc) Authenticate(
+   21: 	ctx context.Context,
+   22: 	rawAPIKey string,
+   23: ) (Principal, error) {
+   24: 	return function(ctx, rawAPIKey)
+   25: }
+   26: 
+   27: type parseFunc func(
+   28: 	context.Context,
+   29: 	ParseInput,
+   30: ) (ParsedRequest, error)
+   31: 
+   32: func (function parseFunc) Parse(
+   33: 	ctx context.Context,
+   34: 	input ParseInput,
+   35: ) (ParsedRequest, error) {
+   36: 	return function(ctx, input)
+   37: }
+   38: 
+   39: type detectFunc func(
+   40: 	context.Context,
+   41: 	CapabilityInput,
+   42: ) (domain.CapabilitySet, error)
+   43: 
+   44: func (function detectFunc) Detect(
+   45: 	ctx context.Context,
+   46: 	input CapabilityInput,
+   47: ) (domain.CapabilitySet, error) {
+   48: 	return function(ctx, input)
+   49: }
+   50: 
+   51: type planFunc func(
+   52: 	context.Context,
+   53: 	RoutePlanInput,
+   54: ) (RoutePlan, error)
+   55: 
+   56: func (function planFunc) Plan(
+   57: 	ctx context.Context,
+   58: 	input RoutePlanInput,
+   59: ) (RoutePlan, error) {
+   60: 	return function(ctx, input)
+   61: }
+   62: 
+   63: type admitFunc func(
+   64: 	context.Context,
+   65: 	BillingAdmissionInput,
+   66: ) (BillingAdmissionResult, error)
+   67: 
+   68: func (function admitFunc) Admit(
+   69: 	ctx context.Context,
+   70: 	input BillingAdmissionInput,
+   71: ) (BillingAdmissionResult, error) {
+   72: 	return function(ctx, input)
+   73: }
+   74: 
+   75: type reserveFunc func(
+   76: 	context.Context,
+   77: 	ReservationInput,
+   78: ) (ReservationResult, error)
+   79: 
+   80: func (function reserveFunc) Reserve(
+   81: 	ctx context.Context,
+   82: 	input ReservationInput,
+   83: ) (ReservationResult, error) {
+   84: 	return function(ctx, input)
+   85: }
+   86: 
+   87: type forwardingStageFunc func(
+   88: 	context.Context,
+   89: 	PreparedRequest,
+   90: 	BillingAdmissionResult,
+   91: ) (ForwardedRequest, error)
+   92: 
+   93: type usageResolverFunc func(
+   94: 	context.Context,
+   95: 	UsageResolutionInput,
+   96: ) (UsageResolutionResult, error)
+   97: 
+   98: func (function usageResolverFunc) Resolve(
+   99: 	ctx context.Context,
+  100: 	input UsageResolutionInput,
+  101: ) (UsageResolutionResult, error) {
+  102: 	return function(ctx, input)
+  103: }
+  104: 
+  105: type finalizerFunc struct {
+  106: 	commit func(
+  107: 		context.Context,
+  108: 		FinalizationInput,
+  109: 	) (FinalizationResult, error)
+  110: 	pricingFailed func(
+  111: 		context.Context,
+  112: 		PricingFailureInput,
+  113: 	) (FinalizationResult, error)
+  114: }
+  115: 
+  116: func (function finalizerFunc) Commit(
+  117: 	ctx context.Context,
+  118: 	input FinalizationInput,
+  119: ) (FinalizationResult, error) {
+  120: 	return function.commit(ctx, input)
+  121: }
+  122: 
+  123: func (function finalizerFunc) MarkPricingFailed(
+  124: 	ctx context.Context,
+  125: 	input PricingFailureInput,
+  126: ) (FinalizationResult, error) {
+  127: 	return function.pricingFailed(ctx, input)
+  128: }
+  129: 
+  130: type autoChargerFunc func(
+  131: 	context.Context,
+  132: 	AutoChargeInput,
+  133: ) AutoChargeResult
+  134: 
+  135: func (function autoChargerFunc) Run(
+  136: 	ctx context.Context,
+  137: 	input AutoChargeInput,
+  138: ) AutoChargeResult {
+  139: 	return function(ctx, input)
+  140: }
+  141: 
+  142: func (function forwardingStageFunc) Execute(
+  143: 	ctx context.Context,
+  144: 	prepared PreparedRequest,
+  145: 	admission BillingAdmissionResult,
+  146: ) (ForwardedRequest, error) {
+  147: 	return function(ctx, prepared, admission)
+  148: }
+  149: 
+  150: func TestNewServiceRequiresEveryDependency(t *testing.T) {
+  151: 	valid := validDependencies(nil)
+  152: 
+  153: 	tests := []struct {
+  154: 		name   string
+  155: 		mutate func(Dependencies) Dependencies
+  156: 	}{
+  157: 		{
+  158: 			name: "authenticator",
+  159: 			mutate: func(value Dependencies) Dependencies {
+  160: 				value.Authenticator = nil
+  161: 				return value
+  162: 			},
+  163: 		},
+  164: 		{
+  165: 			name: "request parser",
+  166: 			mutate: func(value Dependencies) Dependencies {
+  167: 				value.RequestParser = nil
+  168: 				return value
+  169: 			},
+  170: 		},
+  171: 		{
+  172: 			name: "capability detector",
+  173: 			mutate: func(value Dependencies) Dependencies {
+  174: 				value.CapabilityDetector = nil
+  175: 				return value
+  176: 			},
+  177: 		},
+  178: 		{
+  179: 			name: "route planner",
+  180: 			mutate: func(value Dependencies) Dependencies {
+  181: 				value.RoutePlanner = nil
+  182: 				return value
+  183: 			},
+  184: 		},
+  185: 		{
+  186: 			name: "billing admitter",
+  187: 			mutate: func(value Dependencies) Dependencies {
+  188: 				value.BillingAdmitter = nil
+  189: 				return value
+  190: 			},
+  191: 		},
+  192: 		{
+  193: 			name: "forwarding stage",
+  194: 			mutate: func(value Dependencies) Dependencies {
+  195: 				value.Forwarding = nil
+  196: 				return value
+  197: 			},
+  198: 		},
+  199: 		{
+  200: 			name: "usage resolver",
+  201: 			mutate: func(value Dependencies) Dependencies {
+  202: 				value.UsageResolver = nil
+  203: 				return value
+  204: 			},
+  205: 		},
+  206: 		{
+  207: 			name: "finalizer",
+  208: 			mutate: func(value Dependencies) Dependencies {
+  209: 				value.Finalizer = nil
+  210: 				return value
+  211: 			},
+  212: 		},
+  213: 		{
+  214: 			name: "auto charger",
+  215: 			mutate: func(value Dependencies) Dependencies {
+  216: 				value.AutoCharger = nil
+  217: 				return value
+  218: 			},
+  219: 		},
+  220: 	}
+  221: 
+  222: 	for _, test := range tests {
+  223: 		t.Run(test.name, func(t *testing.T) {
+  224: 			_, err := NewService(test.mutate(valid))
+  225: 			if !errors.Is(err, ErrDependencyRequired) {
+  226: 				t.Fatalf(
+  227: 					"error = %v, want dependency required",
+  228: 					err,
+  229: 				)
+  230: 			}
+  231: 		})
+  232: 	}
+  233: }
+  234: 
+  235: func TestServiceExecuteExecutesCanonicalOrder(t *testing.T) {
+  236: 	var calls []string
+  237: 	service := mustService(t, validDependencies(&calls))
+  238: 	input := validInput()
+  239: 
+  240: 	reserved, err := service.Execute(
+  241: 		context.Background(),
+  242: 		input,
+  243: 	)
+  244: 	if err != nil {
+  245: 		t.Fatalf("Execute: %v", err)
+  246: 	}
+  247: 
+  248: 	wantCalls := []string{
+  249: 		"authenticate",
+  250: 		"parse",
+  251: 		"capabilities",
+  252: 		"route",
+  253: 		"admission",
+  254: 		"forwarding",
+  255: 		"usage",
+  256: 		"finalize",
+  257: 		"autocharge",
+  258: 	}
+  259: 	if !reflect.DeepEqual(calls, wantCalls) {
+  260: 		t.Fatalf("calls = %#v, want %#v", calls, wantCalls)
+  261: 	}
+  262: 	if reserved.Reserved.Prepared.LocalRequestID !=
+  263: 		input.LocalRequestID ||
+  264: 		reserved.Reserved.Prepared.Principal.UserID != "user-1" ||
+  265: 		reserved.Reserved.Prepared.ClientModel != "model-1" ||
+  266: 		!reserved.Reserved.Prepared.RequestedCapabilities.Chat ||
+  267: 		reserved.Reserved.Prepared.Plan.Route.ID != "route-1" ||
+  268: 		!bytes.Equal(
+  269: 			reserved.Reserved.Prepared.Payload,
+  270: 			input.Payload,
+  271: 		) ||
+  272: 		!reserved.Reserved.Admission.Allowed ||
+  273: 		reserved.Reserved.Reservation.Disposition !=
+  274: 			ReservationDispositionCreated ||
+  275: 		reserved.Reserved.Reservation.Usage.Status !=
+  276: 			domain.UsageStatusReserved ||
+  277: 		reserved.Response.StatusCode != 200 ||
+  278: 		reserved.ResolvedUsage.Completeness != "detailed" ||
+  279: 		reserved.ResolvedUsage.ClientAmountCents != 15 ||
+  280: 		reserved.FinalUsageRecord.Status !=
+  281: 			domain.UsageStatusBillable ||
+  282: 		reserved.AutoCharge.Status !=
+  283: 			AutoChargeStatusDeferred {
+  284: 		t.Fatalf("forwarded = %+v", reserved)
+  285: 	}
+  286: }
+  287: 
+  288: func TestServiceExecuteStopsAtFirstFailedStage(t *testing.T) {
+  289: 	stageError := errors.New("stage failed")
+  290: 
+  291: 	tests := []struct {
+  292: 		name      string
+  293: 		failStage string
+  294: 		wantCalls []string
+  295: 	}{
+  296: 		{
+  297: 			name:      "authentication",
+  298: 			failStage: "authenticate",
+  299: 			wantCalls: []string{"authenticate"},
+  300: 		},
+  301: 		{
+  302: 			name:      "parser",
+  303: 			failStage: "parse",
+  304: 			wantCalls: []string{"authenticate", "parse"},
+  305: 		},
+  306: 		{
+  307: 			name:      "capability detector",
+  308: 			failStage: "capabilities",
+  309: 			wantCalls: []string{
+  310: 				"authenticate",
+  311: 				"parse",
+  312: 				"capabilities",
+  313: 			},
+  314: 		},
+  315: 		{
+  316: 			name:      "route planner",
+  317: 			failStage: "route",
+  318: 			wantCalls: []string{
+  319: 				"authenticate",
+  320: 				"parse",
+  321: 				"capabilities",
+  322: 				"route",
+  323: 			},
+  324: 		},
+  325: 		{
+  326: 			name:      "billing admission",
+  327: 			failStage: "admission",
+  328: 			wantCalls: []string{
+  329: 				"authenticate",
+  330: 				"parse",
+  331: 				"capabilities",
+  332: 				"route",
+  333: 				"admission",
+  334: 			},
+  335: 		},
+  336: 		{
+  337: 			name:      "forwarding stage",
+  338: 			failStage: "forwarding",
+  339: 			wantCalls: []string{
+  340: 				"authenticate",
+  341: 				"parse",
+  342: 				"capabilities",
+  343: 				"route",
+  344: 				"admission",
+  345: 				"forwarding",
+  346: 			},
+  347: 		},
+  348: 		{
+  349: 			name:      "usage resolution",
+  350: 			failStage: "usage",
+  351: 			wantCalls: []string{
+  352: 				"authenticate",
+  353: 				"parse",
+  354: 				"capabilities",
+  355: 				"route",
+  356: 				"admission",
+  357: 				"forwarding",
+  358: 				"usage",
+  359: 				"pricing_failed",
+  360: 			},
+  361: 		},
+  362: 	}
+  363: 
+  364: 	for _, test := range tests {
+  365: 		t.Run(test.name, func(t *testing.T) {
+  366: 			var calls []string
+  367: 			dependencies := validDependencies(&calls)
+  368: 			dependencies = failingDependencies(
+  369: 				dependencies,
+  370: 				&calls,
+  371: 				test.failStage,
+  372: 				stageError,
+  373: 			)
+  374: 			service := mustService(t, dependencies)
+  375: 
+  376: 			_, err := service.Execute(
+  377: 				context.Background(),
+  378: 				validInput(),
+  379: 			)
+  380: 			if !errors.Is(err, stageError) {
+  381: 				t.Fatalf("error = %v, want stage error", err)
+  382: 			}
+  383: 			if !reflect.DeepEqual(calls, test.wantCalls) {
+  384: 				t.Fatalf(
+  385: 					"calls = %#v, want %#v",
+  386: 					calls,
+  387: 					test.wantCalls,
+  388: 				)
+  389: 			}
+  390: 		})
+  391: 	}
+  392: }
+  393: 
+  394: func TestServiceExecuteDoesNotCallForwardingWhenAdmissionDenied(
+  395: 	t *testing.T,
+  396: ) {
+  397: 	var calls []string
+  398: 	dependencies := validDependencies(&calls)
+  399: 	dependencies.BillingAdmitter = admitFunc(
+  400: 		func(
+  401: 			_ context.Context,
+  402: 			input BillingAdmissionInput,
+  403: 		) (BillingAdmissionResult, error) {
+  404: 			calls = append(calls, "admission")
+  405: 			result := validAdmission(input)
+  406: 			result.Allowed = false
+  407: 			return result, nil
+  408: 		},
+  409: 	)
+  410: 
+  411: 	service := mustService(t, dependencies)
+  412: 	_, err := service.Execute(
+  413: 		context.Background(),
+  414: 		validInput(),
+  415: 	)
+  416: 	if !errors.Is(err, ErrStageContractViolation) {
+  417: 		t.Fatalf(
+  418: 			"error = %v, want stage contract violation",
+  419: 			err,
+  420: 		)
+  421: 	}
+  422: 	wantCalls := []string{
+  423: 		"authenticate",
+  424: 		"parse",
+  425: 		"capabilities",
+  426: 		"route",
+  427: 		"admission",
+  428: 	}
+  429: 	if !reflect.DeepEqual(calls, wantCalls) {
+  430: 		t.Fatalf("calls = %#v, want %#v", calls, wantCalls)
+  431: 	}
+  432: }
+  433: 
+  434: func TestServiceExecuteIsolatesPayloadBetweenStages(t *testing.T) {
+  435: 	input := validInput()
+  436: 	original := append([]byte(nil), input.Payload...)
+  437: 
+  438: 	dependencies := validDependencies(nil)
+  439: 	dependencies.RequestParser = parseFunc(
+  440: 		func(
+  441: 			_ context.Context,
+  442: 			value ParseInput,
+  443: 		) (ParsedRequest, error) {
+  444: 			value.Payload[0] = 'X'
+  445: 			return ParsedRequest{
+  446: 				ClientModel: "model-1",
+  447: 			}, nil
+  448: 		},
+  449: 	)
+  450: 	dependencies.CapabilityDetector = detectFunc(
+  451: 		func(
+  452: 			_ context.Context,
+  453: 			value CapabilityInput,
+  454: 		) (domain.CapabilitySet, error) {
+  455: 			if !bytes.Equal(value.Payload, original) {
+  456: 				t.Fatalf(
+  457: 					"capability payload = %q, want %q",
+  458: 					value.Payload,
+  459: 					original,
+  460: 				)
+  461: 			}
+  462: 			value.Payload[0] = 'Y'
+  463: 			return domain.CapabilitySet{Chat: true}, nil
+  464: 		},
+  465: 	)
+  466: 	dependencies.RoutePlanner = planFunc(
+  467: 		func(
+  468: 			_ context.Context,
+  469: 			value RoutePlanInput,
+  470: 		) (RoutePlan, error) {
+  471: 			if !bytes.Equal(value.Payload, original) {
+  472: 				t.Fatalf(
+  473: 					"route payload = %q, want %q",
+  474: 					value.Payload,
+  475: 					original,
+  476: 				)
+  477: 			}
+  478: 			value.Payload[0] = 'Z'
+  479: 			return validRoutePlan(), nil
+  480: 		},
+  481: 	)
+  482: 
+  483: 	service := mustService(t, dependencies)
+  484: 	reserved, err := service.Execute(
+  485: 		context.Background(),
+  486: 		input,
+  487: 	)
+  488: 	if err != nil {
+  489: 		t.Fatalf("Execute: %v", err)
+  490: 	}
+  491: 	if !bytes.Equal(input.Payload, original) {
+  492: 		t.Fatalf(
+  493: 			"caller payload = %q, want %q",
+  494: 			input.Payload,
+  495: 			original,
+  496: 		)
+  497: 	}
+  498: 	if !bytes.Equal(
+  499: 		reserved.Reserved.Prepared.Payload,
+  500: 		original,
+  501: 	) {
+  502: 		t.Fatalf(
+  503: 			"prepared payload = %q, want %q",
+  504: 			reserved.Reserved.Prepared.Payload,
+  505: 			original,
+  506: 		)
+  507: 	}
+  508: }
+  509: 
+  510: func TestServiceExecuteRejectsInvalidRoutePlan(t *testing.T) {
+  511: 	dependencies := validDependencies(nil)
+  512: 	dependencies.RoutePlanner = planFunc(
+  513: 		func(
+  514: 			context.Context,
+  515: 			RoutePlanInput,
+  516: 		) (RoutePlan, error) {
+  517: 			plan := validRoutePlan()
+  518: 			plan.BillingModel = ""
+  519: 			return plan, nil
+  520: 		},
+  521: 	)
+  522: 
+  523: 	service := mustService(t, dependencies)
+  524: 	_, err := service.Execute(
+  525: 		context.Background(),
+  526: 		validInput(),
+  527: 	)
+  528: 	if !errors.Is(err, ErrStageContractViolation) {
+  529: 		t.Fatalf(
+  530: 			"error = %v, want stage contract violation",
+  531: 			err,
+  532: 		)
+  533: 	}
+  534: }
+  535: 
+  536: func validDependencies(
+  537: 	calls *[]string,
+  538: ) Dependencies {
+  539: 	record := func(value string) {
+  540: 		if calls != nil {
+  541: 			*calls = append(*calls, value)
+  542: 		}
+  543: 	}
+  544: 
+  545: 	return Dependencies{
+  546: 		Authenticator: authenticateFunc(
+  547: 			func(
+  548: 				_ context.Context,
+  549: 				rawAPIKey string,
+  550: 			) (Principal, error) {
+  551: 				record("authenticate")
+  552: 				if rawAPIKey != "sk_test" {
+  553: 					return Principal{}, errors.New(
+  554: 						"unexpected API key",
+  555: 					)
+  556: 				}
+  557: 				return Principal{
+  558: 					UserID:               "user-1",
+  559: 					APIKeyID:             "key-1",
+  560: 					BillingSubjectUserID: "billing-1",
+  561: 				}, nil
+  562: 			},
+  563: 		),
+  564: 		RequestParser: parseFunc(
+  565: 			func(
+  566: 				_ context.Context,
+  567: 				input ParseInput,
+  568: 			) (ParsedRequest, error) {
+  569: 				record("parse")
+  570: 				if input.APIFamily !=
+  571: 					domain.APIFamilyOpenAICompatible ||
+  572: 					input.EndpointKind != domain.EndpointChat {
+  573: 					return ParsedRequest{}, errors.New(
+  574: 						"unexpected parse input",
+  575: 					)
+  576: 				}
+  577: 				return ParsedRequest{
+  578: 					ClientModel: "model-1",
+  579: 				}, nil
+  580: 			},
+  581: 		),
+  582: 		CapabilityDetector: detectFunc(
+  583: 			func(
+  584: 				_ context.Context,
+  585: 				input CapabilityInput,
+  586: 			) (domain.CapabilitySet, error) {
+  587: 				record("capabilities")
+  588: 				if input.ClientModel != "model-1" {
+  589: 					return domain.CapabilitySet{},
+  590: 						errors.New(
+  591: 							"unexpected capability input",
+  592: 						)
+  593: 				}
+  594: 				return domain.CapabilitySet{
+  595: 					Chat: true,
+  596: 				}, nil
+  597: 			},
+  598: 		),
+  599: 		RoutePlanner: planFunc(
+  600: 			func(
+  601: 				_ context.Context,
+  602: 				input RoutePlanInput,
+  603: 			) (RoutePlan, error) {
+  604: 				record("route")
+  605: 				if input.Principal.UserID != "user-1" ||
+  606: 					input.ClientModel != "model-1" ||
+  607: 					!input.RequestedCapabilities.Chat {
+  608: 					return RoutePlan{}, errors.New(
+  609: 						"unexpected route input",
+  610: 					)
+  611: 				}
+  612: 				return validRoutePlan(), nil
+  613: 			},
+  614: 		),
+  615: 		BillingAdmitter: admitFunc(
+  616: 			func(
+  617: 				_ context.Context,
+  618: 				input BillingAdmissionInput,
+  619: 			) (BillingAdmissionResult, error) {
+  620: 				record("admission")
+  621: 				if input.Principal.UserID != "user-1" ||
+  622: 					input.RequiredReserveCents != 20 ||
+  623: 					input.Currency != "RUB" {
+  624: 					return BillingAdmissionResult{},
+  625: 						errors.New(
+  626: 							"unexpected admission input",
+  627: 						)
+  628: 				}
+  629: 				return validAdmission(input), nil
+  630: 			},
+  631: 		),
+  632: 		Forwarding: forwardingStageFunc(
+  633: 			func(
+  634: 				_ context.Context,
+  635: 				prepared PreparedRequest,
+  636: 				admission BillingAdmissionResult,
+  637: 			) (ForwardedRequest, error) {
+  638: 				record("forwarding")
+  639: 				if prepared.LocalRequestID != "llmreq_test" ||
+  640: 					prepared.Principal.UserID != "user-1" ||
+  641: 					prepared.Plan.Route.ID != "route-1" ||
+  642: 					!admission.Allowed {
+  643: 					return ForwardedRequest{},
+  644: 						errors.New(
+  645: 							"unexpected forwarding input",
+  646: 						)
+  647: 				}
+  648: 				reservation := validReservation(
+  649: 					reservationInput(prepared),
+  650: 				)
+  651: 				return ForwardedRequest{
+  652: 					Reserved: ReservedRequest{
+  653: 						Prepared:    prepared,
+  654: 						Admission:   admission,
+  655: 						Reservation: reservation,
+  656: 					},
+  657: 					Response: ports.ForwardResponse{
+  658: 						StatusCode: 200,
+  659: 						Body:       []byte(`{"ok":true}`),
+  660: 					},
+  661: 				}, nil
+  662: 			},
+  663: 		),
+  664: 		UsageResolver: usageResolverFunc(
+  665: 			func(
+  666: 				_ context.Context,
+  667: 				input UsageResolutionInput,
+  668: 			) (UsageResolutionResult, error) {
+  669: 				record("usage")
+  670: 				if input.Reserved.Prepared.LocalRequestID !=
+  671: 					"llmreq_test" ||
+  672: 					input.Response.StatusCode != 200 {
+  673: 					return UsageResolutionResult{},
+  674: 						errors.New(
+  675: 							"unexpected usage input",
+  676: 						)
+  677: 				}
+  678: 				return UsageResolutionResult{
+  679: 					Usage: domain.TokenUsage{
+  680: 						InputTokens:  10,
+  681: 						OutputTokens: 5,
+  682: 					},
+  683: 					Completeness:      "detailed",
+  684: 					UpstreamCostCents: 10,
+  685: 					ClientAmountCents: 15,
+  686: 					Currency:          "RUB",
+  687: 				}, nil
+  688: 			},
+  689: 		),
+  690: 		Finalizer: finalizerFunc{
+  691: 			commit: func(
+  692: 				_ context.Context,
+  693: 				input FinalizationInput,
+  694: 			) (FinalizationResult, error) {
+  695: 				record("finalize")
+  696: 				return FinalizationResult{
+  697: 					Usage: domain.UsageRecord{
+  698: 						LocalRequestID: input.Reserved.
+  699: 							Prepared.LocalRequestID,
+  700: 						UserID: input.Reserved.Prepared.
+  701: 							Principal.UserID,
+  702: 						Currency: "RUB",
+  703: 						Status: domain.
+  704: 							UsageStatusBillable,
+  705: 					},
+  706: 				}, nil
+  707: 			},
+  708: 			pricingFailed: func(
+  709: 				_ context.Context,
+  710: 				input PricingFailureInput,
+  711: 			) (FinalizationResult, error) {
+  712: 				record("pricing_failed")
+  713: 				return FinalizationResult{
+  714: 					Usage: domain.UsageRecord{
+  715: 						LocalRequestID: input.Reserved.
+  716: 							Prepared.LocalRequestID,
+  717: 						Status: domain.
+  718: 							UsageStatusPricingFailed,
+  719: 					},
+  720: 				}, nil
+  721: 			},
+  722: 		},
+  723: 		AutoCharger: autoChargerFunc(
+  724: 			func(
+  725: 				_ context.Context,
+  726: 				input AutoChargeInput,
+  727: 			) AutoChargeResult {
+  728: 				record("autocharge")
+  729: 				if input.FinalUsageRecord.Status !=
+  730: 					domain.UsageStatusBillable {
+  731: 					return AutoChargeResult{
+  732: 						Status: AutoChargeStatusFailed,
+  733: 					}
+  734: 				}
+  735: 				return AutoChargeResult{
+  736: 					Status: AutoChargeStatusDeferred,
+  737: 				}
+  738: 			},
+  739: 		),
+  740: 	}
+  741: }
+  742: 
+  743: func failingDependencies(
+  744: 	value Dependencies,
+  745: 	calls *[]string,
+  746: 	stage string,
+  747: 	stageError error,
+  748: ) Dependencies {
+  749: 	record := func() {
+  750: 		*calls = append(*calls, stage)
+  751: 	}
+  752: 
+  753: 	switch stage {
+  754: 	case "authenticate":
+  755: 		value.Authenticator = authenticateFunc(
+  756: 			func(
+  757: 				context.Context,
+  758: 				string,
+  759: 			) (Principal, error) {
+  760: 				record()
+  761: 				return Principal{}, stageError
+  762: 			},
+  763: 		)
+  764: 	case "parse":
+  765: 		value.RequestParser = parseFunc(
+  766: 			func(
+  767: 				context.Context,
+  768: 				ParseInput,
+  769: 			) (ParsedRequest, error) {
+  770: 				record()
+  771: 				return ParsedRequest{}, stageError
+  772: 			},
+  773: 		)
+  774: 	case "capabilities":
+  775: 		value.CapabilityDetector = detectFunc(
+  776: 			func(
+  777: 				context.Context,
+  778: 				CapabilityInput,
+  779: 			) (domain.CapabilitySet, error) {
+  780: 				record()
+  781: 				return domain.CapabilitySet{}, stageError
+  782: 			},
+  783: 		)
+  784: 	case "route":
+  785: 		value.RoutePlanner = planFunc(
+  786: 			func(
+  787: 				context.Context,
+  788: 				RoutePlanInput,
+  789: 			) (RoutePlan, error) {
+  790: 				record()
+  791: 				return RoutePlan{}, stageError
+  792: 			},
+  793: 		)
+  794: 	case "admission":
+  795: 		value.BillingAdmitter = admitFunc(
+  796: 			func(
+  797: 				context.Context,
+  798: 				BillingAdmissionInput,
+  799: 			) (BillingAdmissionResult, error) {
+  800: 				record()
+  801: 				return BillingAdmissionResult{}, stageError
+  802: 			},
+  803: 		)
+  804: 	case "forwarding":
+  805: 		value.Forwarding = forwardingStageFunc(
+  806: 			func(
+  807: 				context.Context,
+  808: 				PreparedRequest,
+  809: 				BillingAdmissionResult,
+  810: 			) (ForwardedRequest, error) {
+  811: 				record()
+  812: 				return ForwardedRequest{}, stageError
+  813: 			},
+  814: 		)
+  815: 	case "usage":
+  816: 		value.UsageResolver = usageResolverFunc(
+  817: 			func(
+  818: 				context.Context,
+  819: 				UsageResolutionInput,
+  820: 			) (UsageResolutionResult, error) {
+  821: 				record()
+  822: 				return UsageResolutionResult{}, stageError
+  823: 			},
+  824: 		)
+  825: 	default:
+  826: 		panic("unknown stage")
+  827: 	}
+  828: 	return value
+  829: }
+  830: 
+  831: func validInput() Input {
+  832: 	idempotencyKey := "idem-1"
+  833: 	return Input{
+  834: 		LocalRequestID: "llmreq_test",
+  835: 		RawAPIKey:      "sk_test",
+  836: 		IdempotencyKey: &idempotencyKey,
+  837: 		APIFamily:      domain.APIFamilyOpenAICompatible,
+  838: 		EndpointKind:   domain.EndpointChat,
+  839: 		Payload:        []byte(`{"model":"model-1"}`),
+  840: 	}
+  841: }
+  842: 
+  843: func validRoutePlan() RoutePlan {
+  844: 	return RoutePlan{
+  845: 		Route: domain.Route{
+  846: 			ID:            "route-1",
+  847: 			ResellerID:    "reseller-1",
+  848: 			ProviderType:  domain.ProviderOpenAI,
+  849: 			APIFamily:     domain.APIFamilyOpenAICompatible,
+  850: 			EndpointKind:  domain.EndpointChat,
+  851: 			ClientModel:   "model-1",
+  852: 			ProviderModel: "model-1",
+  853: 			Enabled:       true,
+  854: 		},
+  855: 		Reseller: domain.Reseller{
+  856: 			ID:           "reseller-1",
+  857: 			ProviderType: domain.ProviderOpenAI,
+  858: 			Enabled:      true,
+  859: 		},
+  860: 		Price: domain.RoutePrice{
+  861: 			RouteID:  "route-1",
+  862: 			Currency: "RUB",
+  863: 			Enabled:  true,
+  864: 		},
+  865: 		BillingModel: "openai:model-1",
+  866: 		EstimatedUsage: domain.TokenUsage{
+  867: 			InputTokens:  10,
+  868: 			OutputTokens: 5,
+  869: 		},
+  870: 		EstimatedClientAmountCents: 20,
+  871: 		EstimatedUpstreamCostCents: 10,
+  872: 		Currency:                   "RUB",
+  873: 		Confidence:                 "conservative",
+  874: 	}
+  875: }
+  876: 
+  877: func validAdmission(
+  878: 	input BillingAdmissionInput,
+  879: ) BillingAdmissionResult {
+  880: 	return BillingAdmissionResult{
+  881: 		Allowed:               true,
+  882: 		RemoteBalanceCents:    1000,
+  883: 		PendingAmountCents:    100,
+  884: 		EffectiveBalanceCents: 900,
+  885: 		RequiredReserveCents:  input.RequiredReserveCents,
+  886: 		Currency:              input.Currency,
+  887: 	}
+  888: }
+  889: 
+  890: func validReservation(
+  891: 	input ReservationInput,
+  892: ) ReservationResult {
+  893: 	reservedAt := time.Date(
+  894: 		2026,
+  895: 		time.June,
+  896: 		14,
+  897: 		12,
+  898: 		0,
+  899: 		0,
+  900: 		0,
+  901: 		time.UTC,
+  902: 	)
+  903: 	idempotencyKey := ""
+  904: 	if input.IdempotencyKey != nil {
+  905: 		idempotencyKey = *input.IdempotencyKey
+  906: 	}
+  907: 	reseller := input.Reseller
+  908: 	reseller.ReservedCents = 10
+  909: 	return ReservationResult{
+  910: 		Disposition: ReservationDispositionCreated,
+  911: 		Usage: domain.UsageRecord{
+  912: 			LocalRequestID:     input.LocalRequestID,
+  913: 			IdempotencyKey:     idempotencyKey,
+  914: 			UserID:             input.Principal.UserID,
+  915: 			APIKeyID:           input.Principal.APIKeyID,
+  916: 			APIFamily:          input.APIFamily,
+  917: 			EndpointKind:       input.EndpointKind,
+  918: 			ClientModel:        input.ClientModel,
+  919: 			BillingModel:       input.BillingModel,
+  920: 			SelectedRouteID:    input.Route.ID,
+  921: 			SelectedResellerID: input.Reseller.ID,
+  922: 			ProviderType:       input.Route.ProviderType,
+  923: 			ProviderModel:      input.Route.ProviderModel,
+  924: 			EstimatedUsage:     input.EstimatedUsage,
+  925: 			EstimatedClientAmountCents: input.
+  926: 				EstimatedClientAmountCents,
+  927: 			EstimatedUpstreamCostCents: input.
+  928: 				EstimatedUpstreamCostCents,
+  929: 			Currency:          input.Currency,
+  930: 			UsageCompleteness: "missing",
+  931: 			Status:            domain.UsageStatusReserved,
+  932: 			CreatedAt:         reservedAt,
+  933: 			ReservedAt:        &reservedAt,
+  934: 			UpdatedAt:         reservedAt,
+  935: 		},
+  936: 		Reseller: &reseller,
+  937: 	}
+  938: }
+  939: 
+  940: func mustService(
+  941: 	t *testing.T,
+  942: 	dependencies Dependencies,
+  943: ) *Service {
+  944: 	t.Helper()
+  945: 
+  946: 	service, err := NewService(dependencies)
+  947: 	if err != nil {
+  948: 		t.Fatalf("NewService: %v", err)
+  949: 	}
+  950: 	return service
+  951: }
+
+====================================================================================================
+FILE: internal/app/llmrequest_finalizer.go
+GIT_BLOB_SHA: f6cb540bf1a26ba43b6ac5cf744730b05eb22f84
+----------------------------------------------------------------------------------------------------
+    1: package app
+    2: 
+    3: import (
+    4: 	"context"
+    5: 	"fmt"
+    6: 
+    7: 	ledgerapp "github.com/bogachenko/tokenio-gateway/internal/application/ledger"
+    8: 	"github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
+    9: 	pricingapp "github.com/bogachenko/tokenio-gateway/internal/application/pricing"
+   10: 	"github.com/bogachenko/tokenio-gateway/internal/domain"
+   11: )
+   12: 
+   13: type llmRequestLedger interface {
+   14: 	CommitBillable(
+   15: 		context.Context,
+   16: 		ledgerapp.CommitBillableInput,
+   17: 	) (domain.UsageRecord, error)
+   18: 	MarkPricingFailed(
+   19: 		context.Context,
+   20: 		ledgerapp.MarkPricingFailedInput,
+   21: 	) (domain.UsageRecord, error)
+   22: }
+   23: 
+   24: type LLMRequestFinalizer struct {
+   25: 	ledger llmRequestLedger
+   26: }
+   27: 
+   28: var _ llmrequest.Finalizer = (*LLMRequestFinalizer)(nil)
+   29: 
+   30: func NewLLMRequestFinalizer(
+   31: 	ledger llmRequestLedger,
+   32: ) (*LLMRequestFinalizer, error) {
+   33: 	if ledger == nil {
+   34: 		return nil, llmrequest.ErrDependencyRequired
+   35: 	}
+   36: 	return &LLMRequestFinalizer{ledger: ledger}, nil
+   37: }
+   38: 
+   39: func (f *LLMRequestFinalizer) Commit(
+   40: 	ctx context.Context,
+   41: 	input llmrequest.FinalizationInput,
+   42: ) (llmrequest.FinalizationResult, error) {
+   43: 	if f == nil || f.ledger == nil {
+   44: 		return llmrequest.FinalizationResult{},
+   45: 			llmrequest.ErrDependencyRequired
+   46: 	}
+   47: 	completeness, err := pricingapp.ParseUsageCompleteness(
+   48: 		input.ResolvedUsage.Completeness,
+   49: 	)
+   50: 	if err != nil {
+   51: 		return llmrequest.FinalizationResult{}, fmt.Errorf(
+   52: 			"parse final usage completeness: %w",
+   53: 			err,
+   54: 		)
+   55: 	}
+   56: 	record, err := f.ledger.CommitBillable(
+   57: 		ctx,
+   58: 		ledgerapp.CommitBillableInput{
+   59: 			LocalRequestID:    input.Reserved.Prepared.LocalRequestID,
+   60: 			Usage:             input.ResolvedUsage.Usage,
+   61: 			UsageCompleteness: completeness,
+   62: 			ClientAmountCents: input.ResolvedUsage.
+   63: 				ClientAmountCents,
+   64: 			ActualUpstreamCostCents: input.ResolvedUsage.
+   65: 				UpstreamCostCents,
+   66: 			ProviderRequestID: input.ResolvedUsage.
+   67: 				ProviderRequestID,
+   68: 			ProviderResponseModel: input.ResolvedUsage.
+   69: 				ProviderResponseModel,
+   70: 		},
+   71: 	)
+   72: 	if err != nil {
+   73: 		return llmrequest.FinalizationResult{}, fmt.Errorf(
+   74: 			"commit billable usage: %w",
+   75: 			err,
+   76: 		)
+   77: 	}
+   78: 	return llmrequest.FinalizationResult{Usage: record}, nil
+   79: }
+   80: 
+   81: func (f *LLMRequestFinalizer) MarkPricingFailed(
+   82: 	ctx context.Context,
+   83: 	input llmrequest.PricingFailureInput,
+   84: ) (llmrequest.FinalizationResult, error) {
+   85: 	if f == nil || f.ledger == nil {
+   86: 		return llmrequest.FinalizationResult{},
+   87: 			llmrequest.ErrDependencyRequired
+   88: 	}
+   89: 	record, err := f.ledger.MarkPricingFailed(
+   90: 		ctx,
+   91: 		ledgerapp.MarkPricingFailedInput{
+   92: 			LocalRequestID: input.Reserved.Prepared.LocalRequestID,
+   93: 			Usage: input.Reserved.Prepared.Plan.
+   94: 				EstimatedUsage,
+   95: 			UsageCompleteness: pricingapp.
+   96: 				UsageCompletenessFailed,
+   97: 			FailureReason: input.FailureReason,
+   98: 		},
+   99: 	)
+  100: 	if err != nil {
+  101: 		return llmrequest.FinalizationResult{}, fmt.Errorf(
+  102: 			"mark pricing failed usage: %w",
+  103: 			err,
+  104: 		)
+  105: 	}
+  106: 	return llmrequest.FinalizationResult{Usage: record}, nil
+  107: }
+
+====================================================================================================
+FILE: internal/app/llmrequest_finalizer_test.go
+GIT_BLOB_SHA: 3133e06b7f4a07df5cf87027a1f92bb42c6700bf
+----------------------------------------------------------------------------------------------------
+    1: package app
+    2: 
+    3: import (
+    4: 	"context"
+    5: 	"testing"
+    6: 	"time"
+    7: 
+    8: 	ledgerapp "github.com/bogachenko/tokenio-gateway/internal/application/ledger"
+    9: 	"github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
+   10: 	"github.com/bogachenko/tokenio-gateway/internal/domain"
+   11: )
+   12: 
+   13: type finalizerLedger struct {
+   14: 	commitInput  ledgerapp.CommitBillableInput
+   15: 	failureInput ledgerapp.MarkPricingFailedInput
+   16: }
+   17: 
+   18: func (l *finalizerLedger) CommitBillable(
+   19: 	_ context.Context,
+   20: 	input ledgerapp.CommitBillableInput,
+   21: ) (domain.UsageRecord, error) {
+   22: 	l.commitInput = input
+   23: 	return domain.UsageRecord{
+   24: 		LocalRequestID: input.LocalRequestID,
+   25: 		Status:         domain.UsageStatusBillable,
+   26: 	}, nil
+   27: }
+   28: 
+   29: func (l *finalizerLedger) MarkPricingFailed(
+   30: 	_ context.Context,
+   31: 	input ledgerapp.MarkPricingFailedInput,
+   32: ) (domain.UsageRecord, error) {
+   33: 	l.failureInput = input
+   34: 	return domain.UsageRecord{
+   35: 		LocalRequestID: input.LocalRequestID,
+   36: 		Status:         domain.UsageStatusPricingFailed,
+   37: 	}, nil
+   38: }
+   39: 
+   40: func TestLLMRequestFinalizerCommitsResolvedUsage(t *testing.T) {
+   41: 	ledger := &finalizerLedger{}
+   42: 	finalizer, err := NewLLMRequestFinalizer(ledger)
+   43: 	if err != nil {
+   44: 		t.Fatal(err)
+   45: 	}
+   46: 	result, err := finalizer.Commit(
+   47: 		context.Background(),
+   48: 		llmrequest.FinalizationInput{
+   49: 			Reserved: finalizerReservedRequest(),
+   50: 			ResolvedUsage: llmrequest.UsageResolutionResult{
+   51: 				Usage: domain.TokenUsage{
+   52: 					InputTokens:  10,
+   53: 					OutputTokens: 5,
+   54: 				},
+   55: 				Completeness:          "detailed",
+   56: 				UpstreamCostCents:     7,
+   57: 				ClientAmountCents:     11,
+   58: 				Currency:              "RUB",
+   59: 				ProviderRequestID:     "provider-request-1",
+   60: 				ProviderResponseModel: "provider-model",
+   61: 			},
+   62: 		},
+   63: 	)
+   64: 	if err != nil {
+   65: 		t.Fatalf("Commit: %v", err)
+   66: 	}
+   67: 	if result.Usage.Status != domain.UsageStatusBillable ||
+   68: 		ledger.commitInput.LocalRequestID != "llmreq_finalizer_1" ||
+   69: 		ledger.commitInput.ClientAmountCents != 11 ||
+   70: 		ledger.commitInput.ActualUpstreamCostCents != 7 ||
+   71: 		ledger.commitInput.ProviderRequestID != "provider-request-1" {
+   72: 		t.Fatalf(
+   73: 			"result=%+v input=%+v",
+   74: 			result,
+   75: 			ledger.commitInput,
+   76: 		)
+   77: 	}
+   78: }
+   79: 
+   80: func TestLLMRequestFinalizerMarksPricingFailure(t *testing.T) {
+   81: 	ledger := &finalizerLedger{}
+   82: 	finalizer, err := NewLLMRequestFinalizer(ledger)
+   83: 	if err != nil {
+   84: 		t.Fatal(err)
+   85: 	}
+   86: 	result, err := finalizer.MarkPricingFailed(
+   87: 		context.Background(),
+   88: 		llmrequest.PricingFailureInput{
+   89: 			Reserved:      finalizerReservedRequest(),
+   90: 			FailureReason: "usage_resolution_failed",
+   91: 		},
+   92: 	)
+   93: 	if err != nil {
+   94: 		t.Fatalf("MarkPricingFailed: %v", err)
+   95: 	}
+   96: 	if result.Usage.Status != domain.UsageStatusPricingFailed ||
+   97: 		ledger.failureInput.LocalRequestID != "llmreq_finalizer_1" ||
+   98: 		ledger.failureInput.FailureReason !=
+   99: 			"usage_resolution_failed" ||
+  100: 		ledger.failureInput.Usage.InputTokens != 20 {
+  101: 		t.Fatalf(
+  102: 			"result=%+v input=%+v",
+  103: 			result,
+  104: 			ledger.failureInput,
+  105: 		)
+  106: 	}
+  107: }
+  108: 
+  109: func finalizerReservedRequest() llmrequest.ReservedRequest {
+  110: 	now := time.Date(
+  111: 		2026,
+  112: 		time.June,
+  113: 		14,
+  114: 		12,
+  115: 		0,
+  116: 		0,
+  117: 		0,
+  118: 		time.UTC,
+  119: 	)
+  120: 	return llmrequest.ReservedRequest{
+  121: 		Prepared: llmrequest.PreparedRequest{
+  122: 			LocalRequestID: "llmreq_finalizer_1",
+  123: 			Plan: llmrequest.RoutePlan{
+  124: 				EstimatedUsage: domain.TokenUsage{
+  125: 					InputTokens:  20,
+  126: 					OutputTokens: 10,
+  127: 				},
+  128: 			},
+  129: 		},
+  130: 		Reservation: llmrequest.ReservationResult{
+  131: 			Usage: domain.UsageRecord{
+  132: 				LocalRequestID: "llmreq_finalizer_1",
+  133: 				Status:         domain.UsageStatusReserved,
+  134: 				ReservedAt:     &now,
+  135: 			},
+  136: 		},
+  137: 	}
+  138: }
+
+====================================================================================================
+FILE: internal/app/llmrequest_usage_resolver.go
+GIT_BLOB_SHA: afaa1b049f87d2e15cfcc7894f7e3d4cfc2fd547
+----------------------------------------------------------------------------------------------------
+    1: package app
+    2: 
+    3: import (
+    4: 	"context"
+    5: 	"fmt"
+    6: 
+    7: 	"github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
+    8: 	pricingapp "github.com/bogachenko/tokenio-gateway/internal/application/pricing"
+    9: )
+   10: 
+   11: type LLMRequestUsageResolver struct {
+   12: 	pricing *pricingapp.UsageResolver
+   13: }
+   14: 
+   15: var _ llmrequest.UsageResolver = (*LLMRequestUsageResolver)(nil)
+   16: 
+   17: func NewLLMRequestUsageResolver(
+   18: 	pricing *pricingapp.UsageResolver,
+   19: ) (*LLMRequestUsageResolver, error) {
+   20: 	if pricing == nil {
+   21: 		return nil, llmrequest.ErrDependencyRequired
+   22: 	}
+   23: 	return &LLMRequestUsageResolver{pricing: pricing}, nil
+   24: }
+   25: 
+   26: func (r *LLMRequestUsageResolver) Resolve(
+   27: 	ctx context.Context,
+   28: 	input llmrequest.UsageResolutionInput,
+   29: ) (llmrequest.UsageResolutionResult, error) {
+   30: 	if r == nil || r.pricing == nil {
+   31: 		return llmrequest.UsageResolutionResult{},
+   32: 			llmrequest.ErrDependencyRequired
+   33: 	}
+   34: 	if ctx == nil {
+   35: 		return llmrequest.UsageResolutionResult{}, fmt.Errorf(
+   36: 			"%w: nil usage resolution context",
+   37: 			llmrequest.ErrInvalidInput,
+   38: 		)
+   39: 	}
+   40: 	if err := ctx.Err(); err != nil {
+   41: 		return llmrequest.UsageResolutionResult{}, err
+   42: 	}
+   43: 
+   44: 	prepared := input.Reserved.Prepared
+   45: 	result, err := r.pricing.Resolve(
+   46: 		ctx,
+   47: 		pricingapp.ResolveUsageInput{
+   48: 			Route:        prepared.Plan.Route,
+   49: 			Price:        prepared.Plan.Price,
+   50: 			RequestBody:  append([]byte(nil), prepared.Payload...),
+   51: 			ResponseBody: append([]byte(nil), input.Response.Body...),
+   52: 			RequestedCapabilities: prepared.
+   53: 				RequestedCapabilities,
+   54: 			Modalities: pricingapp.InputModalities{
+   55: 				Image: prepared.RequestedCapabilities.ImageInput,
+   56: 				Audio: prepared.RequestedCapabilities.AudioInput,
+   57: 				File:  prepared.RequestedCapabilities.FileInput,
+   58: 				Video: prepared.RequestedCapabilities.VideoInput,
+   59: 			},
+   60: 			ZeroUsageAllowed: false,
+   61: 		},
+   62: 	)
+   63: 	if err != nil {
+   64: 		return llmrequest.UsageResolutionResult{}, fmt.Errorf(
+   65: 			"resolve LLM-request usage and pricing: %w",
+   66: 			err,
+   67: 		)
+   68: 	}
+   69: 
+   70: 	return llmrequest.UsageResolutionResult{
+   71: 		Usage:                 result.Usage,
+   72: 		Completeness:          string(result.Completeness),
+   73: 		Estimated:             result.Estimated,
+   74: 		UpstreamCostCents:     result.UpstreamCostCents,
+   75: 		ClientAmountCents:     result.ClientAmountCents,
+   76: 		Currency:              result.Currency,
+   77: 		ProviderRequestID:     result.ProviderRequestID,
+   78: 		ProviderResponseModel: result.ProviderResponseModel,
+   79: 	}, nil
+   80: }
+
+====================================================================================================
+FILE: internal/app/llmrequest_usage_resolver_test.go
+GIT_BLOB_SHA: ccead7dcafdcf2672b4ef9b302525d66afd9f872
+----------------------------------------------------------------------------------------------------
+    1: package app
+    2: 
+    3: import (
+    4: 	"context"
+    5: 	"errors"
+    6: 	"testing"
+    7: 
+    8: 	"github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
+    9: 	pricingapp "github.com/bogachenko/tokenio-gateway/internal/application/pricing"
+   10: 	"github.com/bogachenko/tokenio-gateway/internal/domain"
+   11: 	"github.com/bogachenko/tokenio-gateway/internal/ports"
+   12: )
+   13: 
+   14: type usageResolverExtractor struct{}
+   15: 
+   16: func (usageResolverExtractor) Extract(
+   17: 	context.Context,
+   18: 	ports.UsageExtractionRequest,
+   19: ) (ports.UsageExtractionResult, error) {
+   20: 	return ports.UsageExtractionResult{
+   21: 		Usage: domain.TokenUsage{
+   22: 			InputTokens:  10,
+   23: 			OutputTokens: 5,
+   24: 		},
+   25: 		Completeness: "detailed",
+   26: 	}, nil
+   27: }
+   28: 
+   29: type usageResolverEstimator struct{}
+   30: 
+   31: func (usageResolverEstimator) Estimate(
+   32: 	context.Context,
+   33: 	ports.TokenEstimateRequest,
+   34: ) (ports.TokenEstimate, error) {
+   35: 	return ports.TokenEstimate{}, errors.New("unexpected estimation")
+   36: }
+   37: 
+   38: func TestLLMRequestUsageResolverMapsPricingResult(t *testing.T) {
+   39: 	calculator, err := pricingapp.NewCalculator(1.25, 1.10)
+   40: 	if err != nil {
+   41: 		t.Fatal(err)
+   42: 	}
+   43: 	pricingResolver, err := pricingapp.NewUsageResolver(
+   44: 		usageResolverExtractor{},
+   45: 		usageResolverEstimator{},
+   46: 		calculator,
+   47: 	)
+   48: 	if err != nil {
+   49: 		t.Fatal(err)
+   50: 	}
+   51: 	resolver, err := NewLLMRequestUsageResolver(pricingResolver)
+   52: 	if err != nil {
+   53: 		t.Fatal(err)
+   54: 	}
+   55: 
+   56: 	result, err := resolver.Resolve(
+   57: 		context.Background(),
+   58: 		llmrequest.UsageResolutionInput{
+   59: 			Reserved: llmrequest.ReservedRequest{
+   60: 				Prepared: llmrequest.PreparedRequest{
+   61: 					RequestedCapabilities: domain.CapabilitySet{
+   62: 						Chat: true,
+   63: 					},
+   64: 					Payload: []byte(`{"model":"model-1"}`),
+   65: 					Plan: llmrequest.RoutePlan{
+   66: 						Route: domain.Route{
+   67: 							ID:           "route-1",
+   68: 							APIFamily:    domain.APIFamilyOpenAICompatible,
+   69: 							EndpointKind: domain.EndpointChat,
+   70: 							ClientModel:  "model-1",
+   71: 						},
+   72: 						Price: domain.RoutePrice{
+   73: 							RouteID:                     "route-1",
+   74: 							Currency:                    "RUB",
+   75: 							InputPricePer1MTokensCents:  1000000,
+   76: 							OutputPricePer1MTokensCents: 2000000,
+   77: 							MarkupCoefficient:           1,
+   78: 							Enabled:                     true,
+   79: 						},
+   80: 					},
+   81: 				},
+   82: 			},
+   83: 			Response: ports.ForwardResponse{
+   84: 				StatusCode: 200,
+   85: 				Body:       []byte(`{"usage":{}}`),
+   86: 			},
+   87: 		},
+   88: 	)
+   89: 	if err != nil {
+   90: 		t.Fatalf("Resolve: %v", err)
+   91: 	}
+   92: 	if result.Usage.InputTokens != 10 ||
+   93: 		result.Usage.OutputTokens != 5 ||
+   94: 		result.Completeness != "detailed" ||
+   95: 		result.Estimated ||
+   96: 		result.UpstreamCostCents <= 0 ||
+   97: 		result.ClientAmountCents <= 0 ||
+   98: 		result.Currency != "RUB" {
+   99: 		t.Fatalf("result = %+v", result)
+  100: 	}
+  101: }
+
+====================================================================================================
+FILE: internal/domain/domain.go
+GIT_BLOB_SHA: 6b7f1c736c56f1a8d3a9343837c268341512dc80
+----------------------------------------------------------------------------------------------------
+    1: package domain
+    2: 
+    3: import "time"
+    4: 
+    5: type APIKeyRecord struct {
+    6: 	ID         string     `json:"id"`
+    7: 	UserID     string     `json:"user_id"`
+    8: 	Name       string     `json:"name"`
+    9: 	KeyHash    string     `json:"key_hash"`
+   10: 	KeyPrefix  string     `json:"key_prefix"`
+   11: 	Enabled    bool       `json:"enabled"`
+   12: 	CreatedAt  time.Time  `json:"created_at"`
+   13: 	UpdatedAt  time.Time  `json:"updated_at"`
+   14: 	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
+   15: 	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
+   16: 	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
+   17: }
+   18: 
+   19: type User struct {
+   20: 	ID                    string     `json:"id"`
+   21: 	ExternalBillingUserID string     `json:"external_billing_user_id"`
+   22: 	Email                 string     `json:"email,omitempty"`
+   23: 	Name                  string     `json:"name,omitempty"`
+   24: 	Enabled               bool       `json:"enabled"`
+   25: 	CreatedAt             time.Time  `json:"created_at"`
+   26: 	UpdatedAt             time.Time  `json:"updated_at"`
+   27: 	DisabledAt            *time.Time `json:"disabled_at,omitempty"`
+   28: }
+   29: 
+   30: type ProviderType string
+   31: 
+   32: const (
+   33: 	ProviderOpenAI     ProviderType = "openai"
+   34: 	ProviderOpenRouter ProviderType = "openrouter"
+   35: 	ProviderTogether   ProviderType = "together"
+   36: 	ProviderGroq       ProviderType = "groq"
+   37: 	ProviderOllama     ProviderType = "ollama"
+   38: 	ProviderLMStudio   ProviderType = "lmstudio"
+   39: 	ProviderVLLM       ProviderType = "vllm"
+   40: 	ProviderGemini     ProviderType = "gemini"
+   41: 	ProviderAnthropic  ProviderType = "anthropic"
+   42: 	ProviderHydra      ProviderType = "hydra"
+   43: )
+   44: 
+   45: type APIFamily string
+   46: 
+   47: const (
+   48: 	APIFamilyOpenAICompatible APIFamily = "openai_compatible"
+   49: 	APIFamilyGeminiNative     APIFamily = "gemini_native"
+   50: 	APIFamilyAnthropicNative  APIFamily = "anthropic_native"
+   51: 	APIFamilyOllamaNative     APIFamily = "ollama_native"
+   52: )
+   53: 
+   54: type EndpointKind string
+   55: 
+   56: const (
+   57: 	EndpointChat             EndpointKind = "chat"
+   58: 	EndpointEmbeddings       EndpointKind = "embeddings"
+   59: 	EndpointImagesGeneration EndpointKind = "images_generation"
+   60: 	EndpointModels           EndpointKind = "models"
+   61: 	EndpointHealth           EndpointKind = "health"
+   62: )
+   63: 
+   64: type ModelRewritePolicy string
+   65: 
+   66: const (
+   67: 	ModelRewritePolicyNone          ModelRewritePolicy = "none"
+   68: 	ModelRewritePolicyProviderModel ModelRewritePolicy = "provider_model"
+   69: )
+   70: 
+   71: type CapabilitySet struct {
+   72: 	Chat             bool `json:"chat"`
+   73: 	Embeddings       bool `json:"embeddings"`
+   74: 	ImagesGeneration bool `json:"images_generation"`
+   75: 	Tools            bool `json:"tools"`
+   76: 	ToolChoice       bool `json:"tool_choice"`
+   77: 	ResponseFormat   bool `json:"response_format"`
+   78: 	JSONSchema       bool `json:"json_schema"`
+   79: 	ImageInput       bool `json:"image_input"`
+   80: 	AudioInput       bool `json:"audio_input"`
+   81: 	FileInput        bool `json:"file_input"`
+   82: 	VideoInput       bool `json:"video_input"`
+   83: 	Reasoning        bool `json:"reasoning"`
+   84: }
+   85: 
+   86: type Reseller struct {
+   87: 	ID                  string       `json:"id"`
+   88: 	Name                string       `json:"name"`
+   89: 	ProviderType        ProviderType `json:"provider_type"`
+   90: 	BaseURL             string       `json:"base_url"`
+   91: 	APIKeyEnv           string       `json:"api_key_env"`
+   92: 	Enabled             bool         `json:"enabled"`
+   93: 	BalanceCents        int64        `json:"balance_cents"`
+   94: 	ReservedCents       int64        `json:"reserved_cents"`
+   95: 	MinimumBalanceCents int64        `json:"minimum_balance_cents"`
+   96: 	CreatedAt           time.Time    `json:"created_at"`
+   97: 	UpdatedAt           time.Time    `json:"updated_at"`
+   98: 	DisabledAt          *time.Time   `json:"-"`
+   99: }
+  100: 
+  101: type Route struct {
+  102: 	ID                     string             `json:"id"`
+  103: 	ResellerID             string             `json:"reseller_id"`
+  104: 	ProviderType           ProviderType       `json:"provider_type"`
+  105: 	APIFamily              APIFamily          `json:"api_family"`
+  106: 	EndpointKind           EndpointKind       `json:"endpoint_kind"`
+  107: 	ClientModel            string             `json:"client_model"`
+  108: 	ProviderModel          string             `json:"provider_model"`
+  109: 	ModelRewritePolicy     ModelRewritePolicy `json:"model_rewrite_policy"`
+  110: 	Enabled                bool               `json:"enabled"`
+  111: 	Priority               int                `json:"priority"`
+  112: 	RequestsPerMinute      int                `json:"requests_per_minute"`
+  113: 	TokensPerMinute        int                `json:"tokens_per_minute"`
+  114: 	ConcurrentRequests     int                `json:"concurrent_requests"`
+  115: 	DefaultMaxOutputTokens int64              `json:"default_max_output_tokens"`
+  116: 	Capabilities           CapabilitySet      `json:"capabilities"`
+  117: 	CooldownUntil          *time.Time         `json:"cooldown_until,omitempty"`
+  118: 	CooldownReason         string             `json:"cooldown_reason,omitempty"`
+  119: 	LastErrorCode          string             `json:"-"`
+  120: 	LastErrorAt            *time.Time         `json:"-"`
+  121: 	CreatedAt              time.Time          `json:"created_at"`
+  122: 	UpdatedAt              time.Time          `json:"updated_at"`
+  123: 	DisabledAt             *time.Time         `json:"-"`
+  124: }
+  125: 
+  126: type TokenUsage struct {
+  127: 	InputTokens          int64 `json:"input_tokens"`
+  128: 	CachedInputTokens    int64 `json:"cached_input_tokens"`
+  129: 	OutputTokens         int64 `json:"output_tokens"`
+  130: 	ReasoningTokens      int64 `json:"reasoning_tokens"`
+  131: 	ImageInputTokens     int64 `json:"image_input_tokens"`
+  132: 	AudioInputTokens     int64 `json:"audio_input_tokens"`
+  133: 	AudioOutputTokens    int64 `json:"audio_output_tokens"`
+  134: 	FileInputTokens      int64 `json:"file_input_tokens"`
+  135: 	VideoInputTokens     int64 `json:"video_input_tokens"`
+  136: 	ImageGenerationUnits int64 `json:"image_generation_units"`
+  137: }
+  138: 
+  139: type ImageGenerationUnitKind string
+  140: 
+  141: const (
+  142: 	ImageGenerationUnitKindNone           ImageGenerationUnitKind = "none"
+  143: 	ImageGenerationUnitKindGeneratedImage ImageGenerationUnitKind = "generated_image"
+  144: )
+  145: 
+  146: type RoutePrice struct {
+  147: 	RouteID                              string                  `json:"route_id"`
+  148: 	Currency                             string                  `json:"currency"`
+  149: 	InputPricePer1MTokensCents           int64                   `json:"input_price_per_1m_tokens_cents"`
+  150: 	CachedInputPricePer1MTokensCents     int64                   `json:"cached_input_price_per_1m_tokens_cents"`
+  151: 	OutputPricePer1MTokensCents          int64                   `json:"output_price_per_1m_tokens_cents"`
+  152: 	ReasoningOutputPricePer1MTokensCents int64                   `json:"reasoning_output_price_per_1m_tokens_cents"`
+  153: 	ImageInputPricePer1MTokensCents      int64                   `json:"image_input_price_per_1m_tokens_cents"`
+  154: 	AudioInputPricePer1MTokensCents      int64                   `json:"audio_input_price_per_1m_tokens_cents"`
+  155: 	AudioOutputPricePer1MTokensCents     int64                   `json:"audio_output_price_per_1m_tokens_cents"`
+  156: 	FileInputPricePer1MTokensCents       int64                   `json:"file_input_price_per_1m_tokens_cents"`
+  157: 	VideoInputPricePer1MTokensCents      int64                   `json:"video_input_price_per_1m_tokens_cents"`
+  158: 	ImageGenerationPricePerUnitCents     int64                   `json:"image_generation_price_per_unit_cents"`
+  159: 	ImageGenerationUnitKind              ImageGenerationUnitKind `json:"image_generation_unit_kind"`
+  160: 	MarkupCoefficient                    float64                 `json:"markup_coefficient"`
+  161: 	Enabled                              bool                    `json:"enabled"`
+  162: 	CreatedAt                            time.Time               `json:"-"`
+  163: 	UpdatedAt                            time.Time               `json:"-"`
+  164: }
+  165: 
+  166: type ForwardingAttemptStatus string
+  167: 
+  168: const (
+  169: 	ForwardingAttemptStatusStarted   ForwardingAttemptStatus = "started"
+  170: 	ForwardingAttemptStatusSucceeded ForwardingAttemptStatus = "succeeded"
+  171: 	ForwardingAttemptStatusFailed    ForwardingAttemptStatus = "failed"
+  172: )
+  173: 
+  174: type ForwardingAttemptState string
+  175: 
+  176: const (
+  177: 	ForwardingAttemptStateNotSent          ForwardingAttemptState = "not_sent"
+  178: 	ForwardingAttemptStateSentNoResponse   ForwardingAttemptState = "sent_no_response"
+  179: 	ForwardingAttemptStateResponseReceived ForwardingAttemptState = "response_received"
+  180: )
+  181: 
+  182: type ForwardingAttempt struct {
+  183: 	LocalRequestID string `json:"local_request_id"`
+  184: 	AttemptNumber  int    `json:"attempt_number"`
+  185: 
+  186: 	RouteID    string `json:"route_id"`
+  187: 	ResellerID string `json:"reseller_id"`
+  188: 
+  189: 	APIFamily    APIFamily    `json:"api_family"`
+  190: 	EndpointKind EndpointKind `json:"endpoint_kind"`
+  191: 	ClientModel  string       `json:"client_model"`
+  192: 
+  193: 	ProviderType  ProviderType `json:"provider_type"`
+  194: 	ProviderModel string       `json:"provider_model"`
+  195: 
+  196: 	Status       ForwardingAttemptStatus `json:"status"`
+  197: 	AttemptState ForwardingAttemptState  `json:"attempt_state,omitempty"`
+  198: 
+  199: 	UpstreamStatusCode int    `json:"upstream_status_code,omitempty"`
+  200: 	FailureKind        string `json:"failure_kind,omitempty"`
+  201: 
+  202: 	RouteRetryCandidate bool `json:"route_retry_candidate"`
+  203: 
+  204: 	StartedAt   time.Time  `json:"started_at"`
+  205: 	CompletedAt *time.Time `json:"completed_at,omitempty"`
+  206: }
+  207: 
+  208: type UsageStatus string
+  209: 
+  210: const (
+  211: 	UsageStatusReserved         UsageStatus = "reserved"
+  212: 	UsageStatusReleased         UsageStatus = "released"
+  213: 	UsageStatusBillable         UsageStatus = "billable"
+  214: 	UsageStatusPartiallyCharged UsageStatus = "partially_charged"
+  215: 	UsageStatusCharged          UsageStatus = "charged"
+  216: 	UsageStatusFailed           UsageStatus = "failed"
+  217: 	UsageStatusPricingFailed    UsageStatus = "pricing_failed"
+  218: )
+  219: 
+  220: type BillingChargeStatus string
+  221: 
+  222: const (
+  223: 	BillingChargeStatusPending   BillingChargeStatus = "pending"
+  224: 	BillingChargeStatusSucceeded BillingChargeStatus = "succeeded"
+  225: 	BillingChargeStatusFailed    BillingChargeStatus = "failed"
+  226: )
+  227: 
+  228: type ErrorCode string
+  229: 
+  230: const (
+  231: 	ErrorCodeUnauthorized                  ErrorCode = "unauthorized"
+  232: 	ErrorCodeInvalidAPIKey                 ErrorCode = "invalid_api_key"
+  233: 	ErrorCodeUserDisabled                  ErrorCode = "user_disabled"
+  234: 	ErrorCodeInvalidJSON                   ErrorCode = "invalid_json"
+  235: 	ErrorCodeRequestBodyTooLarge           ErrorCode = "request_body_too_large"
+  236: 	ErrorCodeUnsupportedContentType        ErrorCode = "unsupported_content_type"
+  237: 	ErrorCodeModelRequired                 ErrorCode = "model_required"
+  238: 	ErrorCodeStreamingUnsupported          ErrorCode = "streaming_unsupported"
+  239: 	ErrorCodeUnknownModel                  ErrorCode = "unknown_model"
+  240: 	ErrorCodeUnsupportedCapability         ErrorCode = "unsupported_capability"
+  241: 	ErrorCodeNoRouteAvailable              ErrorCode = "no_route_available"
+  242: 	ErrorCodeRouteUnavailable              ErrorCode = "route_unavailable"
+  243: 	ErrorCodeInsufficientFunds             ErrorCode = "insufficient_funds"
+  244: 	ErrorCodeBillingUnavailable            ErrorCode = "billing_unavailable"
+  245: 	ErrorCodePricingUnavailable            ErrorCode = "pricing_unavailable"
+  246: 	ErrorCodeUnresolvedUsage               ErrorCode = "unresolved_usage"
+  247: 	ErrorCodeRequestInProgress             ErrorCode = "request_in_progress"
+  248: 	ErrorCodeIdempotencyReplayNotAvailable ErrorCode = "idempotency_replay_not_available"
+  249: 	ErrorCodeIdempotencyKeyReused          ErrorCode = "idempotency_key_reused"
+  250: 	ErrorCodeUsageStoreUnavailable         ErrorCode = "usage_store_unavailable"
+  251: 	ErrorCodeStoreUnavailable              ErrorCode = "store_unavailable"
+  252: 	ErrorCodeUpstreamRequestError          ErrorCode = "upstream_request_error"
+  253: 	ErrorCodeUpstreamUnavailable           ErrorCode = "upstream_unavailable"
+  254: 	ErrorCodeConfigurationError            ErrorCode = "configuration_error"
+  255: 	ErrorCodeMethodNotAllowed              ErrorCode = "method_not_allowed"
+  256: 	ErrorCodeNotFound                      ErrorCode = "not_found"
+  257: 	ErrorCodeInternalError                 ErrorCode = "internal_error"
+  258: 	ErrorCodeProvisioningUnauthorized      ErrorCode = "provisioning_unauthorized"
+  259: 	ErrorCodeProvisioningInvalidRequest    ErrorCode = "provisioning_invalid_request"
+  260: 	ErrorCodeProvisioningConflict          ErrorCode = "provisioning_conflict"
+  261: 	ErrorCodeProvisioningExpired           ErrorCode = "provisioning_expired"
+  262: 	ErrorCodeProvisioningStoreUnavailable  ErrorCode = "provisioning_store_unavailable"
+  263: 	ErrorCodeProvisioningCryptoUnavailable ErrorCode = "provisioning_crypto_unavailable"
+  264: 	ErrorCodeAdminUnauthorized             ErrorCode = "admin_unauthorized"
+  265: 	ErrorCodeAdminForbidden                ErrorCode = "admin_forbidden"
+  266: 	ErrorCodeAdminValidationError          ErrorCode = "admin_validation_error"
+  267: 	ErrorCodeAdminNotFound                 ErrorCode = "admin_not_found"
+  268: 	ErrorCodeAdminConflict                 ErrorCode = "admin_conflict"
+  269: 	ErrorCodeAdminStateConflict            ErrorCode = "admin_state_conflict"
+  270: 	ErrorCodeAdminSecretNotAvailable       ErrorCode = "admin_secret_not_available"
+  271: )
+  272: 
+  273: type UsageRecord struct {
+  274: 	LocalRequestID string `json:"local_request_id"`
+  275: 	IdempotencyKey string `json:"idempotency_key,omitempty"`
+  276: 
+  277: 	UserID   string `json:"user_id"`
+  278: 	APIKeyID string `json:"api_key_id"`
+  279: 
+  280: 	APIFamily    APIFamily    `json:"api_family"`
+  281: 	EndpointKind EndpointKind `json:"endpoint_kind"`
+  282: 
+  283: 	ClientModel  string `json:"client_model"`
+  284: 	BillingModel string `json:"billing_model"`
+  285: 
+  286: 	SelectedRouteID    string `json:"selected_route_id"`
+  287: 	SelectedResellerID string `json:"selected_reseller_id"`
+  288: 
+  289: 	ProviderType  ProviderType `json:"provider_type"`
+  290: 	ProviderModel string       `json:"provider_model"`
+  291: 
+  292: 	ProviderRequestID     string `json:"provider_request_id,omitempty"`
+  293: 	ProviderResponseModel string `json:"provider_response_model,omitempty"`
+  294: 
+  295: 	EstimatedUsage TokenUsage `json:"estimated_usage"`
+  296: 	Usage          TokenUsage `json:"usage"`
+  297: 
+  298: 	EstimatedClientAmountCents int64 `json:"estimated_client_amount_cents"`
+  299: 	EstimatedUpstreamCostCents int64 `json:"estimated_upstream_cost_cents"`
+  300: 
+  301: 	ClientAmountCents       int64 `json:"client_amount_cents"`
+  302: 	ChargedAmountCents      int64 `json:"charged_amount_cents"`
+  303: 	RemainingAmountCents    int64 `json:"remaining_amount_cents"`
+  304: 	ActualUpstreamCostCents int64 `json:"actual_upstream_cost_cents"`
+  305: 
+  306: 	Currency          string      `json:"currency"`
+  307: 	UsageCompleteness string      `json:"usage_completeness"`
+  308: 	Status            UsageStatus `json:"status"`
+  309: 
+  310: 	FailureReason          string `json:"failure_reason,omitempty"`
+  311: 	BillingChargeRequestID string `json:"billing_charge_request_id,omitempty"`
+  312: 
+  313: 	CreatedAt  time.Time  `json:"created_at"`
+  314: 	ReservedAt *time.Time `json:"reserved_at,omitempty"`
+  315: 	ReleasedAt *time.Time `json:"released_at,omitempty"`
+  316: 	BillableAt *time.Time `json:"billable_at,omitempty"`
+  317: 	ChargedAt  *time.Time `json:"charged_at,omitempty"`
+  318: 	FailedAt   *time.Time `json:"failed_at,omitempty"`
+  319: 	UpdatedAt  time.Time  `json:"updated_at"`
+  320: }
+  321: 
+  322: type BillingChargeBatch struct {
+  323: 	ID string `json:"id"`
+  324: 
+  325: 	UserID               string `json:"user_id"`
+  326: 	BillingSubjectUserID string `json:"billing_subject_user_id"`
+  327: 
+  328: 	ProviderType ProviderType `json:"provider_type"`
+  329: 	ClientModel  string       `json:"client_model"`
+  330: 	BillingModel string       `json:"billing_model"`
+  331: 
+  332: 	InputTokens  int64 `json:"input_tokens"`
+  333: 	OutputTokens int64 `json:"output_tokens"`
+  334: 
+  335: 	AmountCents int64  `json:"amount_cents"`
+  336: 	Currency    string `json:"currency"`
+  337: 
+  338: 	Status BillingChargeStatus `json:"status"`
+  339: 
+  340: 	BillingResponseBalanceCents *int64 `json:"billing_response_balance_cents,omitempty"`
+  341: 	BillingErrorCode            string `json:"billing_error_code,omitempty"`
+  342: 
+  343: 	CreatedAt time.Time  `json:"created_at"`
+  344: 	ChargedAt *time.Time `json:"charged_at,omitempty"`
+  345: 	FailedAt  *time.Time `json:"failed_at,omitempty"`
+  346: 	UpdatedAt time.Time  `json:"updated_at"`
+  347: }
+  348: 
+  349: type BillingChargeAllocation struct {
+  350: 	ID string `json:"id"`
+  351: 
+  352: 	BatchID        string `json:"batch_id"`
+  353: 	LocalRequestID string `json:"local_request_id"`
+  354: 
+  355: 	ChargedAmountCents   int64 `json:"charged_amount_cents"`
+  356: 	RemainingAmountCents int64 `json:"remaining_amount_cents"`
+  357: 
+  358: 	CreatedAt time.Time `json:"created_at"`
+  359: }
+
