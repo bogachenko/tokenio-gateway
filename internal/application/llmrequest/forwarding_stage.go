@@ -82,16 +82,9 @@ func (s *ForwardingStage) Execute(
 	ctx context.Context,
 	prepared PreparedRequest,
 	admission BillingAdmissionResult,
-) (
-	result ForwardedRequest,
-	err error,
-) {
-	if s == nil ||
-		s.capacity == nil ||
-		s.reservation == nil ||
-		s.transfer == nil ||
-		s.attempts == nil ||
-		s.clock == nil ||
+) (result ForwardedRequest, err error) {
+	if s == nil || s.capacity == nil || s.reservation == nil ||
+		s.transfer == nil || s.attempts == nil || s.clock == nil ||
 		s.forwarder == nil {
 		return ForwardedRequest{}, ErrDependencyRequired
 	}
@@ -104,33 +97,135 @@ func (s *ForwardingStage) Execute(
 	if err := ctx.Err(); err != nil {
 		return ForwardedRequest{}, err
 	}
-	if err := validateBillingAdmission(
-		prepared,
-		admission,
-	); err != nil {
+	if err := validateBillingAdmission(prepared, admission); err != nil {
 		return ForwardedRequest{}, err
 	}
 
-	lease, err := s.capacity.Acquire(
-		ctx,
-		ports.RouteCapacityAcquireInput{
-			LocalRequestID: prepared.LocalRequestID,
-			ReservationID: forwardingCapacityReservationID(
-				prepared.LocalRequestID,
-				1,
-			),
-			Route:          prepared.Plan.Route,
-			Reseller:       prepared.Plan.Reseller,
-			EstimatedUsage: prepared.Plan.EstimatedUsage,
-		},
-	)
-	if err != nil {
-		return ForwardedRequest{}, fmt.Errorf(
-			"acquire route capacity: %w",
-			err,
+	candidates := forwardingCandidates(prepared.Plan)
+	var reservation ReservationResult
+	reservationCreated := false
+	var lastForwardErr error
+	var lastCapacityErr error
+
+	for index, candidate := range candidates {
+		attemptNumber := index + 1
+		candidatePrepared := preparedForForwardingCandidate(
+			prepared,
+			candidate,
+			candidates[index+1:],
 		)
+		lease, acquireErr := s.capacity.Acquire(
+			ctx,
+			ports.RouteCapacityAcquireInput{
+				LocalRequestID: candidatePrepared.LocalRequestID,
+				ReservationID: forwardingCapacityReservationID(
+					candidatePrepared.LocalRequestID,
+					attemptNumber,
+				),
+				Route:          candidatePrepared.Plan.Route,
+				Reseller:       candidatePrepared.Plan.Reseller,
+				EstimatedUsage: candidatePrepared.Plan.EstimatedUsage,
+			},
+		)
+		if acquireErr != nil {
+			if errors.Is(acquireErr, ports.ErrRouteCapacityUnavailable) {
+				lastCapacityErr = fmt.Errorf(
+					"route %q capacity unavailable: %w",
+					candidatePrepared.Plan.Route.ID,
+					acquireErr,
+				)
+				continue
+			}
+			return ForwardedRequest{}, fmt.Errorf(
+				"acquire route capacity: %w",
+				acquireErr,
+			)
+		}
+		if err := validateForwardingCapacityLease(
+			lease,
+			candidatePrepared,
+			attemptNumber,
+		); err != nil {
+			releaseErr := s.capacity.Release(
+				context.WithoutCancel(ctx),
+				lease,
+			)
+			return ForwardedRequest{}, errors.Join(err, releaseErr)
+		}
+
+		attemptResult, attemptErr := s.executeLeasedCandidate(
+			ctx,
+			candidatePrepared,
+			admission,
+			reservation,
+			reservationCreated,
+			candidate,
+			attemptNumber,
+			lease,
+		)
+		if attemptResult.Reservation.Usage.LocalRequestID != "" {
+			reservation = attemptResult.Reservation
+			reservationCreated = true
+		}
+		if attemptErr == nil {
+			return ForwardedRequest{
+				Reserved: ReservedRequest{
+					Prepared:  clonePreparedRequest(attemptResult.Prepared),
+					Admission: admission,
+					Reservation: cloneReservationResult(
+						attemptResult.Reservation,
+					),
+				},
+				Response: cloneForwardResponse(
+					attemptResult.Execution.Response,
+				),
+			}, nil
+		}
+		lastForwardErr = attemptErr
+		if !attemptResult.RetryAllowed {
+			return ForwardedRequest{}, attemptErr
+		}
+		if err := ctx.Err(); err != nil {
+			return ForwardedRequest{}, errors.Join(attemptErr, err)
+		}
 	}
 
+	switch {
+	case lastForwardErr != nil && lastCapacityErr != nil:
+		return ForwardedRequest{}, errors.Join(lastForwardErr, lastCapacityErr)
+	case lastForwardErr != nil:
+		return ForwardedRequest{}, lastForwardErr
+	case lastCapacityErr != nil:
+		return ForwardedRequest{}, lastCapacityErr
+	default:
+		return ForwardedRequest{}, fmt.Errorf(
+			"%w: empty forwarding candidate plan",
+			ErrStageContractViolation,
+		)
+	}
+}
+
+type forwardingCandidate struct {
+	Plan RouteFallbackPlan
+}
+
+type leasedCandidateResult struct {
+	Prepared     PreparedRequest
+	Reservation  ReservationResult
+	Execution    ForwardingExecutionResult
+	RetryAllowed bool
+}
+
+func (s *ForwardingStage) executeLeasedCandidate(
+	ctx context.Context,
+	prepared PreparedRequest,
+	admission BillingAdmissionResult,
+	current ReservationResult,
+	reservationCreated bool,
+	candidate forwardingCandidate,
+	attemptNumber int,
+	lease ports.RouteCapacityReservation,
+) (result leasedCandidateResult, err error) {
 	defer func() {
 		releaseErr := s.capacity.Release(
 			context.WithoutCancel(ctx),
@@ -139,67 +234,67 @@ func (s *ForwardingStage) Execute(
 		if releaseErr != nil {
 			err = errors.Join(
 				err,
-				fmt.Errorf(
-					"release route capacity: %w",
-					releaseErr,
-				),
+				fmt.Errorf("release route capacity: %w", releaseErr),
 			)
+			result.RetryAllowed = false
 		}
 	}()
 
-	if lease.LocalRequestID != prepared.LocalRequestID ||
-		lease.ReservationID != forwardingCapacityReservationID(
-			prepared.LocalRequestID,
-			1,
-		) ||
-		lease.RouteID != prepared.Plan.Route.ID {
-		return ForwardedRequest{}, fmt.Errorf(
-			"%w: invalid route capacity reservation",
-			ErrStageContractViolation,
+	reservation := current
+	if !reservationCreated {
+		created, reserveErr := s.reservation.Reserve(
+			ctx,
+			reservationInput(prepared),
 		)
+		if reserveErr != nil {
+			return leasedCandidateResult{}, fmt.Errorf(
+				"reserve usage and reseller balance: %w",
+				reserveErr,
+			)
+		}
+		if err := validateReservation(prepared, created); err != nil {
+			return leasedCandidateResult{}, err
+		}
+		reservation = created
+	} else {
+		transferred, transferErr := s.transfer.Transfer(
+			ctx,
+			RouteReservationTransferInput{
+				ExpectedUsage: current.Usage,
+				Target:        candidate.Plan,
+			},
+		)
+		if transferErr != nil {
+			return leasedCandidateResult{}, fmt.Errorf(
+				"transfer route reservation: %w",
+				transferErr,
+			)
+		}
+		var validationErr error
+		reservation, validationErr = validateTransferredReservation(
+			prepared,
+			current,
+			transferred,
+		)
+		if validationErr != nil {
+			return leasedCandidateResult{}, validationErr
+		}
 	}
 
-	reservation, err := s.reservation.Reserve(
-		ctx,
-		reservationInput(prepared),
-	)
-	if err != nil {
-		return ForwardedRequest{}, fmt.Errorf(
-			"reserve usage and reseller balance: %w",
-			err,
-		)
-	}
-	if err := validateReservation(
-		prepared,
-		reservation,
-	); err != nil {
-		return ForwardedRequest{}, err
-	}
+	result.Prepared = clonePreparedRequest(prepared)
+	result.Reservation = cloneReservationResult(reservation)
 
 	startedAt, err := forwardingStageNow(s.clock)
 	if err != nil {
-		return ForwardedRequest{}, err
+		return result, err
 	}
-	startedAttempt := forwardingAttemptStarted(
-		prepared,
-		1,
-		startedAt,
-	)
-	persistedStarted, err := s.attempts.StartAttempt(
-		ctx,
-		startedAttempt,
-	)
+	started := forwardingAttemptStarted(prepared, attemptNumber, startedAt)
+	persistedStarted, err := s.attempts.StartAttempt(ctx, started)
 	if err != nil {
-		return ForwardedRequest{}, fmt.Errorf(
-			"start forwarding attempt: %w",
-			err,
-		)
+		return result, fmt.Errorf("start forwarding attempt: %w", err)
 	}
-	if !forwardingAttemptsEqual(
-		persistedStarted,
-		startedAttempt,
-	) {
-		return ForwardedRequest{}, fmt.Errorf(
+	if !forwardingAttemptsEqual(persistedStarted, started) {
+		return result, fmt.Errorf(
 			"%w: invalid started forwarding attempt",
 			ErrStageContractViolation,
 		)
@@ -213,89 +308,206 @@ func (s *ForwardingStage) Execute(
 			Reservation: cloneReservationResult(reservation),
 		},
 	)
+	result.Execution = execution
 	completedAt, clockErr := forwardingStageNow(s.clock)
 	if clockErr != nil {
-		return ForwardedRequest{}, errors.Join(
-			forwardErr,
-			clockErr,
-		)
+		return result, errors.Join(forwardErr, clockErr)
 	}
-	if forwardErr != nil {
-		terminal, classificationErr :=
-			failedForwardingAttempt(
-				startedAttempt,
-				completedAt,
-				forwardErr,
-			)
-		if classificationErr != nil {
-			return ForwardedRequest{}, errors.Join(
-				forwardErr,
-				classificationErr,
-			)
+	if forwardErr == nil {
+		terminal, terminalErr := succeededForwardingAttempt(
+			started,
+			completedAt,
+			execution.Response.StatusCode,
+		)
+		if terminalErr != nil {
+			return result, terminalErr
 		}
 		persisted, completionErr := s.attempts.CompleteAttempt(
 			context.WithoutCancel(ctx),
 			terminal,
 		)
 		if completionErr != nil {
-			return ForwardedRequest{}, errors.Join(
-				forwardErr,
-				fmt.Errorf(
-					"complete failed forwarding attempt: %w",
-					completionErr,
-				),
+			return result, fmt.Errorf(
+				"complete successful forwarding attempt: %w",
+				completionErr,
 			)
 		}
 		if !forwardingAttemptsEqual(persisted, terminal) {
-			return ForwardedRequest{}, errors.Join(
-				forwardErr,
-				fmt.Errorf(
-					"%w: invalid failed forwarding attempt",
-					ErrStageContractViolation,
-				),
+			return result, fmt.Errorf(
+				"%w: invalid successful forwarding attempt",
+				ErrStageContractViolation,
 			)
 		}
-		return ForwardedRequest{}, fmt.Errorf(
-			"forward selected route: %w",
-			forwardErr,
-		)
+		return result, nil
 	}
-	terminal, err := succeededForwardingAttempt(
-		startedAttempt,
+
+	terminal, classificationErr := failedForwardingAttempt(
+		started,
 		completedAt,
-		execution.Response.StatusCode,
+		forwardErr,
 	)
-	if err != nil {
-		return ForwardedRequest{}, err
+	if classificationErr != nil {
+		return result, errors.Join(forwardErr, classificationErr)
 	}
-	persistedTerminal, err := s.attempts.CompleteAttempt(
+	persisted, completionErr := s.attempts.CompleteAttempt(
 		context.WithoutCancel(ctx),
 		terminal,
 	)
-	if err != nil {
-		return ForwardedRequest{}, fmt.Errorf(
-			"complete successful forwarding attempt: %w",
-			err,
+	if completionErr != nil {
+		return result, errors.Join(
+			forwardErr,
+			fmt.Errorf(
+				"complete failed forwarding attempt: %w",
+				completionErr,
+			),
 		)
 	}
-	if !forwardingAttemptsEqual(
-		persistedTerminal,
-		terminal,
-	) {
-		return ForwardedRequest{}, fmt.Errorf(
-			"%w: invalid successful forwarding attempt",
+	if !forwardingAttemptsEqual(persisted, terminal) {
+		return result, errors.Join(
+			forwardErr,
+			fmt.Errorf(
+				"%w: invalid failed forwarding attempt",
+				ErrStageContractViolation,
+			),
+		)
+	}
+	result.RetryAllowed = forwardingAttemptAllowsRetry(ctx, terminal)
+	return result, fmt.Errorf(
+		"forward route %q attempt %d: %w",
+		prepared.Plan.Route.ID,
+		attemptNumber,
+		forwardErr,
+	)
+}
+
+func forwardingCandidates(plan RoutePlan) []forwardingCandidate {
+	result := make([]forwardingCandidate, 0, 1+len(plan.Fallbacks))
+	result = append(result, forwardingCandidate{Plan: RouteFallbackPlan{
+		Route:                      plan.Route,
+		Reseller:                   plan.Reseller,
+		Price:                      plan.Price,
+		BillingModel:               plan.BillingModel,
+		EstimatedUsage:             plan.EstimatedUsage,
+		EstimatedClientAmountCents: plan.EstimatedClientAmountCents,
+		EstimatedUpstreamCostCents: plan.EstimatedUpstreamCostCents,
+		Currency:                   plan.Currency,
+		Confidence:                 plan.Confidence,
+	}})
+	for _, fallback := range plan.Fallbacks {
+		result = append(result, forwardingCandidate{
+			Plan: cloneRouteFallbackPlan(fallback),
+		})
+	}
+	return result
+}
+
+func preparedForForwardingCandidate(
+	base PreparedRequest,
+	candidate forwardingCandidate,
+	remaining []forwardingCandidate,
+) PreparedRequest {
+	result := clonePreparedRequest(base)
+	result.Plan = RoutePlan{
+		Route:                      candidate.Plan.Route,
+		Reseller:                   candidate.Plan.Reseller,
+		Price:                      candidate.Plan.Price,
+		BillingModel:               candidate.Plan.BillingModel,
+		EstimatedUsage:             candidate.Plan.EstimatedUsage,
+		EstimatedClientAmountCents: candidate.Plan.EstimatedClientAmountCents,
+		EstimatedUpstreamCostCents: candidate.Plan.EstimatedUpstreamCostCents,
+		Currency:                   candidate.Plan.Currency,
+		Confidence:                 candidate.Plan.Confidence,
+		Fallbacks:                  make([]RouteFallbackPlan, 0, len(remaining)),
+	}
+	for _, next := range remaining {
+		result.Plan.Fallbacks = append(
+			result.Plan.Fallbacks,
+			cloneRouteFallbackPlan(next.Plan),
+		)
+	}
+	return result
+}
+
+func cloneRouteFallbackPlan(value RouteFallbackPlan) RouteFallbackPlan {
+	return RouteFallbackPlan{
+		Route:                      value.Route,
+		Reseller:                   value.Reseller,
+		Price:                      value.Price,
+		BillingModel:               value.BillingModel,
+		EstimatedUsage:             value.EstimatedUsage,
+		EstimatedClientAmountCents: value.EstimatedClientAmountCents,
+		EstimatedUpstreamCostCents: value.EstimatedUpstreamCostCents,
+		Currency:                   value.Currency,
+		Confidence:                 value.Confidence,
+	}
+}
+
+func validateForwardingCapacityLease(
+	lease ports.RouteCapacityReservation,
+	prepared PreparedRequest,
+	attemptNumber int,
+) error {
+	if lease.LocalRequestID != prepared.LocalRequestID ||
+		lease.ReservationID != forwardingCapacityReservationID(
+			prepared.LocalRequestID,
+			attemptNumber,
+		) ||
+		lease.RouteID != prepared.Plan.Route.ID {
+		return fmt.Errorf(
+			"%w: invalid route capacity reservation",
 			ErrStageContractViolation,
 		)
 	}
+	return nil
+}
 
-	return ForwardedRequest{
-		Reserved: ReservedRequest{
-			Prepared:    clonePreparedRequest(prepared),
-			Admission:   admission,
-			Reservation: cloneReservationResult(reservation),
-		},
-		Response: cloneForwardResponse(execution.Response),
+func validateTransferredReservation(
+	prepared PreparedRequest,
+	previous ReservationResult,
+	transferred RouteReservationTransferResult,
+) (ReservationResult, error) {
+	usage := transferred.Usage
+	if usage.LocalRequestID != prepared.LocalRequestID ||
+		usage.Status != domain.UsageStatusReserved ||
+		usage.SelectedRouteID != prepared.Plan.Route.ID ||
+		usage.SelectedResellerID != prepared.Plan.Reseller.ID ||
+		usage.ProviderType != prepared.Plan.Route.ProviderType ||
+		usage.ProviderModel != prepared.Plan.Route.ProviderModel ||
+		usage.BillingModel != prepared.Plan.BillingModel ||
+		usage.EstimatedUsage != prepared.Plan.EstimatedUsage ||
+		usage.EstimatedClientAmountCents != prepared.Plan.EstimatedClientAmountCents ||
+		usage.EstimatedUpstreamCostCents != prepared.Plan.EstimatedUpstreamCostCents ||
+		usage.Currency != prepared.Plan.Currency ||
+		transferred.ReservedReseller.ID != prepared.Plan.Reseller.ID {
+		return ReservationResult{}, fmt.Errorf(
+			"%w: invalid transferred route reservation",
+			ErrStageContractViolation,
+		)
+	}
+	reseller := transferred.ReservedReseller
+	return ReservationResult{
+		Disposition: previous.Disposition,
+		Usage:       usage,
+		Reseller:    &reseller,
 	}, nil
+}
+
+func forwardingAttemptAllowsRetry(
+	ctx context.Context,
+	attempt domain.ForwardingAttempt,
+) bool {
+	if ctx == nil || ctx.Err() != nil || !attempt.RouteRetryCandidate {
+		return false
+	}
+	switch attempt.AttemptState {
+	case domain.ForwardingAttemptStateNotSent,
+		domain.ForwardingAttemptStateResponseReceived:
+		return true
+	case domain.ForwardingAttemptStateSentNoResponse:
+		return false
+	default:
+		return false
+	}
 }
 
 func forwardingCapacityReservationID(
