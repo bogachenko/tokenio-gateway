@@ -1,10 +1,14 @@
 package routecapacity
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/bogachenko/tokenio-gateway/internal/ports"
+)
 
 var (
 	ErrInvalidInput        = errors.New("invalid route capacity input")
-	ErrCapacityUnavailable = errors.New("route capacity unavailable")
-	ErrReservationConflict = errors.New("route capacity reservation conflict")
+	ErrCapacityUnavailable = ports.ErrRouteCapacityUnavailable
+	ErrReservationConflict = ports.ErrRouteCapacityReservationConflict
 	ErrAmountOverflow      = errors.New("route capacity amount overflow")
 )

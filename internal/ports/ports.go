@@ -13,6 +13,13 @@ var (
 	ErrStoreUnavailable       = errors.New("store unavailable")
 	ErrStoreConflict          = errors.New("store conflict")
 	ErrStoreContractViolation = errors.New("store contract violation")
+
+	ErrRouteCapacityUnavailable = errors.New(
+		"route capacity unavailable",
+	)
+	ErrRouteCapacityReservationConflict = errors.New(
+		"route capacity reservation conflict",
+	)
 )
 
 type APIKeyRepository interface {
@@ -88,6 +95,10 @@ type RouteCapacityReservation struct {
 	RouteID        string
 }
 
+// RouteCapacityManager implementations must return
+// ErrRouteCapacityUnavailable when a valid route cannot accept this
+// attempt because of RPM, TPM, or concurrency limits. Contract and
+// identity violations must not be reported as capacity exhaustion.
 type RouteCapacityManager interface {
 	RouteCapacityChecker
 

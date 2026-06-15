@@ -249,6 +249,21 @@ func TestManagerAcquireRejectsIdentityConflict(t *testing.T) {
 	}
 }
 
+func TestManagerCapacityErrorsSatisfyPortContract(t *testing.T) {
+	if !errors.Is(
+		ErrCapacityUnavailable,
+		ports.ErrRouteCapacityUnavailable,
+	) {
+		t.Fatal("capacity unavailable does not satisfy port contract")
+	}
+	if !errors.Is(
+		ErrReservationConflict,
+		ports.ErrRouteCapacityReservationConflict,
+	) {
+		t.Fatal("reservation conflict does not satisfy port contract")
+	}
+}
+
 func TestManagerAcquireIsAtomicForConcurrency(t *testing.T) {
 	manager, _ := newTestManager(t)
 	input := validCheckInput()
