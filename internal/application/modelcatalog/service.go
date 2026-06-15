@@ -331,6 +331,7 @@ func (s *Service) routeConfigurationSupported(
 	if !s.deps.AdapterSupport.SupportsForwardingAdapter(
 		route.APIFamily,
 		route.ProviderType,
+		route.EndpointKind,
 	) {
 		return false
 	}

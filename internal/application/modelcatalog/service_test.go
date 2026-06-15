@@ -82,6 +82,7 @@ type fakeRewriteSupport struct {
 func (*fakeRewriteSupport) SupportsForwardingAdapter(
 	domain.APIFamily,
 	domain.ProviderType,
+	domain.EndpointKind,
 ) bool {
 	return true
 }

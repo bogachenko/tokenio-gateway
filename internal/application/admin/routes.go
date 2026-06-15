@@ -92,6 +92,7 @@ func (s *Service) CreateRoute(ctx context.Context, command CommandContext, route
 		!s.deps.AdapterSupport.SupportsForwardingAdapter(
 			route.APIFamily,
 			route.ProviderType,
+			route.EndpointKind,
 		) {
 		return domain.Route{}, ErrInvalidRequest
 	}
@@ -178,6 +179,7 @@ func (s *Service) UpdateRoute(ctx context.Context, command CommandContext, input
 			!s.deps.AdapterSupport.SupportsForwardingAdapter(
 				next.APIFamily,
 				next.ProviderType,
+				next.EndpointKind,
 			)) {
 		return domain.Route{}, ErrInvalidRequest
 	}
@@ -224,6 +226,7 @@ func (s *Service) SetRouteEnabled(ctx context.Context, command CommandContext, i
 		!s.deps.AdapterSupport.SupportsForwardingAdapter(
 			next.APIFamily,
 			next.ProviderType,
+			next.EndpointKind,
 		) {
 		return domain.Route{}, ErrInvalidRequest
 	}

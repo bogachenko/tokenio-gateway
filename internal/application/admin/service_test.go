@@ -185,6 +185,7 @@ type fakeAdapterSupport struct{}
 func (*fakeAdapterSupport) SupportsForwardingAdapter(
 	domain.APIFamily,
 	domain.ProviderType,
+	domain.EndpointKind,
 ) bool {
 	return true
 }

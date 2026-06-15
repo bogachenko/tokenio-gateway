@@ -110,10 +110,17 @@ type SecretResolver interface {
 	Resolve(ctx context.Context, name string) (string, error)
 }
 
+type ForwardingAdapterEndpointSupport interface {
+	SupportsForwardingEndpoint(
+		domain.EndpointKind,
+	) bool
+}
+
 type ForwardingAdapterSupport interface {
 	SupportsForwardingAdapter(
 		domain.APIFamily,
 		domain.ProviderType,
+		domain.EndpointKind,
 	) bool
 }
 

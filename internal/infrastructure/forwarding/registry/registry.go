@@ -19,7 +19,8 @@ type Registration struct {
 }
 
 type Registry struct {
-	factories map[Key]ports.ForwardingAdapterFactory
+	factories       map[Key]ports.ForwardingAdapterFactory
+	endpointSupport map[Key]ports.ForwardingAdapterEndpointSupport
 }
 
 var (
@@ -35,10 +36,18 @@ func New(registrations ...Registration) (*Registry, error) {
 		map[Key]ports.ForwardingAdapterFactory,
 		len(registrations),
 	)
+	endpointSupport := make(
+		map[Key]ports.ForwardingAdapterEndpointSupport,
+		len(registrations),
+	)
 	for _, registration := range registrations {
 		if registration.Key.APIFamily == "" ||
 			registration.Key.ProviderType == "" ||
 			registration.Factory == nil {
+			return nil, ErrInvalidRegistration
+		}
+		support, ok := registration.Factory.(ports.ForwardingAdapterEndpointSupport)
+		if !ok || support == nil {
 			return nil, ErrInvalidRegistration
 		}
 		if _, exists := factories[registration.Key]; exists {
@@ -50,22 +59,27 @@ func New(registrations ...Registration) (*Registry, error) {
 			)
 		}
 		factories[registration.Key] = registration.Factory
+		endpointSupport[registration.Key] = support
 	}
-	return &Registry{factories: factories}, nil
+	return &Registry{
+		factories:       factories,
+		endpointSupport: endpointSupport,
+	}, nil
 }
 
 func (r *Registry) SupportsForwardingAdapter(
 	apiFamily domain.APIFamily,
 	providerType domain.ProviderType,
+	endpointKind domain.EndpointKind,
 ) bool {
 	if r == nil {
 		return false
 	}
-	_, exists := r.factories[Key{
+	support, exists := r.endpointSupport[Key{
 		APIFamily:    apiFamily,
 		ProviderType: providerType,
 	}]
-	return exists
+	return exists && support.SupportsForwardingEndpoint(endpointKind)
 }
 
 func (r *Registry) Build(

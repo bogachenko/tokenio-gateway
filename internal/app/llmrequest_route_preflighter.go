@@ -74,6 +74,7 @@ func (p *LLMRequestRoutePreflighter) Evaluate(
 		ForwardingAdapterAvailable: p.adapterSupport.SupportsForwardingAdapter(
 			input.Route.APIFamily,
 			input.Route.ProviderType,
+			input.Route.EndpointKind,
 		),
 		ModelIdentifierRewriteAllowed: llmRequestModelRewriteAllowed(
 			p.rewriteSupport,

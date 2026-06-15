@@ -19,6 +19,12 @@ func (function factoryFunc) Build(
 	return function(input)
 }
 
+func (factoryFunc) SupportsForwardingEndpoint(
+	endpointKind domain.EndpointKind,
+) bool {
+	return endpointKind == domain.EndpointChat
+}
+
 type clientStub struct{}
 
 func (clientStub) Forward(
@@ -81,14 +87,23 @@ func TestRegistryReportsExactForwardingSupport(t *testing.T) {
 	if !registry.SupportsForwardingAdapter(
 		domain.APIFamilyOpenAICompatible,
 		domain.ProviderOpenAI,
+		domain.EndpointChat,
 	) {
 		t.Fatal("registered adapter unavailable")
 	}
 	if registry.SupportsForwardingAdapter(
 		domain.APIFamilyGeminiNative,
 		domain.ProviderOpenAI,
+		domain.EndpointChat,
 	) {
 		t.Fatal("unknown key available")
+	}
+	if registry.SupportsForwardingAdapter(
+		domain.APIFamilyOpenAICompatible,
+		domain.ProviderOpenAI,
+		domain.EndpointEmbeddings,
+	) {
+		t.Fatal("unsupported endpoint available")
 	}
 }
 

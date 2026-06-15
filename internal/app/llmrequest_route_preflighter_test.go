@@ -39,13 +39,15 @@ func (function llmRequestRouteCapacityFunc) Check(
 type llmRequestAdapterSupportFunc func(
 	domain.APIFamily,
 	domain.ProviderType,
+	domain.EndpointKind,
 ) bool
 
 func (function llmRequestAdapterSupportFunc) SupportsForwardingAdapter(
 	apiFamily domain.APIFamily,
 	providerType domain.ProviderType,
+	endpointKind domain.EndpointKind,
 ) bool {
-	return function(apiFamily, providerType)
+	return function(apiFamily, providerType, endpointKind)
 }
 
 type llmRequestRewriteSupportFunc func(
@@ -637,7 +639,11 @@ func allowedLLMRequestCapacity() ports.RouteCapacityChecker {
 
 func allowedLLMRequestAdapterSupport() ports.ForwardingAdapterSupport {
 	return llmRequestAdapterSupportFunc(
-		func(domain.APIFamily, domain.ProviderType) bool {
+		func(
+			domain.APIFamily,
+			domain.ProviderType,
+			domain.EndpointKind,
+		) bool {
 			return true
 		},
 	)

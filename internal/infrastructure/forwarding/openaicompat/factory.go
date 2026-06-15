@@ -13,7 +13,10 @@ type Factory struct {
 	classifier ErrorClassifier
 }
 
-var _ ports.ForwardingAdapterFactory = (*Factory)(nil)
+var (
+	_ ports.ForwardingAdapterFactory         = (*Factory)(nil)
+	_ ports.ForwardingAdapterEndpointSupport = (*Factory)(nil)
+)
 
 func NewFactory(
 	transport http.RoundTripper,
@@ -26,6 +29,16 @@ func NewFactory(
 		transport:  transport,
 		classifier: classifier,
 	}, nil
+}
+
+func (f *Factory) SupportsForwardingEndpoint(
+	endpointKind domain.EndpointKind,
+) bool {
+	if f == nil {
+		return false
+	}
+	_, supported := endpointPath(endpointKind)
+	return supported
 }
 
 func (f *Factory) Build(
