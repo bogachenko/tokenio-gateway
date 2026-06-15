@@ -6,7 +6,6 @@ import (
 	"math"
 	"math/big"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -20,6 +19,12 @@ const (
 	modelOwner    = "tokenio"
 )
 
+type PublicPricingCalculator interface {
+	CalculatePublicPricing(
+		domain.RoutePrice,
+	) (Pricing, error)
+}
+
 type Dependencies struct {
 	Routes         ports.ModelCatalogRouteRepository
 	Resellers      ports.ResellerQueryRepository
@@ -27,6 +32,7 @@ type Dependencies struct {
 	Secrets        ports.SecretPresenceChecker
 	AdapterSupport ports.ForwardingAdapterSupport
 	RewriteSupport ports.ModelIdentifierRewriteSupport
+	PublicPricing  PublicPricingCalculator
 	Clock          ports.Clock
 	Currency       string
 }
@@ -53,6 +59,7 @@ func NewService(deps Dependencies) (*Service, error) {
 		deps.Secrets == nil ||
 		deps.AdapterSupport == nil ||
 		deps.RewriteSupport == nil ||
+		deps.PublicPricing == nil ||
 		deps.Clock == nil ||
 		!validOpaque(deps.Currency) {
 		return nil, ErrInvalidInput
@@ -267,9 +274,10 @@ func (s *Service) buildModel(
 			continue
 		}
 
-		pricing, err := publicPricing(price)
+		pricing, err := s.deps.PublicPricing.
+			CalculatePublicPricing(price)
 		if err != nil {
-			return Model{}, err
+			return Model{}, ErrCatalogUnavailable
 		}
 		referenceCost, ok := catalogReferenceCost(
 			route.EndpointKind,
@@ -389,96 +397,6 @@ func positiveAvailableBalance(
 		big.NewInt(reseller.MinimumBalanceCents),
 	)
 	return available.Sign() > 0
-}
-
-func publicPricing(
-	price domain.RoutePrice,
-) (Pricing, error) {
-	values := []int64{
-		price.InputPricePer1MTokensCents,
-		price.CachedInputPricePer1MTokensCents,
-		price.OutputPricePer1MTokensCents,
-		price.ReasoningOutputPricePer1MTokensCents,
-		price.ImageInputPricePer1MTokensCents,
-		price.AudioInputPricePer1MTokensCents,
-		price.AudioOutputPricePer1MTokensCents,
-		price.FileInputPricePer1MTokensCents,
-		price.VideoInputPricePer1MTokensCents,
-		price.ImageGenerationPricePerUnitCents,
-	}
-	markedUp := make([]int64, len(values))
-	for index, value := range values {
-		result, err := applyMarkup(
-			value,
-			price.MarkupCoefficient,
-		)
-		if err != nil {
-			return Pricing{}, err
-		}
-		markedUp[index] = result
-	}
-
-	return Pricing{
-		Currency:                             price.Currency,
-		InputPricePer1MTokensCents:           markedUp[0],
-		CachedInputPricePer1MTokensCents:     markedUp[1],
-		OutputPricePer1MTokensCents:          markedUp[2],
-		ReasoningOutputPricePer1MTokensCents: markedUp[3],
-		ImageInputPricePer1MTokensCents:      markedUp[4],
-		AudioInputPricePer1MTokensCents:      markedUp[5],
-		AudioOutputPricePer1MTokensCents:     markedUp[6],
-		FileInputPricePer1MTokensCents:       markedUp[7],
-		VideoInputPricePer1MTokensCents:      markedUp[8],
-		ImageGenerationPricePerUnitCents:     markedUp[9],
-		ImageGenerationUnitKind:              price.ImageGenerationUnitKind,
-	}, nil
-}
-
-func applyMarkup(
-	value int64,
-	markup float64,
-) (int64, error) {
-	if value < 0 ||
-		markup <= 0 ||
-		math.IsNaN(markup) ||
-		math.IsInf(markup, 0) {
-		return 0, ErrCatalogUnavailable
-	}
-	if value == 0 {
-		return 0, nil
-	}
-
-	canonicalMarkup := strconv.FormatFloat(
-		markup,
-		'g',
-		-1,
-		64,
-	)
-	ratio, ok := new(big.Rat).SetString(
-		canonicalMarkup,
-	)
-	if !ok || ratio.Sign() <= 0 {
-		return 0, ErrCatalogUnavailable
-	}
-
-	numerator := new(big.Int).Mul(
-		big.NewInt(value),
-		ratio.Num(),
-	)
-	quotient := new(big.Int)
-	remainder := new(big.Int)
-	quotient.QuoRem(
-		numerator,
-		ratio.Denom(),
-		remainder,
-	)
-	if remainder.Sign() > 0 {
-		quotient.Add(quotient, big.NewInt(1))
-	}
-	if !quotient.IsInt64() {
-		return 0, ErrCatalogUnavailable
-	}
-	return quotient.Int64(), nil
 }
 
 func catalogReferenceCost(

@@ -72,6 +72,39 @@ func TestCalculateMixedAppliesSafetyOnlyToEstimate(
 	}
 }
 
+func TestCalculatePublicUnitPriceCentsUsesCanonicalMarkup(
+	t *testing.T,
+) {
+	calculator := newTestCalculator(t)
+
+	value, err := calculator.CalculatePublicUnitPriceCents(
+		101,
+		1.5,
+	)
+	if err != nil || value != 152 {
+		t.Fatalf("value=%d error=%v", value, err)
+	}
+	decimalValue, err :=
+		calculator.CalculatePublicUnitPriceCents(
+			100,
+			1.1,
+		)
+	if err != nil || decimalValue != 110 {
+		t.Fatalf(
+			"decimal value=%d error=%v",
+			decimalValue,
+			err,
+		)
+	}
+	_, err = calculator.CalculatePublicUnitPriceCents(
+		math.MaxInt64,
+		2,
+	)
+	if !errors.Is(err, ErrAmountOverflow) {
+		t.Fatalf("overflow error = %v", err)
+	}
+}
+
 func TestActualDetailedPricingAllCategories(t *testing.T) {
 	price := testPrice()
 	cases := []struct {

@@ -82,6 +82,40 @@ func (c *Calculator) CalculateEstimate(input EstimateCalculationInput) (Calculat
 	return c.calculate(usage, input.Price, input.InputMode, input.Modalities, true)
 }
 
+func (c *Calculator) CalculatePublicUnitPriceCents(
+	unitPriceCents int64,
+	markup float64,
+) (int64, error) {
+	if c == nil {
+		return 0, fmt.Errorf(
+			"%w: nil calculator",
+			ErrInvalidPricingInput,
+		)
+	}
+	if unitPriceCents < 0 {
+		return 0, fmt.Errorf(
+			"%w: negative public unit price",
+			ErrInvalidPricingInput,
+		)
+	}
+	ratio, err := markupRat(markup)
+	if err != nil {
+		return 0, err
+	}
+	value := new(big.Rat).Mul(
+		new(big.Rat).SetInt64(unitPriceCents),
+		ratio,
+	)
+	rounded := ceilRat(value)
+	if rounded.Cmp(maxInt64Big) > 0 {
+		return 0, fmt.Errorf(
+			"%w: public unit price",
+			ErrAmountOverflow,
+		)
+	}
+	return rounded.Int64(), nil
+}
+
 func (c *Calculator) CalculateMixed(
 	input MixedCalculationInput,
 ) (CalculationResult, error) {

@@ -88,6 +88,27 @@ func NewApplicationGraph(
 		)
 	}
 
+	pricingCalculator, err := pricingapp.NewCalculator(
+		cfg.TokenEstimationSafetyFactor,
+		cfg.CostEstimationSafetyFactor,
+	)
+	if err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"construct shared pricing calculator: %w",
+			err,
+		)
+	}
+	modelCatalogPricing, err :=
+		NewModelCatalogPublicPricingCalculator(
+			pricingCalculator,
+		)
+	if err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"construct model catalog pricing adapter: %w",
+			err,
+		)
+	}
+
 	modelCatalog, err := modelcatalogapp.NewService(
 		modelcatalogapp.Dependencies{
 			Routes:         repositories.ModelCatalogRoutes,
@@ -96,6 +117,7 @@ func NewApplicationGraph(
 			Secrets:        security.SecretPresence,
 			AdapterSupport: forwardingInfrastructure.AdapterSupport,
 			RewriteSupport: forwardingInfrastructure.ModelRewriteSupport,
+			PublicPricing:  modelCatalogPricing,
 			Clock:          primitives.Clock,
 			Currency:       cfg.CostCurrency,
 		},
@@ -197,16 +219,6 @@ func NewApplicationGraph(
 
 	requestMetadata := requestmetaopenaicompat.NewAdapter()
 	tokenEstimator := requestmetaopenaicompat.NewTokenEstimator()
-	pricingCalculator, err := pricingapp.NewCalculator(
-		cfg.TokenEstimationSafetyFactor,
-		cfg.CostEstimationSafetyFactor,
-	)
-	if err != nil {
-		return ApplicationGraph{}, fmt.Errorf(
-			"construct LLM-request pricing calculator: %w",
-			err,
-		)
-	}
 	pricingUsageResolver, err := pricingapp.NewUsageResolver(
 		forwardingInfrastructure.UsageExtractor,
 		tokenEstimator,

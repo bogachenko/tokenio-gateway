@@ -95,6 +95,32 @@ func (f *fakeRewriteSupport) SupportsModelIdentifierRewrite(
 	return f.supported
 }
 
+type fakePublicPricingCalculator struct {
+	calls  []domain.RoutePrice
+	result Pricing
+	err    error
+}
+
+func (f *fakePublicPricingCalculator) CalculatePublicPricing(
+	price domain.RoutePrice,
+) (Pricing, error) {
+	f.calls = append(f.calls, price)
+	if f.err != nil {
+		return Pricing{}, f.err
+	}
+	result := f.result
+	if result.Currency == "" {
+		result = Pricing{
+			Currency:                         price.Currency,
+			InputPricePer1MTokensCents:       int64(math.Ceil(float64(price.InputPricePer1MTokensCents) * price.MarkupCoefficient)),
+			OutputPricePer1MTokensCents:      int64(math.Ceil(float64(price.OutputPricePer1MTokensCents) * price.MarkupCoefficient)),
+			ImageGenerationPricePerUnitCents: int64(math.Ceil(float64(price.ImageGenerationPricePerUnitCents) * price.MarkupCoefficient)),
+			ImageGenerationUnitKind:          price.ImageGenerationUnitKind,
+		}
+	}
+	return result, nil
+}
+
 type fixedClock struct {
 	value time.Time
 }
@@ -189,6 +215,7 @@ func newTestService(
 		Secrets:        secrets,
 		AdapterSupport: rewrite,
 		RewriteSupport: rewrite,
+		PublicPricing:  &fakePublicPricingCalculator{},
 		Clock: fixedClock{
 			value: testTime(),
 		},
@@ -678,28 +705,72 @@ func TestListMapsDependencyErrorsWithoutLeakage(
 	}
 }
 
-func TestApplyMarkupIsCeilingAndRejectsOverflow(
+func TestListMapsPublicPricingFailure(
 	t *testing.T,
 ) {
-	value, err := applyMarkup(101, 1.5)
-	if err != nil || value != 152 {
-		t.Fatalf("value=%d error=%v", value, err)
+	route := testRoute(
+		"route",
+		"model",
+		"reseller",
+		1,
+	)
+	calculator := &fakePublicPricingCalculator{
+		err: errors.New("pricing failure"),
+	}
+	service, err := NewService(Dependencies{
+		Routes: &fakeRoutes{
+			values: []domain.Route{route},
+		},
+		Resellers: &fakeResellers{
+			values: map[string]domain.Reseller{
+				"reseller": testReseller(
+					"reseller",
+					"API_KEY",
+				),
+			},
+		},
+		Prices: &fakePrices{
+			values: map[string]domain.RoutePrice{
+				"route": testPrice(
+					"route",
+					100,
+					200,
+					1.5,
+				),
+			},
+		},
+		Secrets: &fakeSecrets{
+			values: map[string]bool{
+				"API_KEY": true,
+			},
+		},
+		AdapterSupport: &fakeRewriteSupport{
+			supported: true,
+		},
+		RewriteSupport: &fakeRewriteSupport{
+			supported: true,
+		},
+		PublicPricing: calculator,
+		Clock: fixedClock{
+			value: testTime(),
+		},
+		Currency: "RUB",
+	})
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
 	}
 
-	decimalValue, err := applyMarkup(100, 1.1)
-	if err != nil || decimalValue != 110 {
-		t.Fatalf(
-			"decimal value=%d error=%v",
-			decimalValue,
-			err,
-		)
-	}
-
-	_, err = applyMarkup(math.MaxInt64, 2)
+	_, err = service.List(
+		context.Background(),
+		domain.APIFamilyOpenAICompatible,
+	)
 	if !errors.Is(err, ErrCatalogUnavailable) {
+		t.Fatalf("error = %v", err)
+	}
+	if len(calculator.calls) != 1 {
 		t.Fatalf(
-			"overflow error = %v",
-			err,
+			"calculator calls = %d",
+			len(calculator.calls),
 		)
 	}
 }
@@ -718,6 +789,7 @@ func TestNewServiceRejectsMissingDependencies(
 	}
 }
 
+var _ PublicPricingCalculator = (*fakePublicPricingCalculator)(nil)
 var _ ports.ModelCatalogRouteRepository = (*fakeRoutes)(nil)
 var _ ports.ResellerQueryRepository = (*fakeResellers)(nil)
 var _ ports.RoutePriceRepository = (*fakePrices)(nil)
