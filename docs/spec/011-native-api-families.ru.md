@@ -53,6 +53,58 @@ Ollama client         -> /api/chat
 
 Такие namespace paths могут существовать только как explicit compatibility aliases, но не как основной SDK contract.
 
+## 2.1. Public authentication carriers
+
+Tokenio user API key имеет application-level формат:
+
+```text
+sk_...
+```
+
+Wire-level carrier определяется только inbound API family:
+
+```text
+openai_compatible:
+  Authorization: Bearer sk_...
+
+anthropic_native:
+  x-api-key: sk_...
+
+gemini_native:
+  x-goog-api-key: sk_...
+
+ollama_native:
+  Authorization: Bearer sk_...
+```
+
+Transport adapter обязан нормализовать carrier в единый Tokenio credential до
+вызова shared public authentication use case. Application layer не получает
+carrier name и не содержит family-specific auth branches.
+
+Gemini query parameter:
+
+```text
+?key=sk_...
+```
+
+запрещён, потому что URL может сохраняться в access logs, proxy logs, tracing и
+history.
+
+Missing, malformed, ambiguous или conflicting credential values возвращают
+public authentication error. Inbound Tokenio credential удаляется перед
+upstream forwarding и никогда не заменяет reseller credential из
+`reseller.api_key_env`.
+
+Ollama не имеет универсального native auth carrier. Standard Ollama paths
+сохраняются, но client обязан поддерживать explicit
+`Authorization: Bearer sk_...` при подключении к Tokenio.
+
+Полное решение зафиксировано в:
+
+```text
+docs/adr/0002-native-api-auth-carriers.md
+```
+
 ---
 
 # 3. OpenAI-compatible family
@@ -281,5 +333,10 @@ Native API family support is correct if:
 6. model extraction is deterministic per path.
 7. fallback never crosses API family.
 8. namespace paths are not required for standard SDK compatibility.
-9. tests cover path detection and model extraction for each family.
+9. auth carrier is selected deterministically by api_family.
+10. transport normalizes the carrier into one Tokenio credential.
+11. application authentication is independent of carrier name.
+12. query-string user API keys are rejected.
+13. inbound Tokenio credentials are never forwarded upstream.
+14. tests cover path detection, auth normalization and model extraction for each family.
 ```

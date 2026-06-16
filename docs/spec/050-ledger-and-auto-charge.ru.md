@@ -557,6 +557,32 @@ Default первой версии:
 TOKENIO_MIN_CHARGE_AMOUNT_CENTS=100
 ```
 
+## 10.3A. Periodic billing recovery
+
+Request-triggered auto-charge не является единственным recovery mechanism.
+
+Gateway обязан запускать periodic billing recovery worker:
+
+```text
+первый cycle выполняется сразу после startup;
+следующие cycles выполняются по configured interval;
+один cycle ограничен configured batch size;
+worker вызывает application recovery service;
+worker не обращается к Postgres adapter напрямую;
+recovery не зависит от поступления нового LLM request.
+```
+
+Config:
+
+```text
+TOKENIO_BILLING_RECOVERY_INTERVAL
+TOKENIO_BILLING_RECOVERY_BATCH_SIZE
+```
+
+Recovery использует persisted immutable billing command и существующий
+`billing_charge_request_id`. Restart процесса не разрешает создать новый
+financial command для records с active pending/failed claim.
+
 ## 10.4. Charge candidates
 
 Auto-charge выбирает records пользователя со статусами:

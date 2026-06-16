@@ -171,11 +171,24 @@ internal billing ledger
 
 User API key — внешний ключ пользователя для доступа к Tokenio Gateway.
 
-Формат:
+Application-level credential format:
 
 ```text
-Authorization: Bearer sk_...
+sk_...
 ```
+
+Wire-level carrier is selected deterministically by the inbound API family:
+
+```text
+openai_compatible -> Authorization: Bearer sk_...
+anthropic_native  -> x-api-key: sk_...
+gemini_native     -> x-goog-api-key: sk_...
+ollama_native     -> Authorization: Bearer sk_...
+```
+
+Transport нормализует family-specific carrier в один Tokenio raw API-key
+credential до вызова shared authentication use case. Query-string API keys
+запрещены.
 
 User API key не является JWT.
 

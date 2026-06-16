@@ -46,7 +46,10 @@ Tokenio Gateway использует разные credentials для разны�
 
 ```text
 Client -> Tokenio Gateway:
-  Authorization: Bearer sk_...
+  openai_compatible -> Authorization: Bearer sk_...
+  anthropic_native  -> x-api-key: sk_...
+  gemini_native     -> x-goog-api-key: sk_...
+  ollama_native     -> Authorization: Bearer sk_...
 
 Tokenio Gateway -> Billing Service balance:
   Authorization: Bearer <billing_jwt>
@@ -84,13 +87,37 @@ Tokenio Gateway -> Reseller:
 
 Public boundary — это внешний HTTP API Tokenio Gateway.
 
-На этом boundary принимается только:
+Native API family transport adapters accept only the explicitly approved
+carrier for their family:
 
-```http
-Authorization: Bearer sk_...
+```text
+openai_compatible -> Authorization: Bearer sk_...
+anthropic_native  -> x-api-key: sk_...
+gemini_native     -> x-goog-api-key: sk_...
+ollama_native     -> Authorization: Bearer sk_...
+```
+
+Каждый transport adapter проверяет только форму carrier и нормализует значение
+в один Tokenio `sk_...` credential. Hash lookup, API-key state и user state
+проверяются shared application use case.
+
+Запрещено:
+
+```text
+принимать Gemini key через URL query;
+передавать carrier name в application business logic;
+принимать carrier другой API family;
+выбирать credential по скрытому precedence;
+forward-ить inbound Tokenio credential upstream.
 ```
 
 JWT от клиента не является публичным auth contract.
+
+Полный contract определён ADR:
+
+```text
+docs/adr/0002-native-api-auth-carriers.md
+```
 
 ## 3.2. Billing boundary
 

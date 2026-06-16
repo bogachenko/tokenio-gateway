@@ -487,6 +487,48 @@ effective_balance_cents >= estimated_client_amount_cents
 AND effective_balance_cents >= TOKENIO_MIN_REQUEST_BALANCE_CENTS
 ```
 
+## 7.4. Billing recovery interval
+
+```text
+TOKENIO_BILLING_RECOVERY_INTERVAL
+```
+
+Default:
+
+```text
+1m
+```
+
+Validation:
+
+```text
+must be positive duration
+```
+
+The recovery worker executes one cycle immediately at startup and then by this
+interval.
+
+## 7.5. Billing recovery batch size
+
+```text
+TOKENIO_BILLING_RECOVERY_BATCH_SIZE
+```
+
+Default:
+
+```text
+100
+```
+
+Validation:
+
+```text
+must be >= 1
+```
+
+The value limits one recovery cycle. It does not change stable batch identity or
+financial grouping semantics.
+
 ---
 
 # 8. Pricing estimation config
@@ -1003,23 +1045,34 @@ required migrations not applied
 schema version incompatible
 ```
 
-## 17.3. Migrations config
+## 17.3. Migration execution policy
 
-Recommended optional config:
-
-```text
-TOKENIO_MIGRATIONS_DIR
-```
-
-Default:
+Migration application and gateway serving startup are separate process
+responsibilities:
 
 ```text
-db/migrations
+cmd/migrate:
+  applies the canonical embedded SQL migrations;
+  validates checksums and resulting schema version;
+  exits non-zero on failure.
+
+cmd/gateway:
+  never applies migrations;
+  validates database connectivity, migration checksums and schema compatibility;
+  exits non-zero when the required schema is absent or incompatible.
 ```
 
-Gateway runtime should not silently run destructive migrations.
+Production deployments run `cmd/migrate` explicitly before the new gateway
+revision.
 
-Migration execution should be explicit command or controlled startup mode.
+The canonical embedded migration set is the first-version source of truth.
+`TOKENIO_MIGRATIONS_DIR` is not part of the first-version production contract.
+
+Full decision:
+
+```text
+docs/adr/0003-migration-execution-policy.md
+```
 
 ---
 
@@ -1297,6 +1350,8 @@ worker calls the provisioning application service, not Postgres directly
 TOKENIO_AUTO_CHARGE_THRESHOLD_CENTS      default 1000
 TOKENIO_MIN_CHARGE_AMOUNT_CENTS          default 100
 TOKENIO_MIN_REQUEST_BALANCE_CENTS        default 500
+TOKENIO_BILLING_RECOVERY_INTERVAL        default 1m
+TOKENIO_BILLING_RECOVERY_BATCH_SIZE      default 100
 TOKENIO_TOKEN_ESTIMATION_SAFETY_FACTOR   default 1.25
 TOKENIO_COST_ESTIMATION_SAFETY_FACTOR    default 1.10
 ```

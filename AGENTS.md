@@ -31,7 +31,8 @@ For architecture-changing decisions, also read:
 
 - Provider-specific behavior must not be implemented in generic gateway layers.
 - Every upstream provider is represented through `provider_type`, `reseller`, `route`, `api_family`, `endpoint_kind` and `capabilities`.
-- Client auth is `Authorization: Bearer sk_...`.
+- OpenAI-compatible client auth is `Authorization: Bearer sk_...`.
+- Native family transport adapters normalize only the explicitly approved family carrier into the same Tokenio `sk_...` credential; carrier policy is defined by `docs/adr/0002-native-api-auth-carriers.md`.
 - Client JWT auth is not part of the public API.
 - Billing JWT is internal only.
 - Request body must not be converted.

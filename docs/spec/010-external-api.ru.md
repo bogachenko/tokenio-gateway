@@ -541,10 +541,11 @@ route_id ASC
 route. Смешивать цены разных routes в одной pricing projection
 запрещено.
 
-`capabilities` являются union capabilities всех доступных routes
-модели. Они описывают отдельно поддерживаемые возможности и не
-гарантируют, что произвольная комбинация capabilities поддерживается
-одним route; request pipeline обязан проверять полный requested set.
+`capabilities` являются conservative intersection capabilities всех
+доступных routes модели для данного endpoint kind. Catalog не должен обещать
+capability или combination capabilities, которые не поддерживаются каждым
+доступным concrete route. Request pipeline независимо повторно проверяет полный
+requested capability set непосредственно перед forwarding.
 
 Если доступного route нет:
 
