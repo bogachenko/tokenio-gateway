@@ -12,6 +12,75 @@ import (
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
 
+func assertUsageRecordReservedTimestamps(
+	t *testing.T,
+	record domain.UsageRecord,
+	createdAt time.Time,
+	reservedAt time.Time,
+) {
+	t.Helper()
+
+	assertUsageTime(t, "created_at", record.CreatedAt, createdAt)
+	assertUsageTimePointer(t, "reserved_at", record.ReservedAt, &reservedAt)
+	assertUsageTimePointer(t, "released_at", record.ReleasedAt, nil)
+	assertUsageTimePointer(t, "billable_at", record.BillableAt, nil)
+	assertUsageTimePointer(t, "charged_at", record.ChargedAt, nil)
+	assertUsageTimePointer(t, "failed_at", record.FailedAt, nil)
+	assertUsageTime(t, "updated_at", record.UpdatedAt, createdAt)
+}
+
+func assertUsageRecordBillableTimestamps(
+	t *testing.T,
+	record domain.UsageRecord,
+	createdAt time.Time,
+	reservedAt time.Time,
+	billableAt time.Time,
+) {
+	t.Helper()
+
+	assertUsageTime(t, "created_at", record.CreatedAt, createdAt)
+	assertUsageTimePointer(t, "reserved_at", record.ReservedAt, &reservedAt)
+	assertUsageTimePointer(t, "released_at", record.ReleasedAt, nil)
+	assertUsageTimePointer(t, "billable_at", record.BillableAt, &billableAt)
+	assertUsageTimePointer(t, "charged_at", record.ChargedAt, nil)
+	assertUsageTimePointer(t, "failed_at", record.FailedAt, nil)
+	assertUsageTime(t, "updated_at", record.UpdatedAt, billableAt)
+}
+
+func assertUsageTime(
+	t *testing.T,
+	name string,
+	got time.Time,
+	want time.Time,
+) {
+	t.Helper()
+
+	if got.Location() != time.UTC {
+		t.Fatalf("%s location=%v, want UTC", name, got.Location())
+	}
+	if !got.Equal(want) {
+		t.Fatalf("%s=%s, want %s", name, got, want)
+	}
+}
+
+func assertUsageTimePointer(
+	t *testing.T,
+	name string,
+	got *time.Time,
+	want *time.Time,
+) {
+	t.Helper()
+
+	switch {
+	case got == nil && want == nil:
+		return
+	case got == nil || want == nil:
+		t.Fatalf("%s got=%v want=%v", name, got, want)
+	default:
+		assertUsageTime(t, name, *got, *want)
+	}
+}
+
 func TestUsageLedgerRecordLifecycleIntegration(t *testing.T) {
 	dsn := os.Getenv("TOKENIO_TEST_DATABASE_DSN")
 	if dsn == "" {
@@ -212,11 +281,15 @@ VALUES (
 	if err != nil {
 		t.Fatalf("FindByLocalRequestID: %v", err)
 	}
-	if found.EstimatedUsage != record.EstimatedUsage ||
-		found.ReservedAt == nil ||
-		!found.ReservedAt.Equal(now) {
+	if found.EstimatedUsage != record.EstimatedUsage {
 		t.Fatalf("found record = %+v", found)
 	}
+	assertUsageRecordReservedTimestamps(
+		t,
+		*found,
+		now,
+		reservedAt,
+	)
 
 	billableAt := now.Add(time.Second)
 	next := *found
@@ -286,6 +359,13 @@ VALUES (
 		candidates[0].Usage != next.Usage {
 		t.Fatalf("candidates = %+v", candidates)
 	}
+	assertUsageRecordBillableTimestamps(
+		t,
+		candidates[0],
+		now,
+		reservedAt,
+		billableAt,
+	)
 
 	_, err = ledger.FindByLocalRequestID(ctx, "missing-"+suffix)
 	if !errors.Is(err, ports.ErrNotFound) {
