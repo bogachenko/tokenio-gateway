@@ -182,12 +182,13 @@ func TestUsageLedgerChargeCommandIntegration(t *testing.T) {
 		t.Fatalf("replay replaced persisted timestamp: %+v", replayed.Batch)
 	}
 
+	failureAt := now.Add(time.Second)
 	if err := ledger.MarkChargeBatchFailed(
 		ctx,
 		batchID,
 		domain.BillingChargeStatusPending,
 		"billing_unavailable",
-		now.Add(time.Second),
+		failureAt,
 	); err != nil {
 		t.Fatalf("MarkChargeBatchFailed: %v", err)
 	}
@@ -214,6 +215,7 @@ func TestUsageLedgerChargeCommandIntegration(t *testing.T) {
 		open[0].Batch.Status != domain.BillingChargeStatusFailed {
 		t.Fatalf("open = %+v", open)
 	}
+	assertFailedBatchTimestamps(t, open[0].Batch, now, failureAt)
 
 	chargedAt := now.Add(2 * time.Second)
 	balance := int64(1000)
@@ -241,6 +243,23 @@ func TestUsageLedgerChargeCommandIntegration(t *testing.T) {
 		found.BillingChargeRequestID != batchID {
 		t.Fatalf("charged usage = %+v", found)
 	}
+	assertChargedUsageTimestamps(
+		t,
+		*found,
+		record.CreatedAt,
+		reservedAt,
+		billableAt,
+		chargedAt,
+	)
+
+	completed, err := loadBillingChargeSnapshot(ctx, db, batchID, false)
+	if err != nil {
+		t.Fatalf("load completed charge snapshot: %v", err)
+	}
+	if completed.Batch.Status != domain.BillingChargeStatusSucceeded {
+		t.Fatalf("completed batch = %+v", completed.Batch)
+	}
+	assertSucceededBatchTimestamps(t, completed.Batch, now, chargedAt)
 
 	open, err = ledger.LoadOpenChargeBatches(
 		ctx,
@@ -254,6 +273,53 @@ func TestUsageLedgerChargeCommandIntegration(t *testing.T) {
 	if len(open) != 0 {
 		t.Fatalf("open after success = %+v", open)
 	}
+}
+
+func assertFailedBatchTimestamps(
+	t *testing.T,
+	batch domain.BillingChargeBatch,
+	createdAt time.Time,
+	failedAt time.Time,
+) {
+	t.Helper()
+
+	assertUsageTime(t, "batch.created_at", batch.CreatedAt, createdAt)
+	assertUsageTimePointer(t, "batch.charged_at", batch.ChargedAt, nil)
+	assertUsageTimePointer(t, "batch.failed_at", batch.FailedAt, &failedAt)
+	assertUsageTime(t, "batch.updated_at", batch.UpdatedAt, failedAt)
+}
+
+func assertSucceededBatchTimestamps(
+	t *testing.T,
+	batch domain.BillingChargeBatch,
+	createdAt time.Time,
+	chargedAt time.Time,
+) {
+	t.Helper()
+
+	assertUsageTime(t, "batch.created_at", batch.CreatedAt, createdAt)
+	assertUsageTimePointer(t, "batch.charged_at", batch.ChargedAt, &chargedAt)
+	assertUsageTimePointer(t, "batch.failed_at", batch.FailedAt, nil)
+	assertUsageTime(t, "batch.updated_at", batch.UpdatedAt, chargedAt)
+}
+
+func assertChargedUsageTimestamps(
+	t *testing.T,
+	record domain.UsageRecord,
+	createdAt time.Time,
+	reservedAt time.Time,
+	billableAt time.Time,
+	chargedAt time.Time,
+) {
+	t.Helper()
+
+	assertUsageTime(t, "usage.created_at", record.CreatedAt, createdAt)
+	assertUsageTimePointer(t, "usage.reserved_at", record.ReservedAt, &reservedAt)
+	assertUsageTimePointer(t, "usage.released_at", record.ReleasedAt, nil)
+	assertUsageTimePointer(t, "usage.billable_at", record.BillableAt, &billableAt)
+	assertUsageTimePointer(t, "usage.charged_at", record.ChargedAt, &chargedAt)
+	assertUsageTimePointer(t, "usage.failed_at", record.FailedAt, nil)
+	assertUsageTime(t, "usage.updated_at", record.UpdatedAt, chargedAt)
 }
 
 func insertChargeTestRegistry(
