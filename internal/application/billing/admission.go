@@ -12,10 +12,15 @@ import (
 
 const currencyRUB = "RUB"
 
+type AdmissionConfig struct {
+	MinimumRequestBalanceCents int64
+}
+
 type AdmissionService struct {
 	identity ports.BillingIdentityService
 	balance  ports.BillingBalanceClient
 	ledger   ports.UsageLedger
+	config   AdmissionConfig
 }
 
 type AdmissionInput struct {
@@ -34,11 +39,24 @@ type AdmissionResult struct {
 	Currency              string
 }
 
-func NewAdmissionService(identity ports.BillingIdentityService, balance ports.BillingBalanceClient, usageLedger ports.UsageLedger) (*AdmissionService, error) {
+func NewAdmissionService(
+	identity ports.BillingIdentityService,
+	balance ports.BillingBalanceClient,
+	usageLedger ports.UsageLedger,
+	config AdmissionConfig,
+) (*AdmissionService, error) {
 	if identity == nil || balance == nil || usageLedger == nil {
 		return nil, fmt.Errorf("%w: dependency", ErrInvalidBillingInput)
 	}
-	return &AdmissionService{identity: identity, balance: balance, ledger: usageLedger}, nil
+	if config.MinimumRequestBalanceCents < 0 {
+		return nil, fmt.Errorf("%w: minimum request balance", ErrInvalidBillingInput)
+	}
+	return &AdmissionService{
+		identity: identity,
+		balance:  balance,
+		ledger:   usageLedger,
+		config:   config,
+	}, nil
 }
 
 func (s *AdmissionService) Admit(ctx context.Context, input AdmissionInput) (AdmissionResult, error) {
@@ -81,9 +99,13 @@ func (s *AdmissionService) Admit(ctx context.Context, input AdmissionInput) (Adm
 		}
 		return result, ErrBillingStoreUnavailable
 	}
+	requiredBalanceCents := input.RequiredReserveCents
+	if s.config.MinimumRequestBalanceCents > requiredBalanceCents {
+		requiredBalanceCents = s.config.MinimumRequestBalanceCents
+	}
 	balanceResult, err := domain.EvaluateBalance(domain.BalanceInput{
 		RemoteBalanceCents:   remote.BalanceCents,
-		RequiredReserveCents: input.RequiredReserveCents,
+		RequiredReserveCents: requiredBalanceCents,
 		Exposure:             exposure,
 	})
 	result = AdmissionResult{
@@ -91,7 +113,7 @@ func (s *AdmissionService) Admit(ctx context.Context, input AdmissionInput) (Adm
 		RemoteBalanceCents:    balanceResult.RemoteBalanceCents,
 		PendingAmountCents:    balanceResult.PendingAmountCents,
 		EffectiveBalanceCents: balanceResult.EffectiveBalanceCents,
-		RequiredReserveCents:  balanceResult.RequiredReserveCents,
+		RequiredReserveCents:  input.RequiredReserveCents,
 		Currency:              currency,
 	}
 	if err != nil {

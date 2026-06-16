@@ -330,6 +330,9 @@ func NewApplicationGraph(
 		billingInfrastructure.Identity,
 		billingInfrastructure.Balance,
 		repositories.UsageLedger,
+		billingapp.AdmissionConfig{
+			MinimumRequestBalanceCents: cfg.MinRequestBalanceCents,
+		},
 	)
 	if err != nil {
 		return ApplicationGraph{}, fmt.Errorf(

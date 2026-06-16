@@ -306,7 +306,7 @@ func TestBalanceAdmissionAndPricingFailedBlock(t *testing.T) {
 	bal := &fakeBalance{balance: ports.BillingBalance{Currency: "RUB", BalanceCents: 1000}}
 	fl := newFakeLedger(nil)
 	fl.exposure = ports.UsageExposureSnapshot{Currency: "RUB", BillableRemainingAmountCents: 200}
-	svc, _ := NewAdmissionService(id, bal, fl)
+	svc, _ := NewAdmissionService(id, bal, fl, AdmissionConfig{})
 	res, err := svc.Admit(t.Context(), AdmissionInput{UserID: "local", BillingSubjectUserID: "billing", RequiredReserveCents: 500})
 	if err != nil || !res.Allowed || res.EffectiveBalanceCents != 800 {
 		t.Fatalf("res=%+v err=%v", res, err)
@@ -318,6 +318,78 @@ func TestBalanceAdmissionAndPricingFailedBlock(t *testing.T) {
 	_, err = svc.Admit(t.Context(), AdmissionInput{UserID: "local", BillingSubjectUserID: "billing"})
 	if !errors.Is(err, domain.ErrUnresolvedUsage) {
 		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestAdmissionEnforcesMinimumRequestBalance(t *testing.T) {
+	identity := &fakeIdentity{token: "jwt"}
+	balance := &fakeBalance{
+		balance: ports.BillingBalance{
+			Currency:     "RUB",
+			BalanceCents: 1000,
+		},
+	}
+	ledger := newFakeLedger(nil)
+	ledger.exposure = ports.UsageExposureSnapshot{
+		Currency:                     "RUB",
+		BillableRemainingAmountCents: 200,
+	}
+
+	service, err := NewAdmissionService(
+		identity,
+		balance,
+		ledger,
+		AdmissionConfig{MinimumRequestBalanceCents: 900},
+	)
+	if err != nil {
+		t.Fatalf("NewAdmissionService: %v", err)
+	}
+
+	result, err := service.Admit(
+		t.Context(),
+		AdmissionInput{
+			UserID:               "local",
+			BillingSubjectUserID: "billing",
+			RequiredReserveCents: 500,
+		},
+	)
+	if !errors.Is(err, domain.ErrInsufficientFunds) {
+		t.Fatalf("err=%v result=%+v", err, result)
+	}
+	if result.Allowed ||
+		result.EffectiveBalanceCents != 800 ||
+		result.RequiredReserveCents != 500 {
+		t.Fatalf("result=%+v", result)
+	}
+
+	service, err = NewAdmissionService(
+		identity,
+		balance,
+		ledger,
+		AdmissionConfig{MinimumRequestBalanceCents: 700},
+	)
+	if err != nil {
+		t.Fatalf("NewAdmissionService: %v", err)
+	}
+	result, err = service.Admit(
+		t.Context(),
+		AdmissionInput{
+			UserID:               "local",
+			BillingSubjectUserID: "billing",
+			RequiredReserveCents: 500,
+		},
+	)
+	if err != nil || !result.Allowed {
+		t.Fatalf("err=%v result=%+v", err, result)
+	}
+
+	if _, err := NewAdmissionService(
+		identity,
+		balance,
+		ledger,
+		AdmissionConfig{MinimumRequestBalanceCents: -1},
+	); !errors.Is(err, ErrInvalidBillingInput) {
+		t.Fatalf("negative config err=%v", err)
 	}
 }
 
@@ -719,7 +791,12 @@ func TestApplicationRejectsInvalidBillingBalanceResults(t *testing.T) {
 	if !errors.Is(err, ErrBillingUnavailable) {
 		t.Fatalf("autocharge err=%v", err)
 	}
-	admission, _ := NewAdmissionService(&fakeIdentity{token: "jwt"}, &fakeBalance{balance: ports.BillingBalance{Currency: "RUB", BalanceCents: -1}}, fl)
+	admission, _ := NewAdmissionService(
+		&fakeIdentity{token: "jwt"},
+		&fakeBalance{balance: ports.BillingBalance{Currency: "RUB", BalanceCents: -1}},
+		fl,
+		AdmissionConfig{},
+	)
 	_, err = admission.Admit(t.Context(), AdmissionInput{UserID: "u", BillingSubjectUserID: "billing"})
 	if !errors.Is(err, ErrBillingUnavailable) {
 		t.Fatalf("admission err=%v", err)
