@@ -311,6 +311,167 @@ WHERE id = $1
 		ports.APIKeyProvisioningOutcomeExpired {
 		t.Fatalf("expired replay = %+v", expiredReplay)
 	}
+
+	assertProvisioningParentDeleteProtection(
+		t,
+		ctx,
+		db,
+		firstProvisioningID,
+		secondRequest.ProvisioningID,
+		firstUserID,
+		firstKeyID,
+	)
+}
+
+func assertProvisioningParentDeleteProtection(
+	t *testing.T,
+	ctx context.Context,
+	db *DB,
+	createdProvisioningID string,
+	alreadyProvisionedID string,
+	userID string,
+	apiKeyID string,
+) {
+	t.Helper()
+
+	if _, err := db.Exec(
+		ctx,
+		"DELETE FROM tokenio_api_keys WHERE id = $1",
+		apiKeyID,
+	); !errors.Is(err, ports.ErrStoreConflict) {
+		t.Fatalf("api key delete error=%v, want ErrStoreConflict", err)
+	}
+
+	assertProvisioningParentRowCount(
+		t,
+		ctx,
+		db,
+		"tokenio_api_keys",
+		"id",
+		apiKeyID,
+		1,
+	)
+	assertProvisioningParentRowCount(
+		t,
+		ctx,
+		db,
+		"tokenio_api_key_provisionings",
+		"id",
+		createdProvisioningID,
+		1,
+	)
+	assertProvisioningParentRowCount(
+		t,
+		ctx,
+		db,
+		"tokenio_api_key_provisionings",
+		"id",
+		alreadyProvisionedID,
+		1,
+	)
+
+	if _, err := db.Exec(
+		ctx,
+		"DELETE FROM tokenio_users WHERE id = $1",
+		userID,
+	); !errors.Is(err, ports.ErrStoreConflict) {
+		t.Fatalf("user delete error=%v, want ErrStoreConflict", err)
+	}
+
+	tag, err := db.Exec(
+		ctx,
+		"DELETE FROM tokenio_api_key_provisionings WHERE id = $1",
+		createdProvisioningID,
+	)
+	if err != nil {
+		t.Fatalf("delete created provisioning: %v", err)
+	}
+	if tag.RowsAffected() != 1 {
+		t.Fatalf(
+			"deleted created provisioning rows=%d, want 1",
+			tag.RowsAffected(),
+		)
+	}
+
+	if _, err := db.Exec(
+		ctx,
+		"DELETE FROM tokenio_api_keys WHERE id = $1",
+		apiKeyID,
+	); !errors.Is(err, ports.ErrStoreConflict) {
+		t.Fatalf(
+			"api key delete with remaining history error=%v, want ErrStoreConflict",
+			err,
+		)
+	}
+	assertProvisioningParentRowCount(
+		t,
+		ctx,
+		db,
+		"tokenio_api_key_provisionings",
+		"id",
+		alreadyProvisionedID,
+		1,
+	)
+
+	tag, err = db.Exec(
+		ctx,
+		"DELETE FROM tokenio_api_key_provisionings WHERE id = $1",
+		alreadyProvisionedID,
+	)
+	if err != nil {
+		t.Fatalf("delete already-provisioned history: %v", err)
+	}
+	if tag.RowsAffected() != 1 {
+		t.Fatalf(
+			"deleted already-provisioned rows=%d, want 1",
+			tag.RowsAffected(),
+		)
+	}
+
+	tag, err = db.Exec(
+		ctx,
+		"DELETE FROM tokenio_api_keys WHERE id = $1",
+		apiKeyID,
+	)
+	if err != nil {
+		t.Fatalf("delete api key after all provisioning removal: %v", err)
+	}
+	if tag.RowsAffected() != 1 {
+		t.Fatalf("deleted api key rows=%d, want 1", tag.RowsAffected())
+	}
+
+	tag, err = db.Exec(
+		ctx,
+		"DELETE FROM tokenio_users WHERE id = $1",
+		userID,
+	)
+	if err != nil {
+		t.Fatalf("delete user after provisioning and key removal: %v", err)
+	}
+	if tag.RowsAffected() != 1 {
+		t.Fatalf("deleted user rows=%d, want 1", tag.RowsAffected())
+	}
+}
+
+func assertProvisioningParentRowCount(
+	t *testing.T,
+	ctx context.Context,
+	db *DB,
+	table string,
+	column string,
+	value string,
+	want int,
+) {
+	t.Helper()
+
+	query := "SELECT COUNT(*) FROM " + table + " WHERE " + column + " = $1"
+	var got int
+	if err := db.QueryRow(ctx, query, value).Scan(&got); err != nil {
+		t.Fatalf("count %s: %v", table, err)
+	}
+	if got != want {
+		t.Fatalf("%s count=%d, want %d", table, got, want)
+	}
 }
 
 func provisioningRequestForTest(
