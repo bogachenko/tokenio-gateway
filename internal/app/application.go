@@ -17,7 +17,7 @@ import (
 )
 
 type ApplicationGraph struct {
-	PublicAuthentication         *authenticateapp.UseCase
+	PublicAuthentication         authenticateapp.PublicAuthenticator
 	ModelCatalog                 *modelcatalogapp.Service
 	ProvisioningEnabled          bool
 	Provisioning                 *provisioningapp.Service
@@ -77,7 +77,7 @@ func NewApplicationGraph(
 		)
 	}
 
-	publicAuthentication, err := authenticateapp.NewUseCase(
+	publicAuthenticationUseCase, err := authenticateapp.NewUseCase(
 		security.APIKeyHasher,
 		repositories.APIKeys,
 		repositories.Users,
@@ -86,6 +86,19 @@ func NewApplicationGraph(
 	if err != nil {
 		return ApplicationGraph{}, fmt.Errorf(
 			"construct public authentication use case: %w",
+			err,
+		)
+	}
+	publicAuthentication, err :=
+		authenticateapp.NewUsageRecordingAuthenticator(
+			publicAuthenticationUseCase,
+			repositories.APIKeyUsageRecorder,
+			primitives.Clock,
+			cfg.APIKeyLastUsedTimeout,
+		)
+	if err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"construct public authentication usage recorder: %w",
 			err,
 		)
 	}

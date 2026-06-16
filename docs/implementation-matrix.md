@@ -30,7 +30,7 @@ evidence реализации.
 | Requirement group | Applicable specs | Status |
 |---|---|---|
 | Application dependency direction | `AGENTS.md`, ADR layering | `verified`: domain financial contracts; compatibility wrappers; repository-wide architecture test |
-| OpenAI-compatible public contract | `010`, `020`, `030`, `040`, `050`, `080`, `090` | `partial`: pricing_failed passthrough, complete billing headers and minimum request balance verified; auth recording and parser boundaries pending |
+| OpenAI-compatible public contract | `010`, `020`, `030`, `040`, `050`, `080`, `090` | `partial`: pricing_failed passthrough, complete billing headers, minimum request balance and API-key last_used_at recording verified; parser boundaries pending |
 | Storage and migration contract | `070`, `090`, migration ADR | `pending` |
 | Durable billing recovery | `050`, `090` | `pending` |
 | Operational routing policy | `030`, `080`, `090` | `pending` |

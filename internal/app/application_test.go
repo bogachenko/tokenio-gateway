@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	authenticateapp "github.com/bogachenko/tokenio-gateway/internal/application/authenticate"
 	"github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
 	"github.com/bogachenko/tokenio-gateway/internal/config"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
@@ -34,6 +35,7 @@ func validApplicationGraphInputs(
 	cfg := config.Config{
 		AdminToken:               "admin-token",
 		APIKeyHashSecret:         "api-key-hash-secret",
+		APIKeyLastUsedTimeout:    250 * time.Millisecond,
 		ProvisioningServiceToken: "provisioning-service-token",
 		APIKeyProvisioningEncryptionKey: bytes.Repeat(
 			[]byte{0x42},
@@ -119,6 +121,9 @@ func validApplicationGraphInputs(
 		APIKeys: &struct {
 			ports.APIKeyRepository
 		}{},
+		APIKeyUsageRecorder: &struct {
+			ports.APIKeyUsageRecorder
+		}{},
 		Resellers: &struct {
 			ports.ResellerQueryRepository
 		}{},
@@ -193,6 +198,14 @@ func validApplicationGraphInputs(
 		repositories
 }
 
+func TestRepositoryGraphRequiresAPIKeyUsageRecorder(t *testing.T) {
+	_, _, _, _, _, _, repositories := validApplicationGraphInputs(t)
+	repositories.APIKeyUsageRecorder = nil
+	if err := repositories.Validate(); err == nil {
+		t.Fatal("expected missing API-key usage recorder error")
+	}
+}
+
 func TestNewApplicationGraphWiresExistingPorts(t *testing.T) {
 	cfg,
 		primitives,
@@ -216,6 +229,12 @@ func TestNewApplicationGraphWiresExistingPorts(t *testing.T) {
 	}
 	if err := graph.Validate(); err != nil {
 		t.Fatalf("application graph: %v", err)
+	}
+	if _, ok := graph.PublicAuthentication.(*authenticateapp.UsageRecordingAuthenticator); !ok {
+		t.Fatalf(
+			"public authentication type = %T, want usage-recording decorator",
+			graph.PublicAuthentication,
+		)
 	}
 	if graph.ModelCatalog == nil {
 		t.Fatal("model catalog service is not wired")

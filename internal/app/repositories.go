@@ -11,6 +11,7 @@ import (
 type RepositoryGraph struct {
 	Users                    ports.UserRepository
 	APIKeys                  ports.APIKeyRepository
+	APIKeyUsageRecorder      ports.APIKeyUsageRecorder
 	Resellers                ports.ResellerQueryRepository
 	Routes                   ports.RouteRepository
 	ModelCatalogRoutes       ports.ModelCatalogRouteRepository
@@ -209,6 +210,7 @@ func NewRepositoryGraph(
 	return RepositoryGraph{
 		Users:                    users,
 		APIKeys:                  apiKeys,
+		APIKeyUsageRecorder:      apiKeys,
 		Resellers:                resellers,
 		Routes:                   routes,
 		ModelCatalogRoutes:       routes,
@@ -243,6 +245,8 @@ func (g RepositoryGraph) Validate() error {
 		return fmt.Errorf("user repository is nil")
 	case g.APIKeys == nil:
 		return fmt.Errorf("API-key repository is nil")
+	case g.APIKeyUsageRecorder == nil:
+		return fmt.Errorf("API-key usage recorder is nil")
 	case g.Resellers == nil:
 		return fmt.Errorf("reseller query repository is nil")
 	case g.Routes == nil:
