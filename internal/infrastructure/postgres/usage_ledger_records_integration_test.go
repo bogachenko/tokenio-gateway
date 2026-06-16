@@ -126,10 +126,24 @@ INSERT INTO tokenio_routes (
     endpoint_kind,
     client_model,
     provider_model,
+    default_max_output_tokens,
+    capabilities,
     created_at,
     updated_at
 )
-VALUES ($1, $2, 'openai', 'openai_compatible', 'chat', $3, $3, $4, $4)
+VALUES (
+    $1,
+    $2,
+    'openai',
+    'openai_compatible',
+    'chat',
+    $3,
+    $3,
+    1024,
+    '{"chat":true}'::jsonb,
+    $4,
+    $4
+)
 `,
 		routeID,
 		resellerID,
@@ -141,19 +155,30 @@ VALUES ($1, $2, 'openai', 'openai_compatible', 'chat', $3, $3, $4, $4)
 
 	reservedAt := now
 	record := domain.UsageRecord{
-		LocalRequestID:             localRequestID,
-		IdempotencyKey:             "usage-idempotency-" + suffix,
-		UserID:                     userID,
-		APIKeyID:                   keyID,
-		APIFamily:                  domain.APIFamilyOpenAICompatible,
-		EndpointKind:               domain.EndpointChat,
-		ClientModel:                "usage-model-" + suffix,
-		BillingModel:               "openai:usage-model-" + suffix,
-		SelectedRouteID:            routeID,
-		SelectedResellerID:         resellerID,
-		ProviderType:               domain.ProviderOpenAI,
-		ProviderModel:              "usage-model-" + suffix,
-		EstimatedUsage:             domain.TokenUsage{InputTokens: 10, OutputTokens: 5},
+		LocalRequestID:     localRequestID,
+		IdempotencyKey:     "usage-idempotency-" + suffix,
+		UserID:             userID,
+		APIKeyID:           keyID,
+		APIFamily:          domain.APIFamilyOpenAICompatible,
+		EndpointKind:       domain.EndpointChat,
+		ClientModel:        "usage-model-" + suffix,
+		BillingModel:       "openai:usage-model-" + suffix,
+		SelectedRouteID:    routeID,
+		SelectedResellerID: resellerID,
+		ProviderType:       domain.ProviderOpenAI,
+		ProviderModel:      "usage-model-" + suffix,
+		EstimatedUsage: domain.TokenUsage{
+			InputTokens:          1,
+			CachedInputTokens:    2,
+			OutputTokens:         3,
+			ReasoningTokens:      4,
+			ImageInputTokens:     5,
+			AudioInputTokens:     6,
+			AudioOutputTokens:    7,
+			FileInputTokens:      8,
+			VideoInputTokens:     9,
+			ImageGenerationUnits: 10,
+		},
 		EstimatedClientAmountCents: 100,
 		EstimatedUpstreamCostCents: 40,
 		Currency:                   "RUB",
@@ -196,7 +221,18 @@ VALUES ($1, $2, 'openai', 'openai_compatible', 'chat', $3, $3, $4, $4)
 	billableAt := now.Add(time.Second)
 	next := *found
 	next.Status = domain.UsageStatusBillable
-	next.Usage = domain.TokenUsage{InputTokens: 8, OutputTokens: 4}
+	next.Usage = domain.TokenUsage{
+		InputTokens:          11,
+		CachedInputTokens:    12,
+		OutputTokens:         13,
+		ReasoningTokens:      14,
+		ImageInputTokens:     15,
+		AudioInputTokens:     16,
+		AudioOutputTokens:    17,
+		FileInputTokens:      18,
+		VideoInputTokens:     19,
+		ImageGenerationUnits: 20,
+	}
 	next.UsageCompleteness = "detailed"
 	next.ClientAmountCents = 90
 	next.RemainingAmountCents = 90
@@ -245,7 +281,9 @@ VALUES ($1, $2, 'openai', 'openai_compatible', 'chat', $3, $3, $4, $4)
 		t.Fatalf("LoadChargeCandidates: %v", err)
 	}
 	if len(candidates) != 1 ||
-		candidates[0].LocalRequestID != localRequestID {
+		candidates[0].LocalRequestID != localRequestID ||
+		candidates[0].EstimatedUsage != record.EstimatedUsage ||
+		candidates[0].Usage != next.Usage {
 		t.Fatalf("candidates = %+v", candidates)
 	}
 
