@@ -58,6 +58,14 @@ WHERE user_id = $1
 ORDER BY created_at ASC, id ASC
 `
 
+const loadRecoveryChargeBatchIDsSQL = `
+SELECT id
+FROM tokenio_billing_charge_batches
+WHERE billing_status IN ('pending', 'failed')
+ORDER BY created_at ASC, id ASC
+LIMIT $1
+`
+
 func loadBillingChargeSnapshot(
 	ctx context.Context,
 	db DBTX,
@@ -150,6 +158,76 @@ func loadBillingChargeSnapshot(
 		snapshot.ExpectedRecords[index] = expected.Record
 	}
 	return snapshot, nil
+}
+
+func (r *UsageLedger) ListOpenChargeBatchesForRecovery(
+	ctx context.Context,
+	limit int,
+) ([]ports.BillingChargeBatchSnapshot, error) {
+	if ctx == nil || limit < 1 {
+		return nil, ports.ErrStoreContractViolation
+	}
+
+	result := make([]ports.BillingChargeBatchSnapshot, 0, limit)
+	err := InTx(
+		ctx,
+		r.db,
+		pgx.TxOptions{
+			IsoLevel:   pgx.RepeatableRead,
+			AccessMode: pgx.ReadOnly,
+		},
+		func(tx pgx.Tx) error {
+			rows, err := tx.Query(
+				ctx,
+				loadRecoveryChargeBatchIDsSQL,
+				limit,
+			)
+			if err != nil {
+				return normalizeRegistryReadError(err)
+			}
+			defer rows.Close()
+
+			batchIDs := make([]string, 0, limit)
+			for rows.Next() {
+				var batchID string
+				if err := rows.Scan(&batchID); err != nil {
+					return normalizeRegistryReadError(err)
+				}
+				batchIDs = append(batchIDs, batchID)
+			}
+			if err := rows.Err(); err != nil {
+				return normalizeRegistryReadError(err)
+			}
+			rows.Close()
+
+			if len(batchIDs) > limit {
+				return ports.ErrStoreContractViolation
+			}
+			for _, batchID := range batchIDs {
+				snapshot, err := loadBillingChargeSnapshot(
+					ctx,
+					tx,
+					batchID,
+					false,
+				)
+				if err != nil {
+					return err
+				}
+				if snapshot.Batch.Status !=
+					domain.BillingChargeStatusPending &&
+					snapshot.Batch.Status !=
+						domain.BillingChargeStatusFailed {
+					return ports.ErrStoreContractViolation
+				}
+				result = append(result, snapshot)
+			}
+			return nil
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func (r *UsageLedger) LoadOpenChargeBatches(

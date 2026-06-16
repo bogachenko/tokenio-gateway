@@ -3,6 +3,8 @@ package postgres
 import (
 	"strings"
 	"testing"
+
+	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
 
 func TestChargeCommandSQLContainsRequiredBoundaries(t *testing.T) {
@@ -10,6 +12,11 @@ func TestChargeCommandSQLContainsRequiredBoundaries(t *testing.T) {
 		"open": {
 			"billing_status IN ('pending', 'failed')",
 			"ORDER BY created_at ASC, id ASC",
+		},
+		"recovery": {
+			"billing_status IN ('pending', 'failed')",
+			"ORDER BY created_at ASC, id ASC",
+			"LIMIT $1",
 		},
 		"allocations": {
 			"ORDER BY position ASC",
@@ -27,6 +34,7 @@ func TestChargeCommandSQLContainsRequiredBoundaries(t *testing.T) {
 	}
 	sqlByName := map[string]string{
 		"open":         loadOpenChargeBatchIDsSQL,
+		"recovery":     loadRecoveryChargeBatchIDsSQL,
 		"allocations":  loadBillingChargeAllocationsSQL,
 		"expected":     loadBillingChargeExpectedRecordsSQL,
 		"usage lock":   lockUsageRecordsForChargeSQL,
@@ -43,4 +51,5 @@ func TestChargeCommandSQLContainsRequiredBoundaries(t *testing.T) {
 
 func TestUsageLedgerImplementsPort(t *testing.T) {
 	var _ = NewUsageLedger
+	var _ ports.BillingRecoveryStore = (*UsageLedger)(nil)
 }

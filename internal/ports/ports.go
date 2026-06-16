@@ -370,6 +370,16 @@ type UsageChargeSuccess struct {
 	ExpectedRecords     []domain.UsageRecord
 }
 
+type BillingRecoveryStore interface {
+	// ListOpenChargeBatchesForRecovery returns at most limit durable pending or
+	// failed charge commands. Repository order is unspecified; application code
+	// must process snapshots by batch.created_at ASC, then batch.id ASC.
+	ListOpenChargeBatchesForRecovery(
+		ctx context.Context,
+		limit int,
+	) ([]BillingChargeBatchSnapshot, error)
+}
+
 type UsageLedger interface {
 	// CreateReserved atomically checks unresolved user pricing failures, local_request_id
 	// uniqueness, optional client idempotency scope (user_id + endpoint_kind +
