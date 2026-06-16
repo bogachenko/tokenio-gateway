@@ -355,3 +355,48 @@ func TestLLMRouterMapsApplicationErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestLLMRouterPassesThroughPricingFailedSuccess(t *testing.T) {
+	body := []byte(`{"upstream":"unchanged"}`)
+	result := successfulLLMResult(
+		"llmreq_pricing_failed_transport",
+		domain.EndpointChat,
+		body,
+	)
+	result.Response.StatusCode = http.StatusAccepted
+	result.FinalUsageRecord.Status = domain.UsageStatusPricingFailed
+	result.FinalUsageRecord.ClientAmountCents = 0
+	result.FinalUsageRecord.RemainingAmountCents = 0
+	result.FinalUsageRecord.UsageCompleteness = "failed"
+	result.AutoCharge = llmrequestapp.AutoChargeResult{}
+
+	requests := &testLLMRequests{result: result}
+	router, err := NewLLMRouter(
+		requests,
+		&testRequestIDs{local: "llmreq_pricing_failed_transport"},
+		1024,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(
+		http.MethodPost,
+		chatCompletionsPath,
+		strings.NewReader(`{"model":"client-model"}`),
+	)
+	request.Header.Set("Authorization", "Bearer sk_live_test")
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	if response.Body.String() != string(body) {
+		t.Fatalf("body=%q", response.Body.String())
+	}
+	if response.Header().Get("X-Billing-Status") != "pricing_failed" {
+		t.Fatalf("headers=%#v", response.Header())
+	}
+}

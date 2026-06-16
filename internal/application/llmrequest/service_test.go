@@ -332,15 +332,16 @@ func TestServiceExecuteRejectsNonzeroUsageWithZeroFinalAmount(
 			)
 
 			service := mustService(t, dependencies)
-			_, err := service.Execute(
+			result, err := service.Execute(
 				context.Background(),
 				validInput(),
 			)
-			if !errors.Is(err, ErrStageContractViolation) {
-				t.Fatalf(
-					"error = %v, want stage contract violation",
-					err,
-				)
+			if err != nil {
+				t.Fatalf("Execute: %v", err)
+			}
+			if result.Response.StatusCode != 200 ||
+				result.FinalUsageRecord.Status != domain.UsageStatusPricingFailed {
+				t.Fatalf("result = %+v", result)
 			}
 
 			wantCalls := []string{
@@ -361,6 +362,40 @@ func TestServiceExecuteRejectsNonzeroUsageWithZeroFinalAmount(
 				)
 			}
 		})
+	}
+}
+
+func TestServiceExecuteReturnsSuccessfulUpstreamWhenUsageResolutionFails(
+	t *testing.T,
+) {
+	var calls []string
+	dependencies := validDependencies(&calls)
+	dependencies.UsageResolver = usageResolverFunc(
+		func(context.Context, UsageResolutionInput) (UsageResolutionResult, error) {
+			calls = append(calls, "usage")
+			return UsageResolutionResult{}, errors.New("usage resolution failed")
+		},
+	)
+
+	service := mustService(t, dependencies)
+	result, err := service.Execute(context.Background(), validInput())
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if result.Response.StatusCode != 200 ||
+		string(result.Response.Body) != `{"ok":true}` ||
+		result.FinalUsageRecord.Status != domain.UsageStatusPricingFailed {
+		t.Fatalf("result = %+v", result)
+	}
+	if result.AutoCharge.Status != "" {
+		t.Fatalf("auto charge unexpectedly ran: %+v", result.AutoCharge)
+	}
+	wantCalls := []string{
+		"authenticate", "parse", "capabilities", "route",
+		"admission", "forwarding", "usage", "pricing_failed",
+	}
+	if !reflect.DeepEqual(calls, wantCalls) {
+		t.Fatalf("calls = %#v, want %#v", calls, wantCalls)
 	}
 }
 
@@ -422,20 +457,6 @@ func TestServiceExecuteStopsAtFirstFailedStage(t *testing.T) {
 				"route",
 				"admission",
 				"forwarding",
-			},
-		},
-		{
-			name:      "usage resolution",
-			failStage: "usage",
-			wantCalls: []string{
-				"authenticate",
-				"parse",
-				"capabilities",
-				"route",
-				"admission",
-				"forwarding",
-				"usage",
-				"pricing_failed",
 			},
 		},
 	}

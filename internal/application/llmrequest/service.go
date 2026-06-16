@@ -119,7 +119,7 @@ func (s *Service) Execute(
 		},
 	)
 	if err != nil {
-		failureErr := s.markPricingFailed(
+		failed, failureErr := s.markPricingFailed(
 			ctx,
 			forwarded.Reserved,
 			"usage_resolution_failed",
@@ -130,16 +130,14 @@ func (s *Service) Execute(
 				failureErr,
 			)
 		}
-		return ForwardedRequest{}, fmt.Errorf(
-			"resolve final usage: %w",
-			err,
-		)
+		forwarded.FinalUsageRecord = failed.Usage
+		return forwarded, nil
 	}
 	if err := validateUsageResolution(
 		forwarded,
 		resolved,
 	); err != nil {
-		failureErr := s.markPricingFailed(
+		failed, failureErr := s.markPricingFailed(
 			ctx,
 			forwarded.Reserved,
 			"usage_resolution_invalid",
@@ -150,7 +148,8 @@ func (s *Service) Execute(
 				failureErr,
 			)
 		}
-		return ForwardedRequest{}, err
+		forwarded.FinalUsageRecord = failed.Usage
+		return forwarded, nil
 	}
 
 	finalized, err := s.finalizer.Commit(
@@ -223,7 +222,7 @@ func (s *Service) markPricingFailed(
 	ctx context.Context,
 	reserved ReservedRequest,
 	reason string,
-) error {
+) (FinalizationResult, error) {
 	finalized, err := s.finalizer.MarkPricingFailed(
 		ctx,
 		PricingFailureInput{
@@ -232,7 +231,7 @@ func (s *Service) markPricingFailed(
 		},
 	)
 	if err != nil {
-		return fmt.Errorf(
+		return FinalizationResult{}, fmt.Errorf(
 			"finalize pricing failure: %w",
 			err,
 		)
@@ -241,12 +240,12 @@ func (s *Service) markPricingFailed(
 		domain.UsageStatusPricingFailed ||
 		finalized.Usage.LocalRequestID !=
 			reserved.Prepared.LocalRequestID {
-		return fmt.Errorf(
+		return FinalizationResult{}, fmt.Errorf(
 			"%w: invalid pricing failure result",
 			ErrStageContractViolation,
 		)
 	}
-	return nil
+	return finalized, nil
 }
 
 func validateUsageResolution(
