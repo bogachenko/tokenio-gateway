@@ -231,13 +231,15 @@ func TestAdminRouteAndPriceRepositoriesIntegration(t *testing.T) {
 	}
 
 	priceCreatedAt := now.Add(4 * time.Second)
+	const createMarkup = 1.2345678901234567
+	const updateMarkup = 1.9876543210987654
 	price := domain.RoutePrice{
 		RouteID:                     routeID,
 		Currency:                    "RUB",
 		InputPricePer1MTokensCents:  10,
 		OutputPricePer1MTokensCents: 20,
 		ImageGenerationUnitKind:     domain.ImageGenerationUnitKindNone,
-		MarkupCoefficient:           1.25,
+		MarkupCoefficient:           createMarkup,
 		Enabled:                     true,
 		CreatedAt:                   priceCreatedAt,
 		UpdatedAt:                   priceCreatedAt,
@@ -260,11 +262,27 @@ func TestAdminRouteAndPriceRepositoriesIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create route price: %v", err)
 	}
+	if createdPrice.MarkupCoefficient != createMarkup {
+		t.Fatalf(
+			"created markup=%0.17g want=%0.17g",
+			createdPrice.MarkupCoefficient,
+			createMarkup,
+		)
+	}
+	assertRoutePriceMarkupPersistence(
+		t,
+		ctx,
+		db,
+		prices,
+		routeID,
+		createPriceAudit.ID,
+		createMarkup,
+	)
 
 	priceUpdateAt := now.Add(5 * time.Second)
 	nextPrice := createdPrice
 	nextPrice.OutputPricePer1MTokensCents = 30
-	nextPrice.MarkupCoefficient = 1.5
+	nextPrice.MarkupCoefficient = updateMarkup
 	nextPrice.UpdatedAt = priceUpdateAt
 	updatePriceAudit := adminRoutePriceAuditContext(
 		"audit-price-update-"+suffix,
@@ -285,9 +303,18 @@ func TestAdminRouteAndPriceRepositoriesIntegration(t *testing.T) {
 		t.Fatalf("update route price: %v", err)
 	}
 	if updatedPrice.OutputPricePer1MTokensCents != 30 ||
-		updatedPrice.MarkupCoefficient != 1.5 {
+		updatedPrice.MarkupCoefficient != updateMarkup {
 		t.Fatalf("updated price = %+v", updatedPrice)
 	}
+	assertRoutePriceMarkupPersistence(
+		t,
+		ctx,
+		db,
+		prices,
+		routeID,
+		updatePriceAudit.ID,
+		updateMarkup,
+	)
 
 	stalePrice := createdPrice
 	stalePrice.OutputPricePer1MTokensCents = 40
@@ -374,6 +401,70 @@ func TestAdminRouteAndPriceRepositoriesIntegration(t *testing.T) {
 	}
 	if auditPage.Total != 5 || len(auditPage.Items) != 5 {
 		t.Fatalf("audit page = %+v", auditPage)
+	}
+}
+
+func assertRoutePriceMarkupPersistence(
+	t *testing.T,
+	ctx context.Context,
+	db *DB,
+	prices *AdminRoutePriceRepository,
+	routeID string,
+	auditID string,
+	want float64,
+) {
+	t.Helper()
+
+	found, err := prices.FindRoutePrice(ctx, routeID)
+	if err != nil {
+		t.Fatalf("FindRoutePrice: %v", err)
+	}
+	if found.MarkupCoefficient != want {
+		t.Fatalf(
+			"repository markup=%0.17g want=%0.17g",
+			found.MarkupCoefficient,
+			want,
+		)
+	}
+
+	var persisted float64
+	if err := db.QueryRow(
+		ctx,
+		`
+SELECT markup_coefficient
+FROM tokenio_route_prices
+WHERE route_id = $1
+`,
+		routeID,
+	).Scan(&persisted); err != nil {
+		t.Fatalf("read persisted markup: %v", err)
+	}
+	if persisted != want {
+		t.Fatalf(
+			"persisted markup=%0.17g want=%0.17g",
+			persisted,
+			want,
+		)
+	}
+
+	var audited float64
+	if err := db.QueryRow(
+		ctx,
+		`
+SELECT (after_state ->> 'markup_coefficient')::double precision
+FROM tokenio_admin_audit_log
+WHERE id = $1
+`,
+		auditID,
+	).Scan(&audited); err != nil {
+		t.Fatalf("read audited markup: %v", err)
+	}
+	if audited != want {
+		t.Fatalf(
+			"audit markup=%0.17g want=%0.17g",
+			audited,
+			want,
+		)
 	}
 }
 
