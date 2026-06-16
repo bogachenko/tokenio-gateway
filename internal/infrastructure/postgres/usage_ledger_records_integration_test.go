@@ -81,6 +81,42 @@ func assertUsageTimePointer(
 	}
 }
 
+func assertUsageRecordReleasedTimestamps(
+	t *testing.T,
+	record domain.UsageRecord,
+	createdAt time.Time,
+	reservedAt time.Time,
+	releasedAt time.Time,
+) {
+	t.Helper()
+
+	assertUsageTime(t, "released.created_at", record.CreatedAt, createdAt)
+	assertUsageTimePointer(t, "released.reserved_at", record.ReservedAt, &reservedAt)
+	assertUsageTimePointer(t, "released.released_at", record.ReleasedAt, &releasedAt)
+	assertUsageTimePointer(t, "released.billable_at", record.BillableAt, nil)
+	assertUsageTimePointer(t, "released.charged_at", record.ChargedAt, nil)
+	assertUsageTimePointer(t, "released.failed_at", record.FailedAt, nil)
+	assertUsageTime(t, "released.updated_at", record.UpdatedAt, releasedAt)
+}
+
+func assertUsageRecordFailedTimestamps(
+	t *testing.T,
+	record domain.UsageRecord,
+	createdAt time.Time,
+	reservedAt time.Time,
+	failedAt time.Time,
+) {
+	t.Helper()
+
+	assertUsageTime(t, "failed.created_at", record.CreatedAt, createdAt)
+	assertUsageTimePointer(t, "failed.reserved_at", record.ReservedAt, &reservedAt)
+	assertUsageTimePointer(t, "failed.released_at", record.ReleasedAt, nil)
+	assertUsageTimePointer(t, "failed.billable_at", record.BillableAt, nil)
+	assertUsageTimePointer(t, "failed.charged_at", record.ChargedAt, nil)
+	assertUsageTimePointer(t, "failed.failed_at", record.FailedAt, &failedAt)
+	assertUsageTime(t, "failed.updated_at", record.UpdatedAt, failedAt)
+}
+
 func TestUsageLedgerRecordLifecycleIntegration(t *testing.T) {
 	dsn := os.Getenv("TOKENIO_TEST_DATABASE_DSN")
 	if dsn == "" {
@@ -365,6 +401,133 @@ VALUES (
 		now,
 		reservedAt,
 		billableAt,
+	)
+
+	releasedCreatedAt := now.Add(10 * time.Second)
+	releasedReservedAt := releasedCreatedAt
+	releasedRecord := record
+	releasedRecord.LocalRequestID = "usage-released-" + suffix
+	releasedRecord.IdempotencyKey = "usage-released-idempotency-" + suffix
+	releasedRecord.CreatedAt = releasedCreatedAt
+	releasedRecord.ReservedAt = &releasedReservedAt
+	releasedRecord.UpdatedAt = releasedCreatedAt
+	releasedRecord.BillableAt = nil
+
+	releasedCreate, err := ledger.CreateReserved(ctx, releasedRecord)
+	if err != nil {
+		t.Fatalf("CreateReserved released fixture: %v", err)
+	}
+	if releasedCreate.Outcome != ports.UsageReserveOutcomeCreated {
+		t.Fatalf("released fixture create = %+v", releasedCreate)
+	}
+
+	releasedCurrent, err := ledger.FindByLocalRequestID(
+		ctx,
+		releasedRecord.LocalRequestID,
+	)
+	if err != nil {
+		t.Fatalf("FindByLocalRequestID released fixture: %v", err)
+	}
+	releasedAt := releasedCreatedAt.Add(time.Second)
+	releasedNext := *releasedCurrent
+	releasedNext.Status = domain.UsageStatusReleased
+	releasedNext.ReleasedAt = &releasedAt
+	releasedNext.UpdatedAt = releasedAt
+
+	releasedTransition, err := ledger.CompareAndSwap(
+		ctx,
+		releasedRecord.LocalRequestID,
+		domain.UsageStatusReserved,
+		releasedNext,
+	)
+	if err != nil {
+		t.Fatalf("CompareAndSwap released: %v", err)
+	}
+	if !releasedTransition.Applied {
+		t.Fatalf("released transition = %+v", releasedTransition)
+	}
+
+	releasedFound, err := ledger.FindByLocalRequestID(
+		ctx,
+		releasedRecord.LocalRequestID,
+	)
+	if err != nil {
+		t.Fatalf("FindByLocalRequestID released: %v", err)
+	}
+	if releasedFound.Status != domain.UsageStatusReleased {
+		t.Fatalf("released record = %+v", releasedFound)
+	}
+	assertUsageRecordReleasedTimestamps(
+		t,
+		*releasedFound,
+		releasedCreatedAt,
+		releasedReservedAt,
+		releasedAt,
+	)
+
+	failedCreatedAt := now.Add(20 * time.Second)
+	failedReservedAt := failedCreatedAt
+	failedRecord := record
+	failedRecord.LocalRequestID = "usage-failed-" + suffix
+	failedRecord.IdempotencyKey = "usage-failed-idempotency-" + suffix
+	failedRecord.CreatedAt = failedCreatedAt
+	failedRecord.ReservedAt = &failedReservedAt
+	failedRecord.UpdatedAt = failedCreatedAt
+	failedRecord.BillableAt = nil
+
+	failedCreate, err := ledger.CreateReserved(ctx, failedRecord)
+	if err != nil {
+		t.Fatalf("CreateReserved failed fixture: %v", err)
+	}
+	if failedCreate.Outcome != ports.UsageReserveOutcomeCreated {
+		t.Fatalf("failed fixture create = %+v", failedCreate)
+	}
+
+	failedCurrent, err := ledger.FindByLocalRequestID(
+		ctx,
+		failedRecord.LocalRequestID,
+	)
+	if err != nil {
+		t.Fatalf("FindByLocalRequestID failed fixture: %v", err)
+	}
+	failedAt := failedCreatedAt.Add(time.Second)
+	failedNext := *failedCurrent
+	failedNext.Status = domain.UsageStatusFailed
+	failedNext.UsageCompleteness = "failed"
+	failedNext.FailureReason = "upstream_failed"
+	failedNext.FailedAt = &failedAt
+	failedNext.UpdatedAt = failedAt
+
+	failedTransition, err := ledger.CompareAndSwap(
+		ctx,
+		failedRecord.LocalRequestID,
+		domain.UsageStatusReserved,
+		failedNext,
+	)
+	if err != nil {
+		t.Fatalf("CompareAndSwap failed: %v", err)
+	}
+	if !failedTransition.Applied {
+		t.Fatalf("failed transition = %+v", failedTransition)
+	}
+
+	failedFound, err := ledger.FindByLocalRequestID(
+		ctx,
+		failedRecord.LocalRequestID,
+	)
+	if err != nil {
+		t.Fatalf("FindByLocalRequestID failed: %v", err)
+	}
+	if failedFound.Status != domain.UsageStatusFailed ||
+		failedFound.FailureReason != "upstream_failed" {
+		t.Fatalf("failed record = %+v", failedFound)
+	}
+	assertUsageRecordFailedTimestamps(
+		t,
+		*failedFound,
+		failedCreatedAt,
+		failedReservedAt,
+		failedAt,
 	)
 
 	_, err = ledger.FindByLocalRequestID(ctx, "missing-"+suffix)
