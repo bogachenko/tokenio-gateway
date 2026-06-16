@@ -183,6 +183,42 @@ func TestLLMRouterDispatchesNormalizedInputAndPassesResponseThrough(
 	}
 }
 
+func TestLLMRouterAcceptsMissingContentTypeAsJSON(t *testing.T) {
+	const body = `{"model":"client-model","opaque":{"x":1}}`
+	requests := &testLLMRequests{
+		result: successfulLLMResult(
+			"llmreq_missing_content_type",
+			domain.EndpointChat,
+			[]byte(`{"ok":true}`),
+		),
+	}
+	router, err := NewLLMRouter(
+		requests,
+		&testRequestIDs{local: "llmreq_missing_content_type"},
+		1024,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		chatCompletionsPath,
+		strings.NewReader(body),
+	)
+	request.Header.Set("Authorization", "Bearer sk_live_test")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	if requests.calls != 1 || string(requests.input.Payload) != body {
+		t.Fatalf("calls=%d input=%+v", requests.calls, requests.input)
+	}
+}
+
 func TestLLMRouterRejectsMethodBeforeApplicationCall(t *testing.T) {
 	requests := &testLLMRequests{}
 	router, err := NewLLMRouter(
@@ -316,13 +352,21 @@ func TestLLMRouterMapsApplicationErrors(t *testing.T) {
 	}{
 		{"invalid api key", authenticateapp.ErrInvalidAPIKey, http.StatusUnauthorized, domain.ErrorCodeInvalidAPIKey, "Invalid API key"},
 		{"disabled user", authenticateapp.ErrUserDisabled, http.StatusForbidden, domain.ErrorCodeUserDisabled, "User is disabled"},
+		{"invalid JSON", llmrequestapp.ErrInvalidJSON, http.StatusBadRequest, domain.ErrorCodeInvalidJSON, "Request body must contain valid JSON"},
 		{"model required", llmrequestapp.ErrModelRequired, http.StatusBadRequest, domain.ErrorCodeModelRequired, "Model is required"},
 		{"streaming unsupported", llmrequestapp.ErrStreamingUnsupported, http.StatusBadRequest, domain.ErrorCodeStreamingUnsupported, "Streaming is not supported"},
 		{"unknown model", llmrequestapp.ErrUnknownModel, http.StatusBadRequest, domain.ErrorCodeUnknownModel, "Unknown model"},
 		{"unsupported capability", llmrequestapp.ErrUnsupportedCapability, http.StatusBadRequest, domain.ErrorCodeUnsupportedCapability, "Unsupported capability"},
 		{"no route", llmrequestapp.ErrNoRouteAvailable, http.StatusServiceUnavailable, domain.ErrorCodeNoRouteAvailable, "No route is available"},
 		{"insufficient funds", ledgerapp.ErrInsufficientFunds, http.StatusPaymentRequired, domain.ErrorCodeInsufficientFunds, "Insufficient balance"},
-		{"idempotency conflict", ledgerapp.ErrIdempotencyKeyReused, http.StatusConflict, domain.ErrorCodeIdempotencyKeyReused, "Idempotency key conflicts with an existing request"},
+		{"LLM idempotency key reused", llmrequestapp.ErrIdempotencyKeyReused, http.StatusConflict, domain.ErrorCodeIdempotencyKeyReused, "Idempotency key conflicts with an existing request"},
+		{"ledger idempotency key reused", ledgerapp.ErrIdempotencyKeyReused, http.StatusConflict, domain.ErrorCodeIdempotencyKeyReused, "Idempotency key conflicts with an existing request"},
+		{"LLM request in progress", llmrequestapp.ErrRequestInProgress, http.StatusConflict, domain.ErrorCodeRequestInProgress, "Request is already in progress"},
+		{"ledger request in progress", ledgerapp.ErrRequestInProgress, http.StatusConflict, domain.ErrorCodeRequestInProgress, "Request is already in progress"},
+		{"LLM replay unavailable", llmrequestapp.ErrIdempotencyReplayNotAvailable, http.StatusConflict, domain.ErrorCodeIdempotencyReplayNotAvailable, "Idempotency replay is not available"},
+		{"ledger replay unavailable", ledgerapp.ErrIdempotencyReplayNotAvailable, http.StatusConflict, domain.ErrorCodeIdempotencyReplayNotAvailable, "Idempotency replay is not available"},
+		{"LLM unresolved usage", llmrequestapp.ErrUnresolvedUsage, http.StatusConflict, domain.ErrorCodeUnresolvedUsage, "Previous usage requires resolution"},
+		{"ledger unresolved usage", ledgerapp.ErrUnresolvedUsage, http.StatusConflict, domain.ErrorCodeUnresolvedUsage, "Previous usage requires resolution"},
 		{"billing unavailable", billingapp.ErrBillingUnavailable, http.StatusServiceUnavailable, domain.ErrorCodeBillingUnavailable, "Billing service is unavailable"},
 		{"timeout", context.DeadlineExceeded, http.StatusGatewayTimeout, domain.ErrorCodeUpstreamUnavailable, "Upstream request timed out"},
 		{"internal", errors.New("postgres sk_live_secret"), http.StatusInternalServerError, domain.ErrorCodeInternalError, "Internal error"},
