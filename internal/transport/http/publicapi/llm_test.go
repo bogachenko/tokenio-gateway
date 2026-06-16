@@ -161,12 +161,22 @@ func TestLLMRouterDispatchesNormalizedInputAndPassesResponseThrough(
 				response.Header().Get("X-Billing-Amount-Cents") != "15" ||
 				response.Header().Get("X-Billing-Remaining-Cents") != "15" ||
 				response.Header().Get("X-Billing-Input-Tokens") != "10" ||
+				response.Header().Get("X-Billing-Cached-Input-Tokens") != "0" ||
 				response.Header().Get("X-Billing-Output-Tokens") != "5" ||
+				response.Header().Get("X-Billing-Reasoning-Tokens") != "0" ||
+				response.Header().Get("X-Billing-Image-Input-Tokens") != "0" ||
+				response.Header().Get("X-Billing-Audio-Input-Tokens") != "0" ||
+				response.Header().Get("X-Billing-Audio-Output-Tokens") != "0" ||
+				response.Header().Get("X-Billing-File-Input-Tokens") != "0" ||
+				response.Header().Get("X-Billing-Video-Input-Tokens") != "0" ||
 				response.Header().Get("X-Billing-Usage-Completeness") != "detailed" ||
 				response.Header().Get("X-Billing-Status") != "billable" ||
-				response.Header().Get("X-Auto-Charge-Status") != "deferred" ||
-				response.Header().Get("X-Wallet-Effective-Balance-Cents") != "" ||
-				response.Header().Get("X-Billing-Pending-Cents") != "" {
+				response.Header().Get("X-Billing-Auto-Charge-Status") != "deferred" ||
+				response.Header().Get("X-Wallet-Balance-Cents") != "1000" ||
+				response.Header().Get("X-Wallet-Effective-Balance-Cents") != "900" ||
+				response.Header().Get("X-Billing-Pending-Cents") != "100" ||
+				response.Header().Get("X-Auto-Charge-Status") != "" ||
+				response.Header().Get("X-Auto-Charge-Charged-Cents") != "" {
 				t.Fatalf("gateway headers=%#v", response.Header())
 			}
 		})

@@ -51,6 +51,13 @@ func TestLLMRouterImageGenerationPassesThroughResponseAndFinalBillingHeaders(
 						Currency:     "RUB",
 					},
 				},
+				Admission: llmrequestapp.BillingAdmissionResult{
+					RemoteBalanceCents:    1000,
+					PendingAmountCents:    100,
+					EffectiveBalanceCents: 900,
+					RequiredReserveCents:  10,
+					Currency:              "RUB",
+				},
 			},
 			ResolvedUsage: llmrequestapp.UsageResolutionResult{
 				Usage: domain.TokenUsage{
@@ -168,13 +175,21 @@ func TestLLMRouterImageGenerationPassesThroughResponseAndFinalBillingHeaders(
 		"X-Billing-Amount-Cents":           "30",
 		"X-Billing-Remaining-Cents":        "30",
 		"X-Billing-Input-Tokens":           "0",
+		"X-Billing-Cached-Input-Tokens":    "0",
+		"X-Billing-Reasoning-Tokens":       "0",
+		"X-Billing-Image-Input-Tokens":     "0",
+		"X-Billing-Audio-Input-Tokens":     "0",
+		"X-Billing-Audio-Output-Tokens":    "0",
+		"X-Billing-File-Input-Tokens":      "0",
+		"X-Billing-Video-Input-Tokens":     "0",
 		"X-Billing-Output-Tokens":          "0",
 		"X-Billing-Image-Generation-Units": "2",
 		"X-Billing-Usage-Completeness":     "detailed",
 		"X-Billing-Status":                 "billable",
-		"X-Auto-Charge-Status":             "processed",
-		"X-Auto-Charge-Charged-Cents":      "30",
+		"X-Billing-Auto-Charge-Status":     "processed",
 		"X-Wallet-Balance-Cents":           "970",
+		"X-Wallet-Effective-Balance-Cents": "900",
+		"X-Billing-Pending-Cents":          "100",
 	}
 	for name, want := range wantHeaders {
 		if got := headers.Get(name); got != want {
@@ -186,5 +201,9 @@ func TestLLMRouterImageGenerationPassesThroughResponseAndFinalBillingHeaders(
 				headers,
 			)
 		}
+	}
+	if headers.Get("X-Auto-Charge-Status") != "" ||
+		headers.Get("X-Auto-Charge-Charged-Cents") != "" {
+		t.Fatalf("legacy auto-charge headers leaked: %#v", headers)
 	}
 }

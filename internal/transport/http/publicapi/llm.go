@@ -266,13 +266,14 @@ func setKnownBillingHeaders(
 	result llmrequestapp.ForwardedRequest,
 ) {
 	record := result.FinalUsageRecord
+	admission := result.Reserved.Admission
+
 	headers.Set(localRequestIDHeader, record.LocalRequestID)
-	headers.Set(
-		"X-Billing-Provider-Type",
-		string(record.ProviderType),
-	)
+	headers.Set("X-Billing-Provider-Type", string(record.ProviderType))
 	headers.Set("X-Billing-Client-Model", record.ClientModel)
 	headers.Set("X-Billing-Model", record.BillingModel)
+	headers.Set("X-Billing-Status", string(record.Status))
+	headers.Set("X-Billing-Usage-Completeness", record.UsageCompleteness)
 	headers.Set("X-Billing-Currency", record.Currency)
 	headers.Set(
 		"X-Billing-Amount-Cents",
@@ -282,44 +283,44 @@ func setKnownBillingHeaders(
 		"X-Billing-Remaining-Cents",
 		strconv.FormatInt(record.RemainingAmountCents, 10),
 	)
+
+	usageHeaders := []struct {
+		name  string
+		value int64
+	}{
+		{"X-Billing-Input-Tokens", record.Usage.InputTokens},
+		{"X-Billing-Cached-Input-Tokens", record.Usage.CachedInputTokens},
+		{"X-Billing-Output-Tokens", record.Usage.OutputTokens},
+		{"X-Billing-Reasoning-Tokens", record.Usage.ReasoningTokens},
+		{"X-Billing-Image-Input-Tokens", record.Usage.ImageInputTokens},
+		{"X-Billing-Audio-Input-Tokens", record.Usage.AudioInputTokens},
+		{"X-Billing-Audio-Output-Tokens", record.Usage.AudioOutputTokens},
+		{"X-Billing-File-Input-Tokens", record.Usage.FileInputTokens},
+		{"X-Billing-Video-Input-Tokens", record.Usage.VideoInputTokens},
+		{"X-Billing-Image-Generation-Units", record.Usage.ImageGenerationUnits},
+	}
+	for _, header := range usageHeaders {
+		headers.Set(header.name, strconv.FormatInt(header.value, 10))
+	}
+
+	walletBalance := admission.RemoteBalanceCents
+	if result.AutoCharge.BillingBalanceCents != nil {
+		walletBalance = *result.AutoCharge.BillingBalanceCents
+	}
 	headers.Set(
-		"X-Billing-Input-Tokens",
-		strconv.FormatInt(record.Usage.InputTokens, 10),
+		"X-Wallet-Balance-Cents",
+		strconv.FormatInt(walletBalance, 10),
 	)
 	headers.Set(
-		"X-Billing-Output-Tokens",
-		strconv.FormatInt(record.Usage.OutputTokens, 10),
+		"X-Wallet-Effective-Balance-Cents",
+		strconv.FormatInt(admission.EffectiveBalanceCents, 10),
 	)
 	headers.Set(
-		"X-Billing-Image-Generation-Units",
-		strconv.FormatInt(
-			record.Usage.ImageGenerationUnits,
-			10,
-		),
+		"X-Billing-Pending-Cents",
+		strconv.FormatInt(admission.PendingAmountCents, 10),
 	)
 	headers.Set(
-		"X-Billing-Usage-Completeness",
-		record.UsageCompleteness,
-	)
-	headers.Set("X-Billing-Status", string(record.Status))
-	headers.Set(
-		"X-Auto-Charge-Status",
+		"X-Billing-Auto-Charge-Status",
 		string(result.AutoCharge.Status),
 	)
-	headers.Set(
-		"X-Auto-Charge-Charged-Cents",
-		strconv.FormatInt(
-			result.AutoCharge.ChargedAmountCents,
-			10,
-		),
-	)
-	if result.AutoCharge.BillingBalanceCents != nil {
-		headers.Set(
-			"X-Wallet-Balance-Cents",
-			strconv.FormatInt(
-				*result.AutoCharge.BillingBalanceCents,
-				10,
-			),
-		)
-	}
 }
