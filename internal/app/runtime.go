@@ -87,13 +87,6 @@ func NewRuntime(
 		database.Close()
 	}
 
-	if err := database.ApplyMigrations(ctx); err != nil {
-		closeDatabase()
-		return nil, fmt.Errorf(
-			"apply PostgreSQL migrations: %w",
-			err,
-		)
-	}
 	if err := database.ValidateSchema(ctx); err != nil {
 		closeDatabase()
 		return nil, fmt.Errorf(
