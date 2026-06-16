@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bogachenko/tokenio-gateway/internal/application/ledger"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
@@ -317,7 +316,7 @@ func TestBalanceAdmissionAndPricingFailedBlock(t *testing.T) {
 	}
 	fl.exposure.PricingFailedCount = 1
 	_, err = svc.Admit(t.Context(), AdmissionInput{UserID: "local", BillingSubjectUserID: "billing"})
-	if !errors.Is(err, ledger.ErrUnresolvedUsage) {
+	if !errors.Is(err, domain.ErrUnresolvedUsage) {
 		t.Fatalf("err=%v", err)
 	}
 }
@@ -623,12 +622,12 @@ func TestInvalidCandidatesAreRejectedAndOverflowIsChecked(t *testing.T) {
 	}
 	badLifecycle := rec("bad-lifecycle", domain.ProviderOpenAI, "m", 10, 0, 10, 1)
 	badLifecycle.BillableAt = nil
-	if _, err := BuildChargeGroups("u", "RUB", []domain.UsageRecord{badLifecycle}); !errors.Is(err, ledger.ErrRecordCorrupt) {
+	if _, err := BuildChargeGroups("u", "RUB", []domain.UsageRecord{badLifecycle}); !errors.Is(err, domain.ErrUsageRecordCorrupt) {
 		t.Fatalf("bad lifecycle err=%v", err)
 	}
 	overflowA := rec("overflow-a", domain.ProviderOpenAI, "m", 1<<62, 0, 1<<62, 1)
 	overflowB := rec("overflow-b", domain.ProviderOpenAI, "m", 1<<62, 0, 1<<62, 2)
-	if _, err := BuildChargeGroups("u", "RUB", []domain.UsageRecord{overflowA, overflowB}); !errors.Is(err, ledger.ErrAmountOverflow) {
+	if _, err := BuildChargeGroups("u", "RUB", []domain.UsageRecord{overflowA, overflowB}); !errors.Is(err, domain.ErrFinancialAmountOverflow) {
 		t.Fatalf("amount overflow err=%v", err)
 	}
 	tokA := rec("tok-a", domain.ProviderOpenAI, "m", 10, 0, 10, 1)
@@ -812,7 +811,7 @@ func TestOpenBatchExpectedRecordMustPassFullLedgerValidation(t *testing.T) {
 	}
 	snapshot := ports.BillingChargeBatchSnapshot{Batch: plan.Batch, Allocations: plan.Allocations, ExpectedRecords: claimedExpected(plan)}
 	snapshot.ExpectedRecords[0].BillableAt = nil
-	if err := ValidateChargeSnapshot(AutoChargeInput{UserID: "u", BillingSubjectUserID: "billing", Currency: "RUB"}, snapshot); !errors.Is(err, ledger.ErrRecordCorrupt) {
+	if err := ValidateChargeSnapshot(AutoChargeInput{UserID: "u", BillingSubjectUserID: "billing", Currency: "RUB"}, snapshot); !errors.Is(err, domain.ErrUsageRecordCorrupt) {
 		t.Fatalf("err=%v", err)
 	}
 }
@@ -861,7 +860,7 @@ func TestSucceededRetryClearsFailedMetadata(t *testing.T) {
 	if succeeded.FailedAt != nil || succeeded.BillingErrorCode != "" || succeeded.ChargedAt == nil {
 		t.Fatalf("failed metadata not cleared: %+v", succeeded)
 	}
-	if err := ledger.ValidateChargeBatch(succeeded); err != nil {
+	if err := domain.ValidateBillingChargeBatch(succeeded); err != nil {
 		t.Fatalf("invalid succeeded batch: %v", err)
 	}
 }

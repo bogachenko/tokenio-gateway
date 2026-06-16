@@ -12,8 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bogachenko/tokenio-gateway/internal/application/ledger"
-	"github.com/bogachenko/tokenio-gateway/internal/application/pricing"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
@@ -322,11 +320,11 @@ func BuildChargeGroups(userID string, currency string, records []domain.UsageRec
 }
 
 func validateChargeCandidate(userID string, currency string, record domain.UsageRecord) error {
-	billingModel, err := pricing.BillingModel(record.ProviderType, record.ClientModel)
+	billingModel, err := domain.BillingModel(record.ProviderType, record.ClientModel)
 	if err != nil || record.BillingModel != billingModel {
 		return fmt.Errorf("%w: billing model", ErrInvalidChargePlan)
 	}
-	if err := ledger.ValidateRecord(record); err != nil {
+	if err := domain.ValidateUsageRecord(record); err != nil {
 		return err
 	}
 	if record.UserID != userID {
@@ -367,10 +365,10 @@ func ValidateChargeSnapshot(input AutoChargeInput, snapshot ports.BillingChargeB
 	default:
 		return fmt.Errorf("%w: batch status", ErrInvalidChargePlan)
 	}
-	if err := ledger.ValidateChargeBatch(batch); err != nil {
+	if err := domain.ValidateBillingChargeBatch(batch); err != nil {
 		return err
 	}
-	billingModel, err := pricing.BillingModel(batch.ProviderType, batch.ClientModel)
+	billingModel, err := domain.BillingModel(batch.ProviderType, batch.ClientModel)
 	if err != nil {
 		return err
 	}
@@ -396,7 +394,7 @@ func ValidateChargeSnapshot(input AutoChargeInput, snapshot ports.BillingChargeB
 	seen := make(map[string]struct{}, len(snapshot.Allocations))
 	var total int64
 	for _, allocation := range snapshot.Allocations {
-		if err := ledger.ValidateAllocation(batch, allocation); err != nil {
+		if err := domain.ValidateBillingChargeAllocation(batch, allocation); err != nil {
 			return err
 		}
 		if allocation.ID != StableAllocationID(batch.ID, allocation.LocalRequestID) {
@@ -436,7 +434,7 @@ func ValidateChargeSnapshot(input AutoChargeInput, snapshot ports.BillingChargeB
 }
 
 func validateExpectedRecordForBatch(batch domain.BillingChargeBatch, record domain.UsageRecord) error {
-	if err := ledger.ValidateRecord(record); err != nil {
+	if err := domain.ValidateUsageRecord(record); err != nil {
 		return err
 	}
 	if record.UserID != batch.UserID || record.ProviderType != batch.ProviderType || record.ClientModel != batch.ClientModel || record.Currency != batch.Currency || record.BillingModel != batch.BillingModel {
@@ -511,7 +509,7 @@ func BuildChargePlan(billingSubjectUserID string, records []domain.UsageRecord, 
 		return recs[i].LocalRequestID < recs[j].LocalRequestID
 	})
 	first := recs[0]
-	billingModel, err := pricing.BillingModel(first.ProviderType, first.ClientModel)
+	billingModel, err := domain.BillingModel(first.ProviderType, first.ClientModel)
 	if err != nil {
 		return plan, err
 	}
@@ -674,10 +672,10 @@ func sumGroups(groups []chargeGroup) (int64, error) {
 
 func checkedAddAmount(left int64, right int64) (int64, error) {
 	if right > 0 && left > math.MaxInt64-right {
-		return 0, ledger.ErrAmountOverflow
+		return 0, domain.ErrFinancialAmountOverflow
 	}
 	if right < 0 && left < math.MinInt64-right {
-		return 0, ledger.ErrAmountOverflow
+		return 0, domain.ErrFinancialAmountOverflow
 	}
 	return left + right, nil
 }
@@ -704,10 +702,10 @@ func nextRemoteBalance(previous int64, charged int64, billingBalanceCents *int64
 
 func checkedSubAmount(left int64, right int64) (int64, error) {
 	if right > 0 && left < math.MinInt64+right {
-		return 0, ledger.ErrAmountOverflow
+		return 0, domain.ErrFinancialAmountOverflow
 	}
 	if right < 0 && left > math.MaxInt64+right {
-		return 0, ledger.ErrAmountOverflow
+		return 0, domain.ErrFinancialAmountOverflow
 	}
 	return left - right, nil
 }

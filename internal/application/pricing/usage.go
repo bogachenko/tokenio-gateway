@@ -6,45 +6,27 @@ import (
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 )
 
-type UsageCompleteness string
+type UsageCompleteness = domain.UsageCompleteness
 
 const (
-	UsageCompletenessDetailed  UsageCompleteness = "detailed"
-	UsageCompletenessAggregate UsageCompleteness = "aggregate"
-	UsageCompletenessEstimated UsageCompleteness = "estimated"
-	UsageCompletenessMissing   UsageCompleteness = "missing"
-	UsageCompletenessFailed    UsageCompleteness = "failed"
+	UsageCompletenessDetailed  = domain.UsageCompletenessDetailed
+	UsageCompletenessAggregate = domain.UsageCompletenessAggregate
+	UsageCompletenessEstimated = domain.UsageCompletenessEstimated
+	UsageCompletenessMissing   = domain.UsageCompletenessMissing
+	UsageCompletenessFailed    = domain.UsageCompletenessFailed
 )
 
 func ParseUsageCompleteness(value string) (UsageCompleteness, error) {
-	switch UsageCompleteness(value) {
-	case UsageCompletenessDetailed, UsageCompletenessAggregate, UsageCompletenessEstimated, UsageCompletenessMissing, UsageCompletenessFailed:
-		return UsageCompleteness(value), nil
-	default:
+	result, err := domain.ParseUsageCompleteness(value)
+	if err != nil {
 		return "", fmt.Errorf("%w: %q", ErrInvalidUsageCompleteness, value)
 	}
+	return result, nil
 }
 
 func ValidateUsage(usage domain.TokenUsage) error {
-	fields := []struct {
-		name  string
-		value int64
-	}{
-		{"input_tokens", usage.InputTokens},
-		{"cached_input_tokens", usage.CachedInputTokens},
-		{"output_tokens", usage.OutputTokens},
-		{"reasoning_tokens", usage.ReasoningTokens},
-		{"image_input_tokens", usage.ImageInputTokens},
-		{"audio_input_tokens", usage.AudioInputTokens},
-		{"audio_output_tokens", usage.AudioOutputTokens},
-		{"file_input_tokens", usage.FileInputTokens},
-		{"video_input_tokens", usage.VideoInputTokens},
-		{"image_generation_units", usage.ImageGenerationUnits},
-	}
-	for _, field := range fields {
-		if field.value < 0 {
-			return fmt.Errorf("%w: %s is negative", ErrInvalidUsage, field.name)
-		}
+	if err := domain.ValidateTokenUsage(usage); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidUsage, err)
 	}
 	return nil
 }

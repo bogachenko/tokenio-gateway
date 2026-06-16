@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bogachenko/tokenio-gateway/internal/application/pricing"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
@@ -162,7 +161,7 @@ func validReserveInput(id string) ReserveInput {
 func reserveRecord(id string) domain.UsageRecord {
 	now := time.Date(2026, 6, 12, 6, 0, 0, 0, time.UTC)
 	input := validReserveInput(id)
-	return domain.UsageRecord{LocalRequestID: input.LocalRequestID, UserID: input.UserID, APIKeyID: input.APIKeyID, APIFamily: input.APIFamily, EndpointKind: input.EndpointKind, ClientModel: input.ClientModel, BillingModel: string(input.ProviderType) + ":" + input.ClientModel, SelectedRouteID: input.SelectedRouteID, SelectedResellerID: input.SelectedResellerID, ProviderType: input.ProviderType, ProviderModel: input.ProviderModel, EstimatedUsage: input.EstimatedUsage, EstimatedClientAmountCents: input.EstimatedClientAmountCents, EstimatedUpstreamCostCents: input.EstimatedUpstreamCostCents, Currency: "RUB", UsageCompleteness: string(pricing.UsageCompletenessMissing), Status: domain.UsageStatusReserved, CreatedAt: now, ReservedAt: &now, UpdatedAt: now}
+	return domain.UsageRecord{LocalRequestID: input.LocalRequestID, UserID: input.UserID, APIKeyID: input.APIKeyID, APIFamily: input.APIFamily, EndpointKind: input.EndpointKind, ClientModel: input.ClientModel, BillingModel: string(input.ProviderType) + ":" + input.ClientModel, SelectedRouteID: input.SelectedRouteID, SelectedResellerID: input.SelectedResellerID, ProviderType: input.ProviderType, ProviderModel: input.ProviderModel, EstimatedUsage: input.EstimatedUsage, EstimatedClientAmountCents: input.EstimatedClientAmountCents, EstimatedUpstreamCostCents: input.EstimatedUpstreamCostCents, Currency: "RUB", UsageCompleteness: string(domain.UsageCompletenessMissing), Status: domain.UsageStatusReserved, CreatedAt: now, ReservedAt: &now, UpdatedAt: now}
 }
 
 func billableRecord(id string) domain.UsageRecord {
@@ -170,7 +169,7 @@ func billableRecord(id string) domain.UsageRecord {
 	now := time.Date(2026, 6, 12, 6, 0, 0, 0, time.UTC)
 	r.Status = domain.UsageStatusBillable
 	r.Usage = domain.TokenUsage{InputTokens: 1}
-	r.UsageCompleteness = string(pricing.UsageCompletenessDetailed)
+	r.UsageCompleteness = string(domain.UsageCompletenessDetailed)
 	r.ClientAmountCents = 10
 	r.RemainingAmountCents = 10
 	r.BillableAt = &now
@@ -476,7 +475,7 @@ func TestReleaseFailBillablePricingFailed(t *testing.T) {
 		svc, store, _ := newServiceForTest(t)
 		r := reserveRecord("llmreq_bill")
 		store.put(r)
-		input := CommitBillableInput{LocalRequestID: r.LocalRequestID, Usage: domain.TokenUsage{InputTokens: 11, OutputTokens: 3}, UsageCompleteness: pricing.UsageCompletenessDetailed, ClientAmountCents: 77, ActualUpstreamCostCents: 55, ProviderRequestID: "req_provider", ProviderResponseModel: "provider_model"}
+		input := CommitBillableInput{LocalRequestID: r.LocalRequestID, Usage: domain.TokenUsage{InputTokens: 11, OutputTokens: 3}, UsageCompleteness: domain.UsageCompletenessDetailed, ClientAmountCents: 77, ActualUpstreamCostCents: 55, ProviderRequestID: "req_provider", ProviderResponseModel: "provider_model"}
 		out, err := svc.CommitBillable(t.Context(), input)
 		if err != nil {
 			t.Fatal(err)
@@ -509,7 +508,7 @@ func TestReleaseFailBillablePricingFailed(t *testing.T) {
 		svc, store, _ := newServiceForTest(t)
 		r := reserveRecord("llmreq_pricefail")
 		store.put(r)
-		input := MarkPricingFailedInput{LocalRequestID: r.LocalRequestID, Usage: domain.TokenUsage{InputTokens: 9}, UsageCompleteness: pricing.UsageCompletenessFailed, ProviderRequestID: "req", ProviderResponseModel: "model", FailureReason: "usage_resolution_failed"}
+		input := MarkPricingFailedInput{LocalRequestID: r.LocalRequestID, Usage: domain.TokenUsage{InputTokens: 9}, UsageCompleteness: domain.UsageCompletenessFailed, ProviderRequestID: "req", ProviderResponseModel: "model", FailureReason: "usage_resolution_failed"}
 		out, err := svc.MarkPricingFailed(t.Context(), input)
 		if err != nil {
 			t.Fatal(err)
@@ -531,7 +530,7 @@ func TestReleaseFailBillablePricingFailed(t *testing.T) {
 }
 
 func TestCompletenessAndValidationFailures(t *testing.T) {
-	for _, c := range []pricing.UsageCompleteness{pricing.UsageCompletenessDetailed, pricing.UsageCompletenessAggregate, pricing.UsageCompletenessEstimated} {
+	for _, c := range []domain.UsageCompleteness{domain.UsageCompletenessDetailed, domain.UsageCompletenessAggregate, domain.UsageCompletenessEstimated} {
 		svc, store, _ := newServiceForTest(t)
 		r := reserveRecord("llmreq_comp_" + string(c))
 		store.put(r)
@@ -539,13 +538,13 @@ func TestCompletenessAndValidationFailures(t *testing.T) {
 			t.Fatalf("%s err=%v", c, err)
 		}
 	}
-	for _, c := range []pricing.UsageCompleteness{pricing.UsageCompletenessMissing, pricing.UsageCompletenessFailed, pricing.UsageCompleteness("unknown")} {
+	for _, c := range []domain.UsageCompleteness{domain.UsageCompletenessMissing, domain.UsageCompletenessFailed, domain.UsageCompleteness("unknown")} {
 		svc, _, _ := newServiceForTest(t)
 		if _, err := svc.CommitBillable(t.Context(), CommitBillableInput{LocalRequestID: "llmreq_bad", UsageCompleteness: c}); !errors.Is(err, ErrInvalidLedgerInput) {
 			t.Fatalf("%s err=%v", c, err)
 		}
 	}
-	for _, c := range []pricing.UsageCompleteness{pricing.UsageCompletenessDetailed, pricing.UsageCompletenessAggregate, pricing.UsageCompletenessEstimated, pricing.UsageCompletenessMissing, pricing.UsageCompletenessFailed} {
+	for _, c := range []domain.UsageCompleteness{domain.UsageCompletenessDetailed, domain.UsageCompletenessAggregate, domain.UsageCompletenessEstimated, domain.UsageCompletenessMissing, domain.UsageCompletenessFailed} {
 		svc, store, _ := newServiceForTest(t)
 		r := reserveRecord("llmreq_pfcomp_" + string(c))
 		store.put(r)
@@ -554,10 +553,10 @@ func TestCompletenessAndValidationFailures(t *testing.T) {
 		}
 	}
 	svc, _, _ := newServiceForTest(t)
-	if _, err := svc.CommitBillable(t.Context(), CommitBillableInput{LocalRequestID: "llmreq_bad_usage", Usage: domain.TokenUsage{InputTokens: -1}, UsageCompleteness: pricing.UsageCompletenessDetailed}); !errors.Is(err, ErrInvalidLedgerInput) {
+	if _, err := svc.CommitBillable(t.Context(), CommitBillableInput{LocalRequestID: "llmreq_bad_usage", Usage: domain.TokenUsage{InputTokens: -1}, UsageCompleteness: domain.UsageCompletenessDetailed}); !errors.Is(err, ErrInvalidLedgerInput) {
 		t.Fatalf("negative usage err=%v", err)
 	}
-	if _, err := svc.CommitBillable(t.Context(), CommitBillableInput{LocalRequestID: "llmreq_bad_amount", UsageCompleteness: pricing.UsageCompletenessDetailed, ClientAmountCents: -1}); !errors.Is(err, ErrInvalidLedgerInput) {
+	if _, err := svc.CommitBillable(t.Context(), CommitBillableInput{LocalRequestID: "llmreq_bad_amount", UsageCompleteness: domain.UsageCompletenessDetailed, ClientAmountCents: -1}); !errors.Is(err, ErrInvalidLedgerInput) {
 		t.Fatalf("negative amount err=%v", err)
 	}
 }
@@ -614,7 +613,7 @@ func TestRecordValidationPendingExposureBalance(t *testing.T) {
 		r := reserveRecord("llmreq_v_bill")
 		r.Status = domain.UsageStatusBillable
 		r.Usage = domain.TokenUsage{InputTokens: 1}
-		r.UsageCompleteness = string(pricing.UsageCompletenessDetailed)
+		r.UsageCompleteness = string(domain.UsageCompletenessDetailed)
 		r.ClientAmountCents = 10
 		r.RemainingAmountCents = 10
 		r.BillableAt = &now
@@ -623,7 +622,7 @@ func TestRecordValidationPendingExposureBalance(t *testing.T) {
 		r := reserveRecord("llmreq_v_part")
 		r.Status = domain.UsageStatusPartiallyCharged
 		r.Usage = domain.TokenUsage{InputTokens: 1}
-		r.UsageCompleteness = string(pricing.UsageCompletenessDetailed)
+		r.UsageCompleteness = string(domain.UsageCompletenessDetailed)
 		r.BillableAt = &now
 		r.ClientAmountCents = 10
 		r.ChargedAmountCents = 4
@@ -635,7 +634,7 @@ func TestRecordValidationPendingExposureBalance(t *testing.T) {
 		r := reserveRecord("llmreq_v_charged")
 		r.Status = domain.UsageStatusCharged
 		r.Usage = domain.TokenUsage{InputTokens: 1}
-		r.UsageCompleteness = string(pricing.UsageCompletenessDetailed)
+		r.UsageCompleteness = string(domain.UsageCompletenessDetailed)
 		r.BillableAt = &now
 		r.ClientAmountCents = 10
 		r.ChargedAmountCents = 10

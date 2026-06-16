@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/bogachenko/tokenio-gateway/internal/application/ledger"
+	"github.com/bogachenko/tokenio-gateway/internal/domain"
+
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
 
@@ -67,14 +68,24 @@ func (s *AdmissionService) Admit(ctx context.Context, input AdmissionInput) (Adm
 	if err != nil {
 		return result, ErrBillingStoreUnavailable
 	}
-	exposure, err := ledger.CalculateExposure(snapshot)
+	exposure, err := domain.CalculateUsageExposure(
+		snapshot.Currency,
+		snapshot.ReservedEstimatedAmountCents,
+		snapshot.BillableRemainingAmountCents,
+		snapshot.PartiallyChargedRemainingAmountCents,
+		snapshot.PricingFailedCount,
+	)
 	if err != nil {
-		if err == ledger.ErrUnresolvedUsage {
+		if err == domain.ErrUnresolvedUsage {
 			return result, err
 		}
 		return result, ErrBillingStoreUnavailable
 	}
-	balanceResult, err := ledger.EvaluateBalance(ledger.BalanceInput{RemoteBalanceCents: remote.BalanceCents, RequiredReserveCents: input.RequiredReserveCents, Exposure: exposure})
+	balanceResult, err := domain.EvaluateBalance(domain.BalanceInput{
+		RemoteBalanceCents:   remote.BalanceCents,
+		RequiredReserveCents: input.RequiredReserveCents,
+		Exposure:             exposure,
+	})
 	result = AdmissionResult{
 		Allowed:               balanceResult.Allowed,
 		RemoteBalanceCents:    balanceResult.RemoteBalanceCents,

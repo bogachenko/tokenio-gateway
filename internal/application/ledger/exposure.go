@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 
@@ -9,28 +10,9 @@ import (
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
 
-type Exposure struct {
-	Currency string
-
-	PendingAmountCents int64
-	HasUnresolvedUsage bool
-}
-
-type BalanceInput struct {
-	RemoteBalanceCents   int64
-	RequiredReserveCents int64
-
-	Exposure Exposure
-}
-
-type BalanceResult struct {
-	RemoteBalanceCents    int64
-	PendingAmountCents    int64
-	EffectiveBalanceCents int64
-	RequiredReserveCents  int64
-
-	Allowed bool
-}
+type Exposure = domain.UsageExposure
+type BalanceInput = domain.BalanceInput
+type BalanceResult = domain.BalanceResult
 
 func (s *Service) LoadExposure(ctx context.Context, userID string, currency string) (Exposure, error) {
 	if isBlank(userID) || currency != currencyRUB {
@@ -64,49 +46,44 @@ func PendingAmountForRecord(record domain.UsageRecord) (int64, error) {
 	}
 }
 
-func CalculateExposure(snapshot ports.UsageExposureSnapshot) (Exposure, error) {
-	if snapshot.Currency != currencyRUB {
-		return Exposure{}, fmt.Errorf("%w: currency", ErrInvalidLedgerInput)
+func CalculateExposure(
+	snapshot ports.UsageExposureSnapshot,
+) (Exposure, error) {
+	result, err := domain.CalculateUsageExposure(
+		snapshot.Currency,
+		snapshot.ReservedEstimatedAmountCents,
+		snapshot.BillableRemainingAmountCents,
+		snapshot.PartiallyChargedRemainingAmountCents,
+		snapshot.PricingFailedCount,
+	)
+	if err == nil {
+		return result, nil
 	}
-	if snapshot.ReservedEstimatedAmountCents < 0 || snapshot.BillableRemainingAmountCents < 0 || snapshot.PartiallyChargedRemainingAmountCents < 0 || snapshot.PricingFailedCount < 0 {
-		return Exposure{}, fmt.Errorf("%w: negative exposure", ErrInvalidLedgerInput)
-	}
-	total, err := checkedAdd(snapshot.ReservedEstimatedAmountCents, snapshot.BillableRemainingAmountCents)
-	if err != nil {
+	switch {
+	case errors.Is(err, domain.ErrInvalidFinancialInput):
+		return Exposure{}, fmt.Errorf("%w: %v", ErrInvalidLedgerInput, err)
+	case errors.Is(err, domain.ErrFinancialAmountOverflow):
+		return Exposure{}, ErrAmountOverflow
+	default:
 		return Exposure{}, err
 	}
-	total, err = checkedAdd(total, snapshot.PartiallyChargedRemainingAmountCents)
-	if err != nil {
-		return Exposure{}, err
-	}
-	return Exposure{Currency: snapshot.Currency, PendingAmountCents: total, HasUnresolvedUsage: snapshot.PricingFailedCount > 0}, nil
 }
 
-func EvaluateBalance(input BalanceInput) (BalanceResult, error) {
-	result := BalanceResult{
-		RemoteBalanceCents:   input.RemoteBalanceCents,
-		PendingAmountCents:   input.Exposure.PendingAmountCents,
-		RequiredReserveCents: input.RequiredReserveCents,
+func EvaluateBalance(
+	input BalanceInput,
+) (BalanceResult, error) {
+	result, err := domain.EvaluateBalance(input)
+	if err == nil {
+		return result, nil
 	}
-	if input.RemoteBalanceCents < 0 || input.RequiredReserveCents < 0 || input.Exposure.PendingAmountCents < 0 {
-		return result, fmt.Errorf("%w: negative balance input", ErrInvalidLedgerInput)
-	}
-	if input.Exposure.Currency != currencyRUB {
-		return result, fmt.Errorf("%w: currency", ErrInvalidLedgerInput)
-	}
-	if input.Exposure.HasUnresolvedUsage {
-		return result, ErrUnresolvedUsage
-	}
-	effective, err := checkedSub(input.RemoteBalanceCents, input.Exposure.PendingAmountCents)
-	if err != nil {
+	switch {
+	case errors.Is(err, domain.ErrInvalidFinancialInput):
+		return result, fmt.Errorf("%w: %v", ErrInvalidLedgerInput, err)
+	case errors.Is(err, domain.ErrFinancialAmountOverflow):
+		return result, ErrAmountOverflow
+	default:
 		return result, err
 	}
-	result.EffectiveBalanceCents = effective
-	result.Allowed = effective >= input.RequiredReserveCents
-	if !result.Allowed {
-		return result, ErrInsufficientFunds
-	}
-	return result, nil
 }
 
 func checkedAdd(left int64, right int64) (int64, error) {

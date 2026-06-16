@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/bogachenko/tokenio-gateway/internal/application/pricing"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
@@ -79,7 +78,7 @@ func (s *Service) Reserve(ctx context.Context, input ReserveInput) (ReserveResul
 		EstimatedClientAmountCents: input.EstimatedClientAmountCents,
 		EstimatedUpstreamCostCents: input.EstimatedUpstreamCostCents,
 		Currency:                   input.Currency,
-		UsageCompleteness:          string(pricing.UsageCompletenessMissing),
+		UsageCompleteness:          string(domain.UsageCompletenessMissing),
 		Status:                     domain.UsageStatusReserved,
 		CreatedAt:                  now,
 		ReservedAt:                 timePtr(now),
@@ -105,7 +104,7 @@ func validateReserveInput(input ReserveInput) error {
 	if isBlank(input.UserID) || isBlank(input.APIKeyID) || input.APIFamily == "" || input.EndpointKind == "" || isBlank(input.ClientModel) || isBlank(input.BillingModel) || isBlank(input.SelectedRouteID) || isBlank(input.SelectedResellerID) || input.ProviderType == "" || isBlank(input.ProviderModel) {
 		return fmt.Errorf("%w: missing reservation field", ErrInvalidLedgerInput)
 	}
-	billingModel, err := pricing.BillingModel(input.ProviderType, input.ClientModel)
+	billingModel, err := domain.BillingModel(input.ProviderType, input.ClientModel)
 	if err != nil || input.BillingModel != billingModel {
 		return fmt.Errorf("%w: billing model", ErrInvalidLedgerInput)
 	}

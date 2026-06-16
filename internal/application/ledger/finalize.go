@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/bogachenko/tokenio-gateway/internal/application/pricing"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 )
 
@@ -22,7 +21,7 @@ type CommitBillableInput struct {
 	LocalRequestID string
 
 	Usage             domain.TokenUsage
-	UsageCompleteness pricing.UsageCompleteness
+	UsageCompleteness domain.UsageCompleteness
 
 	ClientAmountCents       int64
 	ActualUpstreamCostCents int64
@@ -35,7 +34,7 @@ type MarkPricingFailedInput struct {
 	LocalRequestID string
 
 	Usage             domain.TokenUsage
-	UsageCompleteness pricing.UsageCompleteness
+	UsageCompleteness domain.UsageCompleteness
 
 	ProviderRequestID     string
 	ProviderResponseModel string

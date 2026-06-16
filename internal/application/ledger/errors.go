@@ -1,10 +1,14 @@
 package ledger
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/bogachenko/tokenio-gateway/internal/domain"
+)
 
 var (
 	ErrInvalidLedgerInput            = errors.New("invalid ledger input")
-	ErrInvalidUsageStatus            = errors.New("invalid usage status")
+	ErrInvalidUsageStatus            = domain.ErrInvalidUsageStatus
 	ErrInvalidStateTransition        = errors.New("invalid usage state transition")
 	ErrUsageNotFound                 = errors.New("usage record not found")
 	ErrUsageStoreUnavailable         = errors.New("usage store unavailable")
@@ -13,9 +17,9 @@ var (
 	ErrRequestInProgress             = errors.New("request in progress")
 	ErrIdempotencyReplayNotAvailable = errors.New("idempotency replay not available")
 	ErrIdempotencyKeyReused          = errors.New("idempotency key reused")
-	ErrUnresolvedUsage               = errors.New("unresolved usage")
+	ErrUnresolvedUsage               = domain.ErrUnresolvedUsage
 	ErrLedgerStateConflict           = errors.New("ledger state conflict")
-	ErrInsufficientFunds             = errors.New("insufficient funds")
-	ErrAmountOverflow                = errors.New("ledger amount overflow")
-	ErrRecordCorrupt                 = errors.New("corrupt usage record")
+	ErrInsufficientFunds             = domain.ErrInsufficientFunds
+	ErrAmountOverflow                = domain.ErrFinancialAmountOverflow
+	ErrRecordCorrupt                 = domain.ErrUsageRecordCorrupt
 )
