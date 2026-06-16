@@ -287,6 +287,93 @@ func TestOperationalStoresIntegration(t *testing.T) {
 	if alertPage.Total != 2 || len(alertPage.Items) != 2 {
 		t.Fatalf("alert page = %+v", alertPage)
 	}
+
+	assertOperationalRouteDeleteProtected(
+		t,
+		ctx,
+		db,
+		routeID,
+		eventID,
+		alertID,
+		suppressedAlertID,
+	)
+}
+
+func assertOperationalRouteDeleteProtected(
+	t *testing.T,
+	ctx context.Context,
+	db *DB,
+	routeID string,
+	eventID string,
+	alertID string,
+	suppressedAlertID string,
+) {
+	t.Helper()
+
+	if _, err := db.Exec(
+		ctx,
+		"DELETE FROM tokenio_routes WHERE id = $1",
+		routeID,
+	); err == nil {
+		t.Fatal("deleting route referenced by operational history unexpectedly succeeded")
+	}
+
+	assertOperationalRowCount(
+		t,
+		ctx,
+		db,
+		"tokenio_routes",
+		"id",
+		routeID,
+		1,
+	)
+	assertOperationalRowCount(
+		t,
+		ctx,
+		db,
+		"tokenio_route_events",
+		"id",
+		eventID,
+		1,
+	)
+
+	var alertCount int
+	if err := db.QueryRow(
+		ctx,
+		`
+SELECT COUNT(*)
+FROM tokenio_telegram_alerts
+WHERE id IN ($1, $2)
+`,
+		alertID,
+		suppressedAlertID,
+	).Scan(&alertCount); err != nil {
+		t.Fatalf("count persisted alerts: %v", err)
+	}
+	if alertCount != 2 {
+		t.Fatalf("persisted alert count=%d, want 2", alertCount)
+	}
+}
+
+func assertOperationalRowCount(
+	t *testing.T,
+	ctx context.Context,
+	db *DB,
+	table string,
+	column string,
+	value string,
+	want int,
+) {
+	t.Helper()
+
+	query := "SELECT COUNT(*) FROM " + table + " WHERE " + column + " = $1"
+	var got int
+	if err := db.QueryRow(ctx, query, value).Scan(&got); err != nil {
+		t.Fatalf("count %s: %v", table, err)
+	}
+	if got != want {
+		t.Fatalf("%s count=%d, want %d", table, got, want)
+	}
 }
 
 func insertOperationalRegistry(
@@ -359,6 +446,8 @@ INSERT INTO tokenio_routes (
     endpoint_kind,
     client_model,
     provider_model,
+    default_max_output_tokens,
+    capabilities,
     created_at,
     updated_at
 )
@@ -370,6 +459,8 @@ VALUES (
     'chat',
     $3,
     $3,
+    1024,
+    '{"chat":true}'::jsonb,
     $4,
     $4
 )

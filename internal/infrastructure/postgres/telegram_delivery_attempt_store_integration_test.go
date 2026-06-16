@@ -244,4 +244,60 @@ WHERE alert_id IN ($1, $2)`,
 		selected[1].AttemptNumber != 1 {
 		t.Fatalf("selected stale = %+v", selected)
 	}
+
+	assertTelegramAlertDeleteProtectedByAttempts(
+		t,
+		ctx,
+		db,
+		alertID,
+		2,
+	)
+}
+
+func assertTelegramAlertDeleteProtectedByAttempts(
+	t *testing.T,
+	ctx context.Context,
+	db *DB,
+	alertID string,
+	wantAttempts int,
+) {
+	t.Helper()
+
+	if _, err := db.Exec(
+		ctx,
+		"DELETE FROM tokenio_telegram_alerts WHERE id = $1",
+		alertID,
+	); err == nil {
+		t.Fatal("deleting alert with delivery history unexpectedly succeeded")
+	}
+
+	assertOperationalRowCount(
+		t,
+		ctx,
+		db,
+		"tokenio_telegram_alerts",
+		"id",
+		alertID,
+		1,
+	)
+
+	var attemptCount int
+	if err := db.QueryRow(
+		ctx,
+		`
+SELECT COUNT(*)
+FROM tokenio_telegram_delivery_attempts
+WHERE alert_id = $1
+`,
+		alertID,
+	).Scan(&attemptCount); err != nil {
+		t.Fatalf("count persisted delivery attempts: %v", err)
+	}
+	if attemptCount != wantAttempts {
+		t.Fatalf(
+			"persisted delivery attempt count=%d, want %d",
+			attemptCount,
+			wantAttempts,
+		)
+	}
 }

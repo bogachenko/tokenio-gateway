@@ -383,7 +383,7 @@ func lockTelegramDeliveryAttempt(
 		`
 SELECT pg_advisory_xact_lock(
     hashtextextended(
-        'tokenio_telegram_delivery_attempt:' || $1 || ':' || $2::text,
+        'tokenio_telegram_delivery_attempt:' || $1 || ':' || ($2::integer)::text,
         0
     )
 )

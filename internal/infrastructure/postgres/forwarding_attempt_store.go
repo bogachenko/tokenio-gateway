@@ -371,7 +371,7 @@ func lockForwardingAttempt(
 		`
 SELECT pg_advisory_xact_lock(
     hashtextextended(
-        'tokenio_forwarding_attempt:' || $1 || ':' || $2::text,
+        'tokenio_forwarding_attempt:' || $1 || ':' || ($2::integer)::text,
         0
     )
 )
