@@ -17,11 +17,13 @@ type Config struct {
 	GatewayAddr string
 	DatabaseDSN string
 
-	BillingBaseURL       string
-	BillingServiceToken  string
-	BillingJWTSigningKey string
-	BillingJWTTTL        time.Duration
-	BillingTimeout       time.Duration
+	BillingBaseURL           string
+	BillingServiceToken      string
+	BillingJWTSigningKey     string
+	BillingJWTTTL            time.Duration
+	BillingTimeout           time.Duration
+	BillingRecoveryInterval  time.Duration
+	BillingRecoveryBatchSize int
 
 	AdminToken            string
 	APIKeyHashSecret      string
@@ -93,6 +95,14 @@ func Load() (Config, error) {
 		BillingJWTSigningKey: l.required("TOKENIO_BILLING_JWT_SIGNING_KEY"),
 		BillingJWTTTL:        l.duration("TOKENIO_BILLING_JWT_TTL", 15*time.Minute),
 		BillingTimeout:       l.duration("TOKENIO_BILLING_TIMEOUT", 30*time.Second),
+		BillingRecoveryInterval: l.duration(
+			"TOKENIO_BILLING_RECOVERY_INTERVAL",
+			time.Minute,
+		),
+		BillingRecoveryBatchSize: l.int(
+			"TOKENIO_BILLING_RECOVERY_BATCH_SIZE",
+			100,
+		),
 
 		AdminToken:            l.required("TOKENIO_ADMIN_TOKEN"),
 		APIKeyHashSecret:      l.required("TOKENIO_API_KEY_HASH_SECRET"),
@@ -226,6 +236,16 @@ func validate(cfg Config) error {
 	}
 	if cfg.BillingTimeout <= 0 {
 		return fmt.Errorf("TOKENIO_BILLING_TIMEOUT must be positive")
+	}
+	if cfg.BillingRecoveryInterval <= 0 {
+		return fmt.Errorf(
+			"TOKENIO_BILLING_RECOVERY_INTERVAL must be positive",
+		)
+	}
+	if cfg.BillingRecoveryBatchSize < 1 {
+		return fmt.Errorf(
+			"TOKENIO_BILLING_RECOVERY_BATCH_SIZE must be >= 1",
+		)
 	}
 	if cfg.UpstreamTimeout <= 0 {
 		return fmt.Errorf("TOKENIO_UPSTREAM_TIMEOUT must be positive")

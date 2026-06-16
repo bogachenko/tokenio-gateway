@@ -5,8 +5,16 @@ import (
 	"testing"
 	"time"
 
+	billingrecovery "github.com/bogachenko/tokenio-gateway/internal/worker/billingrecovery"
 	forwardingattemptrecovery "github.com/bogachenko/tokenio-gateway/internal/worker/forwardingattemptrecovery"
 )
+
+type billingRecoveryObserverStub struct{}
+
+func (billingRecoveryObserverStub) ObserveBillingRecoveryCycle(
+	billingrecovery.Cycle,
+) {
+}
 
 type forwardingRecoveryObserverStub struct{}
 
@@ -44,6 +52,7 @@ func TestNewWorkerGraphWiresForwardingAttemptRecovery(
 		applications,
 		workerGraphObserver{},
 		forwardingRecoveryObserverStub{},
+		billingRecoveryObserverStub{},
 	)
 	if err != nil {
 		t.Fatalf("newWorkerGraphWithObservers: %v", err)

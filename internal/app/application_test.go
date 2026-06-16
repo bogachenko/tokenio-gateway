@@ -45,6 +45,8 @@ func validApplicationGraphInputs(
 		APIKeyProvisioningTTL:                  24 * time.Hour,
 		APIKeyProvisioningExpirationInterval:   time.Minute,
 		APIKeyProvisioningExpirationBatchSize:  100,
+		BillingRecoveryInterval:                time.Minute,
+		BillingRecoveryBatchSize:               100,
 		ForwardingAttemptRecoveryStaleAfter:    5 * time.Minute,
 		ForwardingAttemptRecoveryInterval:      time.Minute,
 		ForwardingAttemptRecoveryBatchSize:     100,
@@ -138,6 +140,9 @@ func validApplicationGraphInputs(
 		}{},
 		UsageLedger: &struct {
 			ports.UsageLedger
+		}{},
+		BillingRecovery: &struct {
+			ports.BillingRecoveryStore
 		}{},
 		ForwardingAttempts: &struct {
 			ports.ForwardingAttemptStore

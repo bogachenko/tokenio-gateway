@@ -17,6 +17,7 @@ type RepositoryGraph struct {
 	ModelCatalogRoutes       ports.ModelCatalogRouteRepository
 	RoutePrices              ports.RoutePriceRepository
 	UsageLedger              ports.UsageLedger
+	BillingRecovery          ports.BillingRecoveryStore
 	ForwardingAttempts       ports.ForwardingAttemptStore
 	TelegramDeliveryAttempts ports.TelegramDeliveryAttemptStore
 
@@ -216,6 +217,7 @@ func NewRepositoryGraph(
 		ModelCatalogRoutes:       routes,
 		RoutePrices:              routePrices,
 		UsageLedger:              usageLedger,
+		BillingRecovery:          usageLedger,
 		ForwardingAttempts:       forwardingAttempts,
 		TelegramDeliveryAttempts: telegramDeliveryAttempts,
 
@@ -259,6 +261,8 @@ func (g RepositoryGraph) Validate() error {
 		return fmt.Errorf("route-price repository is nil")
 	case g.UsageLedger == nil:
 		return fmt.Errorf("usage ledger is nil")
+	case g.BillingRecovery == nil:
+		return fmt.Errorf("billing recovery store is nil")
 	case g.ForwardingAttempts == nil:
 		return fmt.Errorf("forwarding-attempt store is nil")
 	case g.TelegramDeliveryAttempts == nil:

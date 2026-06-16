@@ -23,6 +23,7 @@ type ApplicationGraph struct {
 	Provisioning                 *provisioningapp.Service
 	Ledger                       *ledgerapp.Service
 	AutoCharge                   *billingapp.AutoChargeService
+	BillingRecovery              *billingapp.RecoveryService
 	FailedBatchRetry             *billingapp.FailedBatchRetryService
 	UsageResolver                *pricingapp.UsageResolver
 	LLMRequest                   *llmrequest.Service
@@ -188,6 +189,16 @@ func NewApplicationGraph(
 	if err != nil {
 		return ApplicationGraph{}, fmt.Errorf(
 			"construct auto-charge service: %w",
+			err,
+		)
+	}
+	billingRecovery, err := billingapp.NewRecoveryService(
+		repositories.BillingRecovery,
+		autoCharge,
+	)
+	if err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"construct billing recovery service: %w",
 			err,
 		)
 	}
@@ -430,6 +441,7 @@ func NewApplicationGraph(
 		Provisioning:                 provisioningService,
 		Ledger:                       ledgerService,
 		AutoCharge:                   autoCharge,
+		BillingRecovery:              billingRecovery,
 		FailedBatchRetry:             failedBatchRetry,
 		UsageResolver:                pricingUsageResolver,
 		LLMRequest:                   llmRequestService,
@@ -460,6 +472,8 @@ func (g ApplicationGraph) Validate() error {
 		return fmt.Errorf("ledger service is nil")
 	case g.AutoCharge == nil:
 		return fmt.Errorf("auto-charge service is nil")
+	case g.BillingRecovery == nil:
+		return fmt.Errorf("billing recovery service is nil")
 	case g.FailedBatchRetry == nil:
 		return fmt.Errorf("failed billing batch retry service is nil")
 	case g.UsageResolver == nil:

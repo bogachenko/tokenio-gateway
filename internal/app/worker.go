@@ -7,6 +7,7 @@ import (
 	"log"
 
 	"github.com/bogachenko/tokenio-gateway/internal/config"
+	billingrecovery "github.com/bogachenko/tokenio-gateway/internal/worker/billingrecovery"
 	forwardingattemptrecovery "github.com/bogachenko/tokenio-gateway/internal/worker/forwardingattemptrecovery"
 	provisioningexpiration "github.com/bogachenko/tokenio-gateway/internal/worker/provisioningexpiration"
 )
@@ -25,6 +26,9 @@ type WorkerGraph struct {
 
 	ForwardingAttemptRecoveryEnabled bool
 	ForwardingAttemptRecovery        WorkerRunner
+
+	BillingRecoveryEnabled bool
+	BillingRecovery        WorkerRunner
 }
 
 func NewWorkerGraph(
@@ -42,11 +46,21 @@ func NewWorkerGraph(
 			err,
 		)
 	}
+	billingObserver, err := NewBillingRecoveryLogObserver(
+		log.Default(),
+	)
+	if err != nil {
+		return WorkerGraph{}, fmt.Errorf(
+			"construct billing recovery observer: %w",
+			err,
+		)
+	}
 	return newWorkerGraphWithObservers(
 		cfg,
 		applications,
 		provisioningObserver,
 		recoveryObserver,
+		billingObserver,
 	)
 }
 
@@ -55,6 +69,7 @@ func newWorkerGraphWithObservers(
 	applications ApplicationGraph,
 	provisioningObserver provisioningexpiration.Observer,
 	recoveryObserver forwardingattemptrecovery.Observer,
+	billingObserver billingrecovery.Observer,
 ) (WorkerGraph, error) {
 	if err := applications.Validate(); err != nil {
 		return WorkerGraph{}, fmt.Errorf(
@@ -76,9 +91,24 @@ func newWorkerGraphWithObservers(
 		)
 	}
 
+	billingWorker, err := billingrecovery.New(
+		applications.BillingRecovery,
+		billingObserver,
+		cfg.BillingRecoveryInterval,
+		cfg.BillingRecoveryBatchSize,
+	)
+	if err != nil {
+		return WorkerGraph{}, fmt.Errorf(
+			"construct billing recovery worker: %w",
+			err,
+		)
+	}
+
 	graph := WorkerGraph{
 		ForwardingAttemptRecoveryEnabled: true,
 		ForwardingAttemptRecovery:        recoveryWorker,
+		BillingRecoveryEnabled:           true,
+		BillingRecovery:                  billingWorker,
 	}
 	if applications.ProvisioningEnabled {
 		provisioningWorker, err := provisioningexpiration.New(
@@ -128,6 +158,16 @@ func (g WorkerGraph) Validate() error {
 		return fmt.Errorf(
 			"disabled forwarding attempt recovery worker is non-nil",
 		)
+	case g.BillingRecoveryEnabled &&
+		g.BillingRecovery == nil:
+		return fmt.Errorf(
+			"enabled billing recovery worker is nil",
+		)
+	case !g.BillingRecoveryEnabled &&
+		g.BillingRecovery != nil:
+		return fmt.Errorf(
+			"disabled billing recovery worker is non-nil",
+		)
 	default:
 		return nil
 	}
@@ -145,7 +185,7 @@ func (g WorkerGraph) Run(ctx context.Context) error {
 		)
 	}
 
-	runners := make([]WorkerRunner, 0, 2)
+	runners := make([]WorkerRunner, 0, 3)
 	if g.ProvisioningExpirationEnabled {
 		runners = append(
 			runners,
@@ -156,6 +196,12 @@ func (g WorkerGraph) Run(ctx context.Context) error {
 		runners = append(
 			runners,
 			g.ForwardingAttemptRecovery,
+		)
+	}
+	if g.BillingRecoveryEnabled {
+		runners = append(
+			runners,
+			g.BillingRecovery,
 		)
 	}
 	if len(runners) == 0 {
