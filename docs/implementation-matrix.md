@@ -31,7 +31,7 @@ evidence реализации.
 |---|---|---|
 | Application dependency direction | `AGENTS.md`, ADR layering | `verified`: domain financial contracts; compatibility wrappers; repository-wide architecture test |
 | OpenAI-compatible public contract | `010`, `020`, `030`, `040`, `050`, `080`, `090` | `verified`: byte-preserving request/response boundaries, model-only rewrite, structural JSON limits, pricing_failed passthrough, complete billing headers, minimum balance, API-key last_used_at and all idempotency states have automated evidence |
-| Storage and migration contract | `070`, `090`, migration ADR | `partial`: explicit migration ownership and failure matrix verified; exact PostgreSQL round-trip for all ten EstimatedUsage and Usage dimensions verified; remaining table/constraint mapping pending |
+| Storage and migration contract | `070`, `090`, migration ADR | `partial`: explicit migration ownership and failure matrix verified; exact usage-dimension round-trip and immutable ordered durable billing command verified; remaining table/constraint mapping pending |
 | Durable billing recovery | `050`, `090` | `pending` |
 | Operational routing policy | `030`, `080`, `090` | `pending` |
 | Telegram alert vertical slice | `030`, `060`, `070`, `090` | `pending` |

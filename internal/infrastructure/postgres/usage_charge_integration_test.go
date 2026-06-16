@@ -327,10 +327,24 @@ INSERT INTO tokenio_routes (
     endpoint_kind,
     client_model,
     provider_model,
+    default_max_output_tokens,
+    capabilities,
     created_at,
     updated_at
 )
-VALUES ($1, $2, 'openai', 'openai_compatible', 'chat', $3, $3, $4, $4)
+VALUES (
+    $1,
+    $2,
+    'openai',
+    'openai_compatible',
+    'chat',
+    $3,
+    $3,
+    1024,
+    '{"chat":true}'::jsonb,
+    $4,
+    $4
+)
 `,
 			[]any{routeID, resellerID, model, now},
 		},
