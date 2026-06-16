@@ -168,6 +168,15 @@ func TestUsageLedgerChargeCommandOrderedImmutableIntegration(t *testing.T) {
 	}
 	assertChargeSnapshotOrder(t, persisted, requestIDs)
 
+	assertDurableChargeForeignKeysProtectSnapshot(
+		t,
+		ctx,
+		db,
+		batchID,
+		requestIDs[0],
+		persisted,
+	)
+
 	replay := cloneUsageChargeBatchPlan(plan)
 	replay.Batch.CreatedAt = now.Add(time.Hour)
 	replay.Batch.UpdatedAt = replay.Batch.CreatedAt
@@ -215,6 +224,35 @@ func TestUsageLedgerChargeCommandOrderedImmutableIntegration(t *testing.T) {
 	if !reflect.DeepEqual(open[0], persisted) {
 		t.Fatalf("open snapshot differs:\n got=%+v\nwant=%+v", open[0], persisted)
 	}
+}
+
+func assertDurableChargeForeignKeysProtectSnapshot(
+	t *testing.T,
+	ctx context.Context,
+	db *DB,
+	batchID string,
+	localRequestID string,
+	want ports.BillingChargeBatchSnapshot,
+) {
+	t.Helper()
+
+	if _, err := db.Exec(
+		ctx,
+		"DELETE FROM tokenio_billing_charge_batches WHERE id = $1",
+		batchID,
+	); err == nil {
+		t.Fatal("deleting batch with durable children unexpectedly succeeded")
+	}
+	assertPersistedChargeSnapshotUnchanged(t, ctx, db, batchID, want)
+
+	if _, err := db.Exec(
+		ctx,
+		"DELETE FROM tokenio_usage_records WHERE local_request_id = $1",
+		localRequestID,
+	); err == nil {
+		t.Fatal("deleting usage record referenced by durable command unexpectedly succeeded")
+	}
+	assertPersistedChargeSnapshotUnchanged(t, ctx, db, batchID, want)
 }
 
 func cloneUsageChargeBatchPlan(
