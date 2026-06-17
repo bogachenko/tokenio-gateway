@@ -268,6 +268,83 @@ func TestForwardingStageSkipsCapacityUnavailableCandidate(t *testing.T) {
 	}
 }
 
+func TestForwardingStageReturnsRouteUnavailableAfterCapacityFallbacksExhausted(
+	t *testing.T,
+) {
+	prepared := validForwardingPreparedRequest()
+	prepared.Plan.Fallbacks = []RouteFallbackPlan{
+		retryFallbackPlan(prepared, "route-2", "reseller-2"),
+	}
+
+	capacity := validForwardingCapacityManager(nil)
+	acquiredRoutes := []string{}
+	capacity.acquireFunc = func(
+		_ context.Context,
+		input ports.RouteCapacityAcquireInput,
+	) (ports.RouteCapacityReservation, error) {
+		acquiredRoutes = append(acquiredRoutes, input.Route.ID)
+		return ports.RouteCapacityReservation{},
+			ports.ErrRouteCapacityUnavailable
+	}
+
+	reserveCalled := false
+	forwardCalled := false
+	stage, err := NewForwardingStage(
+		capacity,
+		reserveFunc(func(
+			context.Context,
+			ReservationInput,
+		) (ReservationResult, error) {
+			reserveCalled = true
+			return ReservationResult{}, nil
+		}),
+		retryTransferFunc(func(
+			context.Context,
+			RouteReservationTransferInput,
+		) (RouteReservationTransferResult, error) {
+			t.Fatal("transfer must not run without a reservation")
+			return RouteReservationTransferResult{}, nil
+		}),
+		&forwardingAttemptStoreStub{},
+		forwardingStageClock{now: validForwardingStageTime()},
+		forwardingExecutorFunc(func(
+			context.Context,
+			ForwardingExecutionInput,
+		) (ForwardingExecutionResult, error) {
+			forwardCalled = true
+			return ForwardingExecutionResult{}, nil
+		}),
+	)
+	if err != nil {
+		t.Fatalf("NewForwardingStage: %v", err)
+	}
+
+	_, err = stage.Execute(
+		context.Background(),
+		prepared,
+		validForwardingAdmission(prepared),
+	)
+	if !errors.Is(err, ErrRouteUnavailable) {
+		t.Fatalf("error = %v, want route unavailable", err)
+	}
+	if !errors.Is(err, ports.ErrRouteCapacityUnavailable) {
+		t.Fatalf("error = %v, want capacity cause", err)
+	}
+	if !reflect.DeepEqual(
+		acquiredRoutes,
+		[]string{prepared.Plan.Route.ID, "route-2"},
+	) {
+		t.Fatalf("acquired routes = %#v", acquiredRoutes)
+	}
+	if reserveCalled || forwardCalled {
+		t.Fatalf(
+			"reserve called = %v, forward called = %v",
+			reserveCalled,
+			forwardCalled,
+		)
+	}
+}
+
 func TestForwardingStageDoesNotRetrySentNoResponse(t *testing.T) {
 	prepared := validForwardingPreparedRequest()
 	prepared.Plan.Fallbacks = []RouteFallbackPlan{

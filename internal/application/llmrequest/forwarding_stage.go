@@ -196,7 +196,10 @@ func (s *ForwardingStage) Execute(
 	case lastForwardErr != nil:
 		return ForwardedRequest{}, lastForwardErr
 	case lastCapacityErr != nil:
-		return ForwardedRequest{}, lastCapacityErr
+		return ForwardedRequest{}, errors.Join(
+			ErrRouteUnavailable,
+			lastCapacityErr,
+		)
 	default:
 		return ForwardedRequest{}, fmt.Errorf(
 			"%w: empty forwarding candidate plan",
