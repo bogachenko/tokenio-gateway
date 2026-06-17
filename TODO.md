@@ -253,12 +253,12 @@
 
 ## 4.1. Recovery prepared batches
 
-* [x] Восстанавливать `pending` batches.
-* [x] Восстанавливать retryable `failed` batches.
-* [x] Использовать тот же immutable billing charge request ID.
-* [x] Не создавать новый external charge для succeeded batch.
-* [x] Корректно обрабатывать неизвестный результат Billing.
-* [x] Ограничивать число batch operations за recovery cycle.
+* [ ] Восстанавливать `pending` batches.
+* [ ] Восстанавливать retryable `failed` batches.
+* [ ] Использовать тот же immutable billing charge request ID.
+* [ ] Не создавать новый external charge для succeeded batch.
+* [ ] Корректно обрабатывать неизвестный результат Billing.
+* [ ] Ограничивать число batch operations за recovery cycle.
 
 ## 4.2. Создание новых charge batches worker-ом
 
