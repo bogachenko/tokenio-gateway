@@ -32,6 +32,18 @@ type RouteEventListFilter struct {
 	Page           PageRequest
 }
 
+type RouteCooldownStore interface {
+	// CompareAndSwapRouteCooldownWithEvent atomically verifies the exact
+	// persisted route snapshot, applies only operational cooldown fields,
+	// and appends the corresponding cooldown_set event.
+	CompareAndSwapRouteCooldownWithEvent(
+		context.Context,
+		domain.Route,
+		domain.Route,
+		domain.RouteEvent,
+	) (domain.Route, error)
+}
+
 type RouteEventStore interface {
 	// AppendRouteEvent is idempotent for the same event ID and exact payload.
 	AppendRouteEvent(context.Context, domain.RouteEvent) error
