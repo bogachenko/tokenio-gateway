@@ -93,7 +93,7 @@ func (s *LLMRequestRouteSelector) Select(
 	)
 	if err != nil {
 		return llmrequest.RouteSelectionResult{},
-			mapLLMRequestRouteSelectionError(err)
+			mapLLMRequestRouteSelectionError(selected, err)
 	}
 
 	fallbackRouteIDs := make(
@@ -109,13 +109,19 @@ func (s *LLMRequestRouteSelector) Select(
 	}, nil
 }
 
-func mapLLMRequestRouteSelectionError(err error) error {
+func mapLLMRequestRouteSelectionError(
+	result routing.SelectionResult,
+	err error,
+) error {
 	switch {
 	case errors.Is(err, routing.ErrUnknownModel):
 		return llmrequest.ErrUnknownModel
 	case errors.Is(err, routing.ErrUnsupportedCapability):
 		return llmrequest.ErrUnsupportedCapability
 	case errors.Is(err, routing.ErrNoRouteAvailable):
+		if compatibleRoutesOnlyLackPricing(result.Skipped) {
+			return llmrequest.ErrPricingUnavailable
+		}
 		return llmrequest.ErrNoRouteAvailable
 	case errors.Is(err, routing.ErrInvalidSelectionInput),
 		errors.Is(err, routing.ErrInvalidRouteData):
@@ -127,4 +133,21 @@ func mapLLMRequestRouteSelectionError(err error) error {
 	default:
 		return fmt.Errorf("select route candidate: %w", err)
 	}
+}
+
+func compatibleRoutesOnlyLackPricing(
+	skipped []routing.SkippedRoute,
+) bool {
+	pricingUnavailable := 0
+	for _, skippedRoute := range skipped {
+		switch skippedRoute.Reason {
+		case routing.SkipReasonMissingCapability:
+			continue
+		case routing.SkipReasonPricingUnavailable:
+			pricingUnavailable++
+		default:
+			return false
+		}
+	}
+	return pricingUnavailable > 0
 }

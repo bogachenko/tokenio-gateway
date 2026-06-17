@@ -60,6 +60,14 @@ var (
 		RequestStage: ports.RequestStagePreForwarding,
 		Cause:        errors.New("no route available"),
 	}
+	ErrPricingUnavailable = &ports.ApplicationError{
+		Code:         domain.ErrorCodePricingUnavailable,
+		SafeMessage:  "Pricing is unavailable",
+		Category:     ports.FailureCategoryUnavailable,
+		Retryability: ports.RetryabilityRetryable,
+		RequestStage: ports.RequestStagePreForwarding,
+		Cause:        errors.New("pricing unavailable"),
+	}
 
 	ErrLocalRequestConflict = &ports.ApplicationError{
 		Code:         domain.ErrorCodeIdempotencyKeyReused,

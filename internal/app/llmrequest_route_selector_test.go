@@ -95,6 +95,86 @@ func TestLLMRequestRouteSelectorMapsUnsupportedCapability(
 	}
 }
 
+func TestLLMRequestRouteSelectorMapsPricingUnavailable(
+	t *testing.T,
+) {
+	selector := mustLLMRequestRouteSelector(
+		t,
+		time.Now().UTC(),
+	)
+	input := validLLMRequestRouteSelectionInput()
+
+	incompatible := validLLMRequestRouteSelectionCandidate(
+		"route-incompatible",
+		10,
+		1,
+	)
+	incompatible.Route.Capabilities.Chat = false
+
+	pricingUnavailable := validLLMRequestRouteSelectionCandidate(
+		"route-pricing",
+		10,
+		2,
+	)
+	pricingUnavailable.Preflight.CostAvailable = false
+
+	input.Candidates = []llmrequest.RouteSelectionCandidate{
+		incompatible,
+		pricingUnavailable,
+	}
+
+	_, err := selector.Select(context.Background(), input)
+	if !errors.Is(err, llmrequest.ErrPricingUnavailable) {
+		t.Fatalf(
+			"error = %v, want pricing unavailable",
+			err,
+		)
+	}
+}
+
+func TestLLMRequestRouteSelectorKeepsMixedOperationalFailureGeneric(
+	t *testing.T,
+) {
+	selector := mustLLMRequestRouteSelector(
+		t,
+		time.Now().UTC(),
+	)
+	input := validLLMRequestRouteSelectionInput()
+
+	pricingUnavailable := validLLMRequestRouteSelectionCandidate(
+		"route-pricing",
+		10,
+		1,
+	)
+	pricingUnavailable.Preflight.CostAvailable = false
+
+	capacityUnavailable := validLLMRequestRouteSelectionCandidate(
+		"route-capacity",
+		10,
+		2,
+	)
+	capacityUnavailable.Preflight.RateLimitAllowed = false
+
+	input.Candidates = []llmrequest.RouteSelectionCandidate{
+		pricingUnavailable,
+		capacityUnavailable,
+	}
+
+	_, err := selector.Select(context.Background(), input)
+	if !errors.Is(err, llmrequest.ErrNoRouteAvailable) {
+		t.Fatalf(
+			"error = %v, want no route available",
+			err,
+		)
+	}
+	if errors.Is(err, llmrequest.ErrPricingUnavailable) {
+		t.Fatalf(
+			"mixed operational failure was classified as pricing: %v",
+			err,
+		)
+	}
+}
+
 func TestLLMRequestRouteSelectorMapsNoRouteAvailable(
 	t *testing.T,
 ) {

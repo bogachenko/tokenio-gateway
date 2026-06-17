@@ -358,6 +358,7 @@ func TestLLMRouterMapsApplicationErrors(t *testing.T) {
 		{"unknown model", llmrequestapp.ErrUnknownModel, http.StatusBadRequest, domain.ErrorCodeUnknownModel, "Unknown model"},
 		{"unsupported capability", llmrequestapp.ErrUnsupportedCapability, http.StatusBadRequest, domain.ErrorCodeUnsupportedCapability, "Unsupported capability"},
 		{"no route", llmrequestapp.ErrNoRouteAvailable, http.StatusServiceUnavailable, domain.ErrorCodeNoRouteAvailable, "No route is available"},
+		{"pricing unavailable", llmrequestapp.ErrPricingUnavailable, http.StatusServiceUnavailable, domain.ErrorCodePricingUnavailable, "Pricing is unavailable"},
 		{"billing insufficient funds", billingapp.ErrInsufficientFunds, http.StatusPaymentRequired, domain.ErrorCodeInsufficientFunds, "Insufficient balance"},
 		{"LLM idempotency key reused", llmrequestapp.ErrIdempotencyKeyReused, http.StatusConflict, domain.ErrorCodeIdempotencyKeyReused, "Idempotency key conflicts with an existing request"},
 		{"ledger idempotency key reused", ledgerapp.ErrIdempotencyKeyReused, http.StatusConflict, domain.ErrorCodeIdempotencyKeyReused, "Idempotency key conflicts with an existing request"},
