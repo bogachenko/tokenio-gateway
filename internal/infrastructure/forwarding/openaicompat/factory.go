@@ -9,8 +9,8 @@ import (
 )
 
 type Factory struct {
-	transport  http.RoundTripper
-	classifier ErrorClassifier
+	transport   http.RoundTripper
+	classifiers ErrorClassifierResolver
 }
 
 var (
@@ -20,14 +20,14 @@ var (
 
 func NewFactory(
 	transport http.RoundTripper,
-	classifier ErrorClassifier,
+	classifiers ErrorClassifierResolver,
 ) (*Factory, error) {
-	if transport == nil || classifier == nil {
+	if transport == nil || classifiers == nil {
 		return nil, ErrInvalidAdapterConfig
 	}
 	return &Factory{
-		transport:  transport,
-		classifier: classifier,
+		transport:   transport,
+		classifiers: classifiers,
 	}, nil
 }
 
@@ -44,7 +44,7 @@ func (f *Factory) SupportsForwardingEndpoint(
 func (f *Factory) Build(
 	input ports.ForwardingAdapterFactoryInput,
 ) (ports.ForwardingClient, error) {
-	if f == nil || f.transport == nil || f.classifier == nil {
+	if f == nil || f.transport == nil || f.classifiers == nil {
 		return nil, ErrInvalidAdapterConfig
 	}
 	if input.Route.APIFamily !=
@@ -54,6 +54,13 @@ func (f *Factory) Build(
 		input.Route.ResellerID != input.Reseller.ID {
 		return nil, ErrUnsupportedRoute
 	}
+	classifier, err := f.classifiers.Resolve(input.Route.ProviderType)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"resolve openai-compatible error classifier: %w",
+			err,
+		)
+	}
 	adapter, err := NewAdapter(
 		Config{
 			Reseller:             input.Reseller,
@@ -61,7 +68,7 @@ func (f *Factory) Build(
 			Transport:            f.transport,
 			MaxResponseBodyBytes: input.MaxResponseBodyBytes,
 		},
-		f.classifier,
+		classifier,
 	)
 	if err != nil {
 		return nil, fmt.Errorf(

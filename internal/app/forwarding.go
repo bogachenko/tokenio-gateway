@@ -35,9 +35,34 @@ func NewForwardingInfrastructureGraph() (ForwardingInfrastructureGraph, error) {
 		return ForwardingInfrastructureGraph{},
 			fmt.Errorf("default HTTP transport has unexpected type")
 	}
+	providerTypes := openAICompatibleProviderTypes()
+	classifierRegistrations := make(
+		[]openaicompat.ClassifierRegistration,
+		0,
+		len(providerTypes),
+	)
+	for _, providerType := range providerTypes {
+		classifierRegistrations = append(
+			classifierRegistrations,
+			openaicompat.ClassifierRegistration{
+				ProviderType: providerType,
+				Classifier:   openaicompat.StatusClassifier{},
+			},
+		)
+	}
+	classifierRegistry, err := openaicompat.NewClassifierRegistry(
+		classifierRegistrations...,
+	)
+	if err != nil {
+		return ForwardingInfrastructureGraph{},
+			fmt.Errorf(
+				"construct openai-compatible classifier registry: %w",
+				err,
+			)
+	}
 	openAICompatibleFactory, err := openaicompat.NewFactory(
 		transport.Clone(),
-		openaicompat.StatusClassifier{},
+		classifierRegistry,
 	)
 	if err != nil {
 		return ForwardingInfrastructureGraph{},
@@ -98,10 +123,8 @@ func (g ForwardingInfrastructureGraph) Validate() error {
 	return nil
 }
 
-func openAICompatibleRegistrations(
-	factory ports.ForwardingAdapterFactory,
-) []registry.Registration {
-	providerTypes := [...]domain.ProviderType{
+func openAICompatibleProviderTypes() []domain.ProviderType {
+	return []domain.ProviderType{
 		domain.ProviderOpenAI,
 		domain.ProviderOpenRouter,
 		domain.ProviderTogether,
@@ -111,6 +134,12 @@ func openAICompatibleRegistrations(
 		domain.ProviderVLLM,
 		domain.ProviderHydra,
 	}
+}
+
+func openAICompatibleRegistrations(
+	factory ports.ForwardingAdapterFactory,
+) []registry.Registration {
+	providerTypes := openAICompatibleProviderTypes()
 	registrations := make(
 		[]registry.Registration,
 		0,
