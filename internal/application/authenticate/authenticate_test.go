@@ -330,3 +330,45 @@ func expectedHMACSHA256Hex(secret, message string) string {
 	_, _ = mac.Write([]byte(message))
 	return hex.EncodeToString(mac.Sum(nil))
 }
+
+func TestPublicAuthenticationErrorsUseNormalizedContract(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		code     domain.ErrorCode
+		message  string
+		category ports.FailureCategory
+	}{
+		{
+			name:     "invalid api key",
+			err:      ErrInvalidAPIKey,
+			code:     domain.ErrorCodeInvalidAPIKey,
+			message:  "Invalid API key",
+			category: ports.FailureCategoryUnauthorized,
+		},
+		{
+			name:     "disabled user",
+			err:      ErrUserDisabled,
+			code:     domain.ErrorCodeUserDisabled,
+			message:  "User is disabled",
+			category: ports.FailureCategoryForbidden,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			failure, ok := ports.AsApplicationError(test.err)
+			if !ok {
+				t.Fatal("authentication error is not normalized")
+			}
+			if failure.Code != test.code ||
+				failure.SafeMessage != test.message ||
+				failure.Category != test.category ||
+				failure.Retryability != ports.RetryabilityNonRetryable ||
+				failure.RequestStage != ports.RequestStagePreForwarding ||
+				failure.Cause == nil {
+				t.Fatalf("failure = %+v", failure)
+			}
+		})
+	}
+}

@@ -7,12 +7,27 @@ import (
 	"strings"
 
 	"github.com/bogachenko/tokenio-gateway/internal/auth"
+	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
 
 var (
-	ErrInvalidAPIKey   = errors.New("invalid api key")
-	ErrUserDisabled    = errors.New("user disabled")
+	ErrInvalidAPIKey = &ports.ApplicationError{
+		Code:         domain.ErrorCodeInvalidAPIKey,
+		SafeMessage:  "Invalid API key",
+		Category:     ports.FailureCategoryUnauthorized,
+		Retryability: ports.RetryabilityNonRetryable,
+		RequestStage: ports.RequestStagePreForwarding,
+		Cause:        errors.New("invalid api key"),
+	}
+	ErrUserDisabled = &ports.ApplicationError{
+		Code:         domain.ErrorCodeUserDisabled,
+		SafeMessage:  "User is disabled",
+		Category:     ports.FailureCategoryForbidden,
+		Retryability: ports.RetryabilityNonRetryable,
+		RequestStage: ports.RequestStagePreForwarding,
+		Cause:        errors.New("user disabled"),
+	}
 	ErrInvalidIdentity = errors.New("invalid identity")
 )
 

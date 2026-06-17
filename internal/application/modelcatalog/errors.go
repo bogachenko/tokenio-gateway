@@ -12,7 +12,7 @@ var (
 	ErrCatalogUnavailable = &ports.ApplicationError{
 		Code:         domain.ErrorCodeStoreUnavailable,
 		SafeMessage:  "Store is unavailable",
-		Category:     ports.FailureCategoryDependencyUnavailable,
+		Category:     ports.FailureCategoryUnavailable,
 		Retryability: ports.RetryabilityRetryable,
 		RequestStage: ports.RequestStagePreForwarding,
 		Cause:        errors.New("model catalog unavailable"),

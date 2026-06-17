@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strconv"
 
-	authenticateapp "github.com/bogachenko/tokenio-gateway/internal/application/authenticate"
 	billingapp "github.com/bogachenko/tokenio-gateway/internal/application/billing"
 	ledgerapp "github.com/bogachenko/tokenio-gateway/internal/application/ledger"
 	llmrequestapp "github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
@@ -162,21 +161,10 @@ func writeLLMApplicationError(
 	err error,
 ) {
 	if applicationError, ok := ports.AsApplicationError(err); ok {
-		status := http.StatusInternalServerError
-		switch applicationError.Category {
-		case ports.FailureCategoryInvalidRequest:
-			status = http.StatusBadRequest
-		case ports.FailureCategoryConflict:
-			status = http.StatusConflict
-		case ports.FailureCategoryDependencyUnavailable:
-			status = http.StatusBadGateway
-		case ports.FailureCategoryUnavailable:
-			status = http.StatusServiceUnavailable
-		}
 		writeError(
 			writer,
 			requestID,
-			status,
+			statusForApplicationError(applicationError),
 			applicationError.Code,
 			applicationError.SafeMessage,
 		)
@@ -184,10 +172,6 @@ func writeLLMApplicationError(
 	}
 
 	switch {
-	case errors.Is(err, authenticateapp.ErrInvalidAPIKey):
-		writeError(writer, requestID, http.StatusUnauthorized, domain.ErrorCodeInvalidAPIKey, "Invalid API key")
-	case errors.Is(err, authenticateapp.ErrUserDisabled):
-		writeError(writer, requestID, http.StatusForbidden, domain.ErrorCodeUserDisabled, "User is disabled")
 	case errors.Is(err, ledgerapp.ErrInsufficientFunds):
 		writeError(writer, requestID, http.StatusPaymentRequired, domain.ErrorCodeInsufficientFunds, "Insufficient balance")
 	case errors.Is(err, llmrequestapp.ErrIdempotencyKeyReused),

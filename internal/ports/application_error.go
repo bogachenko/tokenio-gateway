@@ -11,6 +11,8 @@ type FailureCategory string
 const (
 	FailureCategoryDependencyUnavailable FailureCategory = "dependency_unavailable"
 	FailureCategoryInvalidRequest        FailureCategory = "invalid_request"
+	FailureCategoryUnauthorized          FailureCategory = "unauthorized"
+	FailureCategoryForbidden             FailureCategory = "forbidden"
 	FailureCategoryConflict              FailureCategory = "conflict"
 	FailureCategoryUnavailable           FailureCategory = "unavailable"
 	FailureCategoryInternal              FailureCategory = "internal"

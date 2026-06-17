@@ -201,30 +201,8 @@ func writeAuthenticationError(
 	requestID string,
 	err error,
 ) {
-	switch {
-	case errors.Is(
-		err,
-		authenticateapp.ErrInvalidAPIKey,
-	):
-		writeError(
-			writer,
-			requestID,
-			http.StatusUnauthorized,
-			domain.ErrorCodeInvalidAPIKey,
-			"Invalid API key",
-		)
-	case errors.Is(
-		err,
-		authenticateapp.ErrUserDisabled,
-	):
-		writeError(
-			writer,
-			requestID,
-			http.StatusForbidden,
-			domain.ErrorCodeUserDisabled,
-			"User is disabled",
-		)
-	default:
+	applicationError, ok := ports.AsApplicationError(err)
+	if !ok {
 		writeError(
 			writer,
 			requestID,
@@ -232,7 +210,15 @@ func writeAuthenticationError(
 			domain.ErrorCodeInternalError,
 			"Internal error",
 		)
+		return
 	}
+	writeError(
+		writer,
+		requestID,
+		statusForApplicationError(applicationError),
+		applicationError.Code,
+		applicationError.SafeMessage,
+	)
 }
 
 func writeCatalogError(
@@ -252,24 +238,37 @@ func writeCatalogError(
 		return
 	}
 
-	status := http.StatusInternalServerError
-	switch applicationError.Category {
-	case ports.FailureCategoryDependencyUnavailable,
-		ports.FailureCategoryUnavailable:
-		status = http.StatusServiceUnavailable
-	case ports.FailureCategoryInvalidRequest:
-		status = http.StatusBadRequest
-	case ports.FailureCategoryConflict:
-		status = http.StatusConflict
-	}
-
 	writeError(
 		writer,
 		requestID,
-		status,
+		statusForApplicationError(applicationError),
 		applicationError.Code,
 		applicationError.SafeMessage,
 	)
+}
+
+func statusForApplicationError(
+	applicationError *ports.ApplicationError,
+) int {
+	if applicationError == nil {
+		return http.StatusInternalServerError
+	}
+	switch applicationError.Category {
+	case ports.FailureCategoryInvalidRequest:
+		return http.StatusBadRequest
+	case ports.FailureCategoryUnauthorized:
+		return http.StatusUnauthorized
+	case ports.FailureCategoryForbidden:
+		return http.StatusForbidden
+	case ports.FailureCategoryConflict:
+		return http.StatusConflict
+	case ports.FailureCategoryDependencyUnavailable:
+		return http.StatusBadGateway
+	case ports.FailureCategoryUnavailable:
+		return http.StatusServiceUnavailable
+	default:
+		return http.StatusInternalServerError
+	}
 }
 
 type errorResponse struct {
