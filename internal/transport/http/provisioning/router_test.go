@@ -433,3 +433,36 @@ func assertError(
 		)
 	}
 }
+
+func TestProvisioningUnknownPathInsideNamespaceIncludesRequestID(
+	t *testing.T,
+) {
+	router := newTestRouter(t, &routerService{})
+	request := httptest.NewRequest(
+		http.MethodGet,
+		basePath+"/unknown",
+		nil,
+	)
+	request.Header.Set(serviceTokenHeader, "service-token")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNotFound {
+		t.Fatalf(
+			"status = %d, want %d; body = %s",
+			response.Code,
+			http.StatusNotFound,
+			response.Body.String(),
+		)
+	}
+	if !strings.Contains(
+		response.Body.String(),
+		`"request_id":"provreq_test"`,
+	) {
+		t.Fatalf(
+			"request ID missing from body: %s",
+			response.Body.String(),
+		)
+	}
+}

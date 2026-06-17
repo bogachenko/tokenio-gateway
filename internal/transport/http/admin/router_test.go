@@ -389,3 +389,43 @@ func TestAdminTransportValidationDoesNotRequireApplicationError(t *testing.T) {
 		t.Fatalf("request ID missing: %s", response.Body.String())
 	}
 }
+
+func TestAdminUnknownPathInsideNamespaceIncludesRequestID(t *testing.T) {
+	events := []string{}
+	ids := &testIDs{events: events, value: "admreq_unknown"}
+	authenticator := &testAuthenticator{
+		events:  &ids.events,
+		subject: "admin_token",
+	}
+	router, err := NewRouter(&testService{}, authenticator, ids)
+	if err != nil {
+		t.Fatalf("NewRouter: %v", err)
+	}
+
+	request := httptest.NewRequest(
+		http.MethodGet,
+		basePath+"/unknown",
+		nil,
+	)
+	request.Header.Set("Authorization", "Bearer admin")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNotFound {
+		t.Fatalf(
+			"status = %d, want %d; body = %s",
+			response.Code,
+			http.StatusNotFound,
+			response.Body.String(),
+		)
+	}
+	if response.Header().Get(adminRequestIDHeader) != "admreq_unknown" {
+		t.Fatalf("headers = %v", response.Header())
+	}
+	if !strings.Contains(
+		response.Body.String(),
+		`"request_id":"admreq_unknown"`,
+	) {
+		t.Fatalf("request ID missing from body: %s", response.Body.String())
+	}
+}
