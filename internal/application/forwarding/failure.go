@@ -1,6 +1,12 @@
 package forwarding
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+	"time"
+)
+
+var ErrInvalidRetryAfter = errors.New("invalid retry-after directive")
 
 type FailureKind string
 
@@ -25,10 +31,42 @@ const (
 	AttemptStateResponseReceived AttemptState = "response_received"
 )
 
+type RetryAfter struct {
+	delay time.Duration
+	at    time.Time
+}
+
+func NewRetryAfterDelay(delay time.Duration) (RetryAfter, error) {
+	if delay < 0 {
+		return RetryAfter{}, ErrInvalidRetryAfter
+	}
+	return RetryAfter{delay: delay}, nil
+}
+
+func NewRetryAfterTime(at time.Time) (RetryAfter, error) {
+	if at.IsZero() {
+		return RetryAfter{}, ErrInvalidRetryAfter
+	}
+	return RetryAfter{at: at.UTC()}, nil
+}
+
+func (value RetryAfter) Delay() time.Duration {
+	return value.delay
+}
+
+func (value RetryAfter) At() time.Time {
+	return value.at
+}
+
+func (value RetryAfter) IsZero() bool {
+	return value.delay == 0 && value.at.IsZero()
+}
+
 type Classification struct {
 	Kind FailureKind
 
 	RouteRetryCandidate bool
+	RetryAfter          RetryAfter
 }
 
 type Failure struct {
@@ -38,16 +76,42 @@ type Failure struct {
 	AttemptState AttemptState
 
 	RouteRetryCandidate bool
+	retryAfter          RetryAfter
 
 	cause error
 }
 
-func NewFailure(kind FailureKind, statusCode int, attemptState AttemptState, routeRetryCandidate bool, cause error) *Failure {
+func NewFailure(
+	kind FailureKind,
+	statusCode int,
+	attemptState AttemptState,
+	routeRetryCandidate bool,
+	cause error,
+) *Failure {
+	return NewFailureWithRetryAfter(
+		kind,
+		statusCode,
+		attemptState,
+		routeRetryCandidate,
+		RetryAfter{},
+		cause,
+	)
+}
+
+func NewFailureWithRetryAfter(
+	kind FailureKind,
+	statusCode int,
+	attemptState AttemptState,
+	routeRetryCandidate bool,
+	retryAfter RetryAfter,
+	cause error,
+) *Failure {
 	return &Failure{
 		Kind:                kind,
 		StatusCode:          statusCode,
 		AttemptState:        attemptState,
 		RouteRetryCandidate: routeRetryCandidate,
+		retryAfter:          retryAfter,
 		cause:               cause,
 	}
 }
@@ -57,9 +121,20 @@ func (f *Failure) Error() string {
 		return "forwarding failure"
 	}
 	if f.StatusCode > 0 {
-		return fmt.Sprintf("forwarding failure: kind=%s status=%d attempt_state=%s route_retry_candidate=%t", f.Kind, f.StatusCode, f.AttemptState, f.RouteRetryCandidate)
+		return fmt.Sprintf(
+			"forwarding failure: kind=%s status=%d attempt_state=%s route_retry_candidate=%t",
+			f.Kind,
+			f.StatusCode,
+			f.AttemptState,
+			f.RouteRetryCandidate,
+		)
 	}
-	return fmt.Sprintf("forwarding failure: kind=%s attempt_state=%s route_retry_candidate=%t", f.Kind, f.AttemptState, f.RouteRetryCandidate)
+	return fmt.Sprintf(
+		"forwarding failure: kind=%s attempt_state=%s route_retry_candidate=%t",
+		f.Kind,
+		f.AttemptState,
+		f.RouteRetryCandidate,
+	)
 }
 
 func (f *Failure) FailureKindValue() string {
@@ -85,6 +160,13 @@ func (f *Failure) FailureAttemptStateValue() string {
 
 func (f *Failure) FailureRouteRetryCandidate() bool {
 	return f != nil && f.RouteRetryCandidate
+}
+
+func (f *Failure) FailureRetryAfter() RetryAfter {
+	if f == nil {
+		return RetryAfter{}
+	}
+	return f.retryAfter
 }
 
 func (f *Failure) Unwrap() error {

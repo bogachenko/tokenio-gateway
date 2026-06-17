@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestFailureContract(t *testing.T) {
@@ -67,5 +68,48 @@ func TestNoForbiddenPublicFields(t *testing.T) {
 				t.Fatalf("%s has forbidden field %s", typ.Name(), field.Name)
 			}
 		}
+	}
+}
+
+func TestRetryAfterContract(t *testing.T) {
+	delay, err := NewRetryAfterDelay(3 * time.Second)
+	if err != nil {
+		t.Fatalf("NewRetryAfterDelay: %v", err)
+	}
+	failure := NewFailureWithRetryAfter(
+		FailureKindRateLimited,
+		429,
+		AttemptStateResponseReceived,
+		true,
+		delay,
+		errors.New("internal"),
+	)
+	if failure.FailureRetryAfter().Delay() != 3*time.Second ||
+		!failure.FailureRetryAfter().At().IsZero() {
+		t.Fatalf("retry-after = %#v", failure.FailureRetryAfter())
+	}
+
+	at := time.Date(2026, time.June, 17, 18, 0, 0, 0, time.FixedZone("x", 3600))
+	absolute, err := NewRetryAfterTime(at)
+	if err != nil {
+		t.Fatalf("NewRetryAfterTime: %v", err)
+	}
+	if !absolute.At().Equal(at.UTC()) ||
+		absolute.At().Location() != time.UTC ||
+		absolute.Delay() != 0 {
+		t.Fatalf("absolute retry-after = %#v", absolute)
+	}
+
+	if _, err := NewRetryAfterDelay(-time.Second); !errors.Is(
+		err,
+		ErrInvalidRetryAfter,
+	) {
+		t.Fatalf("negative delay error = %v", err)
+	}
+	if _, err := NewRetryAfterTime(time.Time{}); !errors.Is(
+		err,
+		ErrInvalidRetryAfter,
+	) {
+		t.Fatalf("zero time error = %v", err)
 	}
 }

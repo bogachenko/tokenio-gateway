@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bogachenko/tokenio-gateway/internal/application/forwarding"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
@@ -446,4 +447,45 @@ func response(status int, body string) *http.Response {
 func contextWithCancel(t *testing.T) (context.Context, func()) {
 	t.Helper()
 	return context.WithCancel(t.Context())
+}
+
+func TestAdapterPropagatesClassifiedRetryAfter(t *testing.T) {
+	retryAfter, err := forwarding.NewRetryAfterDelay(4 * time.Second)
+	if err != nil {
+		t.Fatalf("NewRetryAfterDelay: %v", err)
+	}
+	classifier := &spyClassifier{
+		result: forwarding.Classification{
+			Kind:                forwarding.FailureKindRateLimited,
+			RouteRetryCandidate: true,
+			RetryAfter:          retryAfter,
+		},
+	}
+	adapter := newTestAdapter(
+		t,
+		roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusTooManyRequests,
+				Body: io.NopCloser(
+					strings.NewReader("rate limited"),
+				),
+			}, nil
+		}),
+		classifier,
+	)
+
+	_, err = adapter.Forward(
+		t.Context(),
+		forwardReq(domain.EndpointChat),
+	)
+	var failure *forwarding.Failure
+	if !errors.As(err, &failure) {
+		t.Fatalf("expected forwarding failure: %v", err)
+	}
+	if failure.FailureRetryAfter().Delay() != 4*time.Second {
+		t.Fatalf(
+			"retry-after = %s",
+			failure.FailureRetryAfter().Delay(),
+		)
+	}
 }

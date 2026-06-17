@@ -126,7 +126,14 @@ func (a *Adapter) handleResponse(resp *http.Response, cause error) (ports.Forwar
 		classificationBody = classificationBody[:a.maxResponseBodyBytes]
 	}
 	classification := a.classifier.Classify(resp.StatusCode, cloneHeaders(resp.Header), classificationBody, truncated)
-	return ports.ForwardResponse{}, forwarding.NewFailure(classification.Kind, resp.StatusCode, forwarding.AttemptStateResponseReceived, classification.RouteRetryCandidate, cause)
+	return ports.ForwardResponse{}, forwarding.NewFailureWithRetryAfter(
+		classification.Kind,
+		resp.StatusCode,
+		forwarding.AttemptStateResponseReceived,
+		classification.RouteRetryCandidate,
+		classification.RetryAfter,
+		cause,
+	)
 }
 
 func (a *Adapter) validateRouteAndRequest(request ports.ForwardRequest) error {
