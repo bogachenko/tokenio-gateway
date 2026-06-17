@@ -240,25 +240,35 @@ func writeCatalogError(
 	requestID string,
 	err error,
 ) {
-	if errors.Is(
-		err,
-		modelcatalogapp.ErrCatalogUnavailable,
-	) {
+	applicationError, ok := ports.AsApplicationError(err)
+	if !ok {
 		writeError(
 			writer,
 			requestID,
-			http.StatusServiceUnavailable,
-			domain.ErrorCodeStoreUnavailable,
-			"Store is unavailable",
+			http.StatusInternalServerError,
+			domain.ErrorCodeInternalError,
+			"Internal error",
 		)
 		return
 	}
+
+	status := http.StatusInternalServerError
+	switch applicationError.Category {
+	case ports.FailureCategoryDependencyUnavailable,
+		ports.FailureCategoryUnavailable:
+		status = http.StatusServiceUnavailable
+	case ports.FailureCategoryInvalidRequest:
+		status = http.StatusBadRequest
+	case ports.FailureCategoryConflict:
+		status = http.StatusConflict
+	}
+
 	writeError(
 		writer,
 		requestID,
-		http.StatusInternalServerError,
-		domain.ErrorCodeInternalError,
-		"Internal error",
+		status,
+		applicationError.Code,
+		applicationError.SafeMessage,
 	)
 }
 
