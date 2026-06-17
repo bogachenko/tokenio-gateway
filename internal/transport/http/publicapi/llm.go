@@ -174,8 +174,7 @@ func writeLLMApplicationError(
 	switch {
 	case errors.Is(err, ledgerapp.ErrInsufficientFunds):
 		writeError(writer, requestID, http.StatusPaymentRequired, domain.ErrorCodeInsufficientFunds, "Insufficient balance")
-	case errors.Is(err, llmrequestapp.ErrUnresolvedUsage),
-		errors.Is(err, ledgerapp.ErrUnresolvedUsage):
+	case errors.Is(err, ledgerapp.ErrUnresolvedUsage):
 		writeError(writer, requestID, http.StatusConflict, domain.ErrorCodeUnresolvedUsage, "Previous usage requires resolution")
 	case errors.Is(err, billingapp.ErrBillingIdentityUnavailable),
 		errors.Is(err, billingapp.ErrBillingUnavailable):

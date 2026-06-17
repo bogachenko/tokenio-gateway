@@ -2,6 +2,7 @@ package billing
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -94,8 +95,8 @@ func (s *AdmissionService) Admit(ctx context.Context, input AdmissionInput) (Adm
 		snapshot.PricingFailedCount,
 	)
 	if err != nil {
-		if err == domain.ErrUnresolvedUsage {
-			return result, err
+		if errors.Is(err, domain.ErrUnresolvedUsage) {
+			return result, ErrUnresolvedUsage
 		}
 		return result, ErrBillingStoreUnavailable
 	}
@@ -115,6 +116,9 @@ func (s *AdmissionService) Admit(ctx context.Context, input AdmissionInput) (Adm
 		EffectiveBalanceCents: balanceResult.EffectiveBalanceCents,
 		RequiredReserveCents:  input.RequiredReserveCents,
 		Currency:              currency,
+	}
+	if errors.Is(err, domain.ErrUnresolvedUsage) {
+		return result, ErrUnresolvedUsage
 	}
 	if err != nil {
 		return result, err

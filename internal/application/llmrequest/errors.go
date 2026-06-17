@@ -93,6 +93,13 @@ var (
 		RequestStage: ports.RequestStagePreForwarding,
 		Cause:        errors.New("idempotency key reused"),
 	}
-	ErrUnresolvedUsage            = errors.New("unresolved usage")
+	ErrUnresolvedUsage = &ports.ApplicationError{
+		Code:         domain.ErrorCodeUnresolvedUsage,
+		SafeMessage:  "Previous usage requires resolution",
+		Category:     ports.FailureCategoryConflict,
+		Retryability: ports.RetryabilityNonRetryable,
+		RequestStage: ports.RequestStagePreForwarding,
+		Cause:        domain.ErrUnresolvedUsage,
+	}
 	ErrResellerReserveUnavailable = errors.New("reseller reserve unavailable")
 )

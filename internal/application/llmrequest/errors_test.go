@@ -146,3 +146,20 @@ func TestIdempotencyErrorsUseNormalizedApplicationContract(t *testing.T) {
 		})
 	}
 }
+
+func TestUnresolvedUsageUsesNormalizedApplicationContract(t *testing.T) {
+	failure, ok := ports.AsApplicationError(ErrUnresolvedUsage)
+	if !ok {
+		t.Fatal("unresolved usage is not normalized")
+	}
+	if failure.Code != domain.ErrorCodeUnresolvedUsage ||
+		failure.SafeMessage != "Previous usage requires resolution" ||
+		failure.Category != ports.FailureCategoryConflict ||
+		failure.Retryability != ports.RetryabilityNonRetryable ||
+		failure.RequestStage != ports.RequestStagePreForwarding {
+		t.Fatalf("failure = %+v", failure)
+	}
+	if !errors.Is(ErrUnresolvedUsage, domain.ErrUnresolvedUsage) {
+		t.Fatal("domain unresolved usage cause was not preserved")
+	}
+}
