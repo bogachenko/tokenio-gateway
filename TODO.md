@@ -228,19 +228,19 @@
 
 ## 3.6. Routing tests
 
-* [ ] Самый дешёвый доступный route выбирается первым.
-* [ ] Priority и route ID используются как deterministic tie-breaker.
-* [ ] Fallback не пересекает `api_family`.
-* [ ] Fallback не пересекает `endpoint_kind`.
-* [ ] Fallback не пересекает `client_model`.
-* [ ] Unsupported capability исключает route.
-* [ ] Disabled route/reseller исключается.
-* [ ] Cooldown route исключается.
-* [ ] Недостаточный reseller balance исключает route.
-* [ ] RPM/TPM/concurrency capacity корректно резервируется и освобождается.
-* [ ] Max attempts соблюдается.
-* [ ] Timeout и backoff соблюдаются.
-* [ ] Route events соответствуют фактическому выполнению.
+* [x] Самый дешёвый доступный route выбирается первым.
+* [x] Priority и route ID используются как deterministic tie-breaker.
+* [x] Fallback не пересекает `api_family`.
+* [x] Fallback не пересекает `endpoint_kind`.
+* [x] Fallback не пересекает `client_model`.
+* [x] Unsupported capability исключает route.
+* [x] Disabled route/reseller исключается.
+* [x] Cooldown route исключается.
+* [x] Недостаточный reseller balance исключает route.
+* [x] RPM/TPM/concurrency capacity корректно резервируется и освобождается.
+* [x] Max attempts соблюдается.
+* [x] Timeout и backoff соблюдаются.
+* [x] Route events соответствуют фактическому выполнению.
 
 ## Критерий завершения
 
