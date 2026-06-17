@@ -368,7 +368,8 @@ func TestLLMRouterMapsApplicationErrors(t *testing.T) {
 		{"ledger replay unavailable", ledgerapp.ErrIdempotencyReplayNotAvailable, http.StatusConflict, domain.ErrorCodeIdempotencyReplayNotAvailable, "Idempotency replay is not available"},
 		{"LLM unresolved usage", llmrequestapp.ErrUnresolvedUsage, http.StatusConflict, domain.ErrorCodeUnresolvedUsage, "Previous usage requires resolution"},
 		{"ledger unresolved usage", ledgerapp.ErrUnresolvedUsage, http.StatusConflict, domain.ErrorCodeUnresolvedUsage, "Previous usage requires resolution"},
-		{"billing unavailable", billingapp.ErrBillingUnavailable, http.StatusServiceUnavailable, domain.ErrorCodeBillingUnavailable, "Billing service is unavailable"},
+		{"billing identity unavailable", billingapp.ErrBillingIdentityUnavailable, http.StatusBadGateway, domain.ErrorCodeBillingUnavailable, "Billing service is unavailable"},
+		{"billing unavailable", billingapp.ErrBillingUnavailable, http.StatusBadGateway, domain.ErrorCodeBillingUnavailable, "Billing service is unavailable"},
 		{"timeout", context.DeadlineExceeded, http.StatusGatewayTimeout, domain.ErrorCodeUpstreamUnavailable, "Upstream request timed out"},
 		{"internal", errors.New("postgres sk_live_secret"), http.StatusInternalServerError, domain.ErrorCodeInternalError, "Internal error"},
 	}

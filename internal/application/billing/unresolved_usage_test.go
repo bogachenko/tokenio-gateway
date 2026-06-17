@@ -3,6 +3,7 @@ package billing
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -199,5 +200,87 @@ func TestAdmissionNormalizesInsufficientFundsAtApplicationBoundary(
 		failure.Retryability != ports.RetryabilityNonRetryable ||
 		failure.RequestStage != ports.RequestStagePreForwarding {
 		t.Fatalf("failure = %+v", failure)
+	}
+}
+
+type failingIdentity struct{}
+
+func (failingIdentity) TokenForSubject(context.Context, string) (string, error) {
+	return "", errors.New("identity dependency secret")
+}
+
+type failingBalance struct{}
+
+func (failingBalance) GetBalance(
+	context.Context,
+	string,
+) (ports.BillingBalance, error) {
+	return ports.BillingBalance{}, errors.New("balance dependency secret")
+}
+
+func TestAdmissionNormalizesBillingDependencyFailures(
+	t *testing.T,
+) {
+	tests := []struct {
+		name     string
+		identity ports.BillingIdentityService
+		balance  ports.BillingBalanceClient
+		want     error
+	}{
+		{
+			name:     "identity",
+			identity: failingIdentity{},
+			balance:  unresolvedBalance{},
+			want:     ErrBillingIdentityUnavailable,
+		},
+		{
+			name:     "balance",
+			identity: unresolvedIdentity{},
+			balance:  failingBalance{},
+			want:     ErrBillingUnavailable,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service, err := NewAdmissionService(
+				test.identity,
+				test.balance,
+				resolvedLedger{},
+				AdmissionConfig{},
+			)
+			if err != nil {
+				t.Fatalf("NewAdmissionService: %v", err)
+			}
+
+			_, err = service.Admit(
+				context.Background(),
+				AdmissionInput{
+					UserID:               "user-1",
+					BillingSubjectUserID: "billing-1",
+					RequiredReserveCents: 1,
+					Currency:             "RUB",
+				},
+			)
+			if !errors.Is(err, test.want) {
+				t.Fatalf("error = %v, want %v", err, test.want)
+			}
+
+			failure, ok := ports.AsApplicationError(err)
+			if !ok {
+				t.Fatal("billing dependency error is not normalized")
+			}
+			if failure.Code != domain.ErrorCodeBillingUnavailable ||
+				failure.SafeMessage != "Billing service is unavailable" ||
+				failure.Category != ports.FailureCategoryDependencyUnavailable ||
+				failure.Retryability != ports.RetryabilityRetryable ||
+				failure.RequestStage != ports.RequestStagePreForwarding ||
+				failure.Cause == nil {
+				t.Fatalf("failure = %+v", failure)
+			}
+			if strings.Contains(failure.Error(), "secret") {
+				t.Fatalf("unsafe error leaked: %q", failure.Error())
+			}
+		})
 	}
 }
