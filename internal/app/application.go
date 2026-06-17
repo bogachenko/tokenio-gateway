@@ -228,6 +228,7 @@ func NewApplicationGraph(
 		repositories.LLMRequestAtomicReservation,
 		repositories.LLMRequestRouteReservationTransfer,
 		repositories.ForwardingAttempts,
+		repositories.RouteCooldowns,
 		primitives.Clock,
 		forwardingExecutor,
 		routingPolicy,

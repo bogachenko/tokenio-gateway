@@ -19,6 +19,7 @@ type RepositoryGraph struct {
 	UsageLedger              ports.UsageLedger
 	BillingRecovery          ports.BillingRecoveryStore
 	ForwardingAttempts       ports.ForwardingAttemptStore
+	RouteCooldowns           ports.RouteCooldownStore
 	TelegramDeliveryAttempts ports.TelegramDeliveryAttemptStore
 
 	LLMRequestAtomicReservation        llmrequest.AtomicReservation
@@ -91,6 +92,13 @@ func NewRepositoryGraph(
 	if err != nil {
 		return RepositoryGraph{}, fmt.Errorf(
 			"construct forwarding-attempt store: %w",
+			err,
+		)
+	}
+	routeCooldowns, err := postgres.NewRouteCooldownStore(db)
+	if err != nil {
+		return RepositoryGraph{}, fmt.Errorf(
+			"construct route-cooldown store: %w",
 			err,
 		)
 	}
@@ -219,6 +227,7 @@ func NewRepositoryGraph(
 		UsageLedger:              usageLedger,
 		BillingRecovery:          usageLedger,
 		ForwardingAttempts:       forwardingAttempts,
+		RouteCooldowns:           routeCooldowns,
 		TelegramDeliveryAttempts: telegramDeliveryAttempts,
 
 		LLMRequestAtomicReservation:        atomicReservation,
@@ -265,6 +274,8 @@ func (g RepositoryGraph) Validate() error {
 		return fmt.Errorf("billing recovery store is nil")
 	case g.ForwardingAttempts == nil:
 		return fmt.Errorf("forwarding-attempt store is nil")
+	case g.RouteCooldowns == nil:
+		return fmt.Errorf("route-cooldown store is nil")
 	case g.TelegramDeliveryAttempts == nil:
 		return fmt.Errorf(
 			"Telegram delivery-attempt store is nil",

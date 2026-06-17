@@ -151,6 +151,7 @@ func TestForwardingStageRetriesOrderedFallback(t *testing.T) {
 		reservation,
 		transfer,
 		attempts,
+		&routeCooldownStoreStub{},
 		forwardingStageClock{now: validForwardingStageTime()},
 		forwarder,
 		mustValidRoutingPolicy(t),
@@ -244,6 +245,7 @@ func TestForwardingStageSkipsCapacityUnavailableCandidate(t *testing.T) {
 			return RouteReservationTransferResult{}, nil
 		}),
 		&forwardingAttemptStoreStub{},
+		&routeCooldownStoreStub{},
 		forwardingStageClock{now: validForwardingStageTime()},
 		forwardingExecutorFunc(func(
 			_ context.Context,
@@ -311,6 +313,7 @@ func TestForwardingStageReturnsRouteUnavailableAfterCapacityFallbacksExhausted(
 			return RouteReservationTransferResult{}, nil
 		}),
 		&forwardingAttemptStoreStub{},
+		&routeCooldownStoreStub{},
 		forwardingStageClock{now: validForwardingStageTime()},
 		forwardingExecutorFunc(func(
 			context.Context,
@@ -393,6 +396,7 @@ func TestForwardingStageDoesNotRetrySentNoResponse(t *testing.T) {
 			return RouteReservationTransferResult{}, nil
 		}),
 		&forwardingAttemptStoreStub{},
+		&routeCooldownStoreStub{},
 		forwardingStageClock{now: validForwardingStageTime()},
 		forwardingExecutorFunc(func(
 			context.Context,
@@ -488,6 +492,7 @@ func TestForwardingStageStopsAfterConfiguredMaximumCandidates(
 			return RouteReservationTransferResult{}, nil
 		}),
 		&forwardingAttemptStoreStub{},
+		&routeCooldownStoreStub{},
 		forwardingStageClock{now: validForwardingStageTime()},
 		forwardingExecutorFunc(func(
 			context.Context,
@@ -543,6 +548,7 @@ func TestForwardingStageUsesSeparateTimeoutForEachUpstreamAttempt(
 		}),
 		&routeReservationTransferStub{},
 		&forwardingAttemptStoreStub{},
+		&routeCooldownStoreStub{},
 		forwardingStageClock{now: validForwardingStageTime()},
 		forwardingExecutorFunc(func(
 			ctx context.Context,
@@ -870,6 +876,7 @@ func mustRetryTestForwardingStage(
 		reservation,
 		transfer,
 		&forwardingAttemptStoreStub{},
+		&routeCooldownStoreStub{},
 		forwardingStageClock{now: validForwardingStageTime()},
 		forwarder,
 		policy,

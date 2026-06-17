@@ -198,13 +198,13 @@
 
 ## 3.4. Durable cooldown
 
-* [ ] Добавить application port для изменения operational route state.
-* [ ] Атомарно сохранять cooldown и route event.
-* [ ] Применять разные cooldown durations по normalized failure category.
-* [ ] Auth error должен отключать route на configured cooldown.
-* [ ] Quota exceeded должен отличаться от temporary rate limit.
-* [ ] Истёкший cooldown должен снова делать route доступным.
-* [ ] Добавить recovery/cleanup истёкших cooldown records при необходимости.
+* [x] Добавить application port для изменения operational route state.
+* [x] Атомарно сохранять cooldown и route event.
+* [x] Применять разные cooldown durations по normalized failure category.
+* [x] Auth error должен отключать route на configured cooldown.
+* [x] Quota exceeded должен отличаться от temporary rate limit.
+* [x] Истёкший cooldown должен снова делать route доступным.
+* [x] Добавить recovery/cleanup истёкших cooldown records при необходимости.
 
 ## 3.5. Route events
 

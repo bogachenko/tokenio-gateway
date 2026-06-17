@@ -458,6 +458,7 @@ func TestNewForwardingStageRequiresDependencies(t *testing.T) {
 	)
 	validTransfer := &routeReservationTransferStub{}
 	validAttemptStore := &forwardingAttemptStoreStub{}
+	validCooldownStore := &routeCooldownStoreStub{}
 	validClock := forwardingStageClock{
 		now: validForwardingStageTime(),
 	}
@@ -476,6 +477,7 @@ func TestNewForwardingStageRequiresDependencies(t *testing.T) {
 		reservation AtomicReservation
 		transfer    RouteReservationTransfer
 		attempts    ports.ForwardingAttemptStore
+		cooldowns   ports.RouteCooldownStore
 		clock       ports.Clock
 		forwarder   ForwardingExecutor
 	}{
@@ -484,6 +486,7 @@ func TestNewForwardingStageRequiresDependencies(t *testing.T) {
 			reservation: validAtomicReservation,
 			transfer:    validTransfer,
 			attempts:    validAttemptStore,
+			cooldowns:   validCooldownStore,
 			clock:       validClock,
 			forwarder:   validForwarder,
 		},
@@ -492,6 +495,7 @@ func TestNewForwardingStageRequiresDependencies(t *testing.T) {
 			capacity:  validCapacity,
 			transfer:  validTransfer,
 			attempts:  validAttemptStore,
+			cooldowns: validCooldownStore,
 			clock:     validClock,
 			forwarder: validForwarder,
 		},
@@ -500,6 +504,7 @@ func TestNewForwardingStageRequiresDependencies(t *testing.T) {
 			capacity:    validCapacity,
 			reservation: validAtomicReservation,
 			attempts:    validAttemptStore,
+			cooldowns:   validCooldownStore,
 			clock:       validClock,
 			forwarder:   validForwarder,
 		},
@@ -508,6 +513,16 @@ func TestNewForwardingStageRequiresDependencies(t *testing.T) {
 			capacity:    validCapacity,
 			reservation: validAtomicReservation,
 			transfer:    validTransfer,
+			cooldowns:   validCooldownStore,
+			clock:       validClock,
+			forwarder:   validForwarder,
+		},
+		{
+			name:        "cooldowns",
+			capacity:    validCapacity,
+			reservation: validAtomicReservation,
+			transfer:    validTransfer,
+			attempts:    validAttemptStore,
 			clock:       validClock,
 			forwarder:   validForwarder,
 		},
@@ -525,6 +540,7 @@ func TestNewForwardingStageRequiresDependencies(t *testing.T) {
 			reservation: validAtomicReservation,
 			transfer:    validTransfer,
 			attempts:    validAttemptStore,
+			cooldowns:   validCooldownStore,
 			clock:       validClock,
 		},
 	}
@@ -536,6 +552,7 @@ func TestNewForwardingStageRequiresDependencies(t *testing.T) {
 				test.reservation,
 				test.transfer,
 				test.attempts,
+				test.cooldowns,
 				test.clock,
 				test.forwarder,
 				mustValidRoutingPolicy(t),
@@ -564,6 +581,7 @@ func mustForwardingStage(
 		reservation,
 		&routeReservationTransferStub{},
 		&forwardingAttemptStoreStub{},
+		&routeCooldownStoreStub{},
 		forwardingStageClock{
 			now: validForwardingStageTime(),
 		},

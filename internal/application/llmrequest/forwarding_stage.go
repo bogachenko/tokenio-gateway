@@ -50,6 +50,7 @@ type ForwardingStage struct {
 	reservation AtomicReservation
 	transfer    RouteReservationTransfer
 	attempts    ports.ForwardingAttemptStore
+	cooldowns   ports.RouteCooldownStore
 	clock       ports.Clock
 	forwarder   ForwardingExecutor
 	policy      RoutingPolicy
@@ -69,6 +70,7 @@ func NewForwardingStage(
 	reservation AtomicReservation,
 	transfer RouteReservationTransfer,
 	attempts ports.ForwardingAttemptStore,
+	cooldowns ports.RouteCooldownStore,
 	clock ports.Clock,
 	forwarder ForwardingExecutor,
 	policy RoutingPolicy,
@@ -78,6 +80,7 @@ func NewForwardingStage(
 		reservation == nil ||
 		transfer == nil ||
 		attempts == nil ||
+		cooldowns == nil ||
 		clock == nil ||
 		forwarder == nil ||
 		waiter == nil {
@@ -92,6 +95,7 @@ func NewForwardingStage(
 		reservation: reservation,
 		transfer:    transfer,
 		attempts:    attempts,
+		cooldowns:   cooldowns,
 		clock:       clock,
 		forwarder:   forwarder,
 		policy:      policy,
@@ -105,7 +109,8 @@ func (s *ForwardingStage) Execute(
 	admission BillingAdmissionResult,
 ) (result ForwardedRequest, err error) {
 	if s == nil || s.capacity == nil || s.reservation == nil ||
-		s.transfer == nil || s.attempts == nil || s.clock == nil ||
+		s.transfer == nil || s.attempts == nil || s.cooldowns == nil ||
+		s.clock == nil ||
 		s.forwarder == nil {
 		return ForwardedRequest{}, ErrDependencyRequired
 	}
@@ -426,6 +431,13 @@ func (s *ForwardingStage) executeLeasedCandidate(
 				ErrStageContractViolation,
 			),
 		)
+	}
+	if cooldownErr := s.persistRouteCooldown(
+		ctx,
+		prepared,
+		terminal,
+	); cooldownErr != nil {
+		return result, errors.Join(forwardErr, cooldownErr)
 	}
 	result.RetryAllowed = forwardingAttemptAllowsRetry(ctx, terminal)
 	result.FailureKind = terminal.FailureKind

@@ -156,6 +156,9 @@ func validApplicationGraphInputs(
 		ForwardingAttempts: &struct {
 			ports.ForwardingAttemptStore
 		}{},
+		RouteCooldowns: &struct {
+			ports.RouteCooldownStore
+		}{},
 		TelegramDeliveryAttempts: &struct {
 			ports.TelegramDeliveryAttemptStore
 		}{},
