@@ -370,6 +370,8 @@ func TestLLMRouterMapsApplicationErrors(t *testing.T) {
 		{"ledger unresolved usage", ledgerapp.ErrUnresolvedUsage, http.StatusConflict, domain.ErrorCodeUnresolvedUsage, "Previous usage requires resolution"},
 		{"billing identity unavailable", billingapp.ErrBillingIdentityUnavailable, http.StatusBadGateway, domain.ErrorCodeBillingUnavailable, "Billing service is unavailable"},
 		{"billing unavailable", billingapp.ErrBillingUnavailable, http.StatusBadGateway, domain.ErrorCodeBillingUnavailable, "Billing service is unavailable"},
+		{"billing usage store unavailable", billingapp.ErrBillingStoreUnavailable, http.StatusServiceUnavailable, domain.ErrorCodeUsageStoreUnavailable, "Usage store is unavailable"},
+		{"ledger usage store unavailable", ledgerapp.ErrUsageStoreUnavailable, http.StatusServiceUnavailable, domain.ErrorCodeUsageStoreUnavailable, "Usage store is unavailable"},
 		{"timeout", context.DeadlineExceeded, http.StatusGatewayTimeout, domain.ErrorCodeUpstreamUnavailable, "Upstream request timed out"},
 		{"internal", errors.New("postgres sk_live_secret"), http.StatusInternalServerError, domain.ErrorCodeInternalError, "Internal error"},
 	}

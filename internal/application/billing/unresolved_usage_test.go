@@ -284,3 +284,58 @@ func TestAdmissionNormalizesBillingDependencyFailures(
 		})
 	}
 }
+
+type failingExposureLedger struct {
+	resolvedLedger
+}
+
+func (failingExposureLedger) LoadExposure(
+	context.Context,
+	string,
+	string,
+) (ports.UsageExposureSnapshot, error) {
+	return ports.UsageExposureSnapshot{}, errors.New("usage store secret")
+}
+
+func TestAdmissionNormalizesUsageStoreFailureAtApplicationBoundary(
+	t *testing.T,
+) {
+	service, err := NewAdmissionService(
+		unresolvedIdentity{},
+		unresolvedBalance{},
+		failingExposureLedger{},
+		AdmissionConfig{},
+	)
+	if err != nil {
+		t.Fatalf("NewAdmissionService: %v", err)
+	}
+
+	_, err = service.Admit(
+		context.Background(),
+		AdmissionInput{
+			UserID:               "user-1",
+			BillingSubjectUserID: "billing-1",
+			RequiredReserveCents: 1,
+			Currency:             "RUB",
+		},
+	)
+	if !errors.Is(err, ErrBillingStoreUnavailable) {
+		t.Fatalf("error = %v, want ErrBillingStoreUnavailable", err)
+	}
+
+	failure, ok := ports.AsApplicationError(err)
+	if !ok {
+		t.Fatal("billing usage-store error is not normalized")
+	}
+	if failure.Code != domain.ErrorCodeUsageStoreUnavailable ||
+		failure.SafeMessage != "Usage store is unavailable" ||
+		failure.Category != ports.FailureCategoryUnavailable ||
+		failure.Retryability != ports.RetryabilityRetryable ||
+		failure.RequestStage != ports.RequestStagePreForwarding ||
+		failure.Cause == nil {
+		t.Fatalf("failure = %+v", failure)
+	}
+	if strings.Contains(failure.Error(), "secret") {
+		t.Fatalf("unsafe error leaked: %q", failure.Error())
+	}
+}

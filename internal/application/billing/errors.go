@@ -25,7 +25,14 @@ var (
 		RequestStage: ports.RequestStagePreForwarding,
 		Cause:        errors.New("billing unavailable"),
 	}
-	ErrBillingStoreUnavailable       = errors.New("billing store unavailable")
+	ErrBillingStoreUnavailable = &ports.ApplicationError{
+		Code:         domain.ErrorCodeUsageStoreUnavailable,
+		SafeMessage:  "Usage store is unavailable",
+		Category:     ports.FailureCategoryUnavailable,
+		Retryability: ports.RetryabilityRetryable,
+		RequestStage: ports.RequestStagePreForwarding,
+		Cause:        errors.New("billing store unavailable"),
+	}
 	ErrBillingStoreContractViolation = errors.New("billing store contract violation")
 	ErrUnresolvedUsage               = &ports.ApplicationError{
 		Code:         domain.ErrorCodeUnresolvedUsage,
