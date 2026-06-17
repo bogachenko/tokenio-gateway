@@ -170,7 +170,7 @@ func TestURLSafetyAndRedirectNotFollowed(t *testing.T) {
 	req.Path = "/v1/chat/completions?provider_option=value"
 	_, err := adapter.Forward(t.Context(), req)
 	var failure *forwarding.Failure
-	if !errors.As(err, &failure) || failure.Kind != forwarding.FailureKindUnexpectedResponse || failure.AttemptState != forwarding.AttemptStateResponseReceived {
+	if !errors.As(err, &failure) || failure.Kind != forwarding.FailureKindMalformedResponse || failure.AttemptState != forwarding.AttemptStateResponseReceived {
 		t.Fatalf("failure=%#v err=%v", failure, err)
 	}
 	if seenURL != "https://provider.example/api/v1/chat/completions?provider_option=value" {
@@ -303,7 +303,7 @@ func TestSuccessfulResponseContract(t *testing.T) {
 }
 
 func TestNonSuccessClassificationAndBoundedBody(t *testing.T) {
-	cases := map[int]forwarding.FailureKind{300: forwarding.FailureKindUnexpectedResponse, 307: forwarding.FailureKindUnexpectedResponse, 400: forwarding.FailureKindRequestError, 401: forwarding.FailureKindAuthError, 403: forwarding.FailureKindAuthError, 404: forwarding.FailureKindRequestError, 409: forwarding.FailureKindRequestError, 429: forwarding.FailureKindRateLimited, 500: forwarding.FailureKindServerError, 502: forwarding.FailureKindServerError, 503: forwarding.FailureKindServerError, 599: forwarding.FailureKindServerError}
+	cases := map[int]forwarding.FailureKind{300: forwarding.FailureKindMalformedResponse, 307: forwarding.FailureKindMalformedResponse, 400: forwarding.FailureKindRequestError, 401: forwarding.FailureKindAuthError, 403: forwarding.FailureKindAuthError, 404: forwarding.FailureKindRequestError, 409: forwarding.FailureKindRequestError, 429: forwarding.FailureKindRateLimited, 500: forwarding.FailureKindProvider5XX, 502: forwarding.FailureKindProvider5XX, 503: forwarding.FailureKindProvider5XX, 599: forwarding.FailureKindProvider5XX}
 	for status, kind := range cases {
 		t.Run(fmt.Sprint(status), func(t *testing.T) {
 			closeBody := &closeTrackingBody{Reader: bytes.NewReader([]byte("provider raw error body"))}
@@ -339,7 +339,7 @@ func TestRoundTripResponseAndErrorIsResponseReceived(t *testing.T) {
 	if !errors.As(err, &failure) {
 		t.Fatalf("expected forwarding failure: %v", err)
 	}
-	if failure.Kind != forwarding.FailureKindServerError || failure.AttemptState != forwarding.AttemptStateResponseReceived || !failure.RouteRetryCandidate {
+	if failure.Kind != forwarding.FailureKindProvider5XX || failure.AttemptState != forwarding.AttemptStateResponseReceived || !failure.RouteRetryCandidate {
 		t.Fatalf("failure=%#v", failure)
 	}
 	if !errors.Is(err, underlying) {
@@ -362,7 +362,11 @@ func TestNetworkFailureAttemptStatesAndSingleAttempt(t *testing.T) {
 		cancel()
 		_, err := adapter.Forward(ctx, forwardReq(domain.EndpointChat))
 		var failure *forwarding.Failure
-		if !errors.As(err, &failure) || failure.AttemptState != forwarding.AttemptStateNotSent || !failure.RouteRetryCandidate || calls != 0 {
+		if !errors.As(err, &failure) ||
+			failure.Kind != forwarding.FailureKindRequestError ||
+			failure.AttemptState != forwarding.AttemptStateNotSent ||
+			failure.RouteRetryCandidate ||
+			calls != 0 {
 			t.Fatalf("failure=%#v calls=%d err=%v", failure, calls, err)
 		}
 	})
@@ -371,7 +375,12 @@ func TestNetworkFailureAttemptStatesAndSingleAttempt(t *testing.T) {
 		adapter := newTestAdapter(t, roundTripFunc(func(r *http.Request) (*http.Response, error) { calls++; return nil, underlying }), StatusClassifier{})
 		_, err := adapter.Forward(t.Context(), forwardReq(domain.EndpointChat))
 		var failure *forwarding.Failure
-		if !errors.As(err, &failure) || failure.AttemptState != forwarding.AttemptStateNotSent || !failure.RouteRetryCandidate || calls != 1 || !errors.Is(err, underlying) {
+		if !errors.As(err, &failure) ||
+			failure.Kind != forwarding.FailureKindConnectionError ||
+			failure.AttemptState != forwarding.AttemptStateNotSent ||
+			!failure.RouteRetryCandidate ||
+			calls != 1 ||
+			!errors.Is(err, underlying) {
 			t.Fatalf("failure=%#v calls=%d err=%v", failure, calls, err)
 		}
 	})
@@ -384,7 +393,11 @@ func TestNetworkFailureAttemptStatesAndSingleAttempt(t *testing.T) {
 		}), StatusClassifier{})
 		_, err := adapter.Forward(t.Context(), forwardReq(domain.EndpointChat))
 		var failure *forwarding.Failure
-		if !errors.As(err, &failure) || failure.AttemptState != forwarding.AttemptStateSentNoResponse || failure.RouteRetryCandidate || calls != 1 {
+		if !errors.As(err, &failure) ||
+			failure.Kind != forwarding.FailureKindUncertainProcessing ||
+			failure.AttemptState != forwarding.AttemptStateSentNoResponse ||
+			failure.RouteRetryCandidate ||
+			calls != 1 {
 			t.Fatalf("failure=%#v calls=%d err=%v", failure, calls, err)
 		}
 	})
@@ -397,7 +410,11 @@ func TestNetworkFailureAttemptStatesAndSingleAttempt(t *testing.T) {
 		}), StatusClassifier{})
 		_, err := adapter.Forward(t.Context(), forwardReq(domain.EndpointChat))
 		var failure *forwarding.Failure
-		if !errors.As(err, &failure) || failure.AttemptState != forwarding.AttemptStateSentNoResponse || failure.RouteRetryCandidate || calls != 1 {
+		if !errors.As(err, &failure) ||
+			failure.Kind != forwarding.FailureKindUncertainProcessing ||
+			failure.AttemptState != forwarding.AttemptStateSentNoResponse ||
+			failure.RouteRetryCandidate ||
+			calls != 1 {
 			t.Fatalf("failure=%#v calls=%d err=%v", failure, calls, err)
 		}
 	})
@@ -421,7 +438,7 @@ func TestResponseSizeLimit(t *testing.T) {
 		}), StatusClassifier{}, func(c *Config) { c.MaxResponseBodyBytes = 5 })
 		resp, err := adapter.Forward(t.Context(), forwardReq(domain.EndpointChat))
 		var failure *forwarding.Failure
-		if !errors.Is(err, ErrUpstreamResponseTooLarge) || !errors.As(err, &failure) || failure.Kind != forwarding.FailureKindResponseTooLarge || !reflect.DeepEqual(resp, ports.ForwardResponse{}) || !closeBody.closed {
+		if !errors.Is(err, ErrUpstreamResponseTooLarge) || !errors.As(err, &failure) || failure.Kind != forwarding.FailureKindMalformedResponse || !reflect.DeepEqual(resp, ports.ForwardResponse{}) || !closeBody.closed {
 			t.Fatalf("resp=%#v failure=%#v err=%v closed=%t", resp, failure, err, closeBody.closed)
 		}
 	})
@@ -487,5 +504,80 @@ func TestAdapterPropagatesClassifiedRetryAfter(t *testing.T) {
 			"retry-after = %s",
 			failure.FailureRetryAfter().Delay(),
 		)
+	}
+}
+
+type timeoutNetworkError struct{}
+
+func (timeoutNetworkError) Error() string   { return "network timeout" }
+func (timeoutNetworkError) Timeout() bool   { return true }
+func (timeoutNetworkError) Temporary() bool { return true }
+
+func TestNetworkFailureKinds(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want forwarding.FailureKind
+	}{
+		{
+			name: "deadline exceeded",
+			err:  context.DeadlineExceeded,
+			want: forwarding.FailureKindTimeout,
+		},
+		{
+			name: "typed network timeout",
+			err:  timeoutNetworkError{},
+			want: forwarding.FailureKindTimeout,
+		},
+		{
+			name: "connection error",
+			err:  errors.New("connection refused"),
+			want: forwarding.FailureKindConnectionError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			adapter := newTestAdapter(
+				t,
+				roundTripFunc(func(*http.Request) (*http.Response, error) {
+					return nil, test.err
+				}),
+				StatusClassifier{},
+			)
+			_, err := adapter.Forward(
+				t.Context(),
+				forwardReq(domain.EndpointChat),
+			)
+			var failure *forwarding.Failure
+			if !errors.As(err, &failure) ||
+				failure.Kind != test.want ||
+				failure.AttemptState != forwarding.AttemptStateNotSent ||
+				!failure.RouteRetryCandidate {
+				t.Fatalf("failure=%#v err=%v", failure, err)
+			}
+		})
+	}
+}
+
+func TestNilRoundTripResultIsMalformedResponse(t *testing.T) {
+	adapter := newTestAdapter(
+		t,
+		roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return nil, nil
+		}),
+		StatusClassifier{},
+	)
+
+	_, err := adapter.Forward(
+		t.Context(),
+		forwardReq(domain.EndpointChat),
+	)
+	var failure *forwarding.Failure
+	if !errors.As(err, &failure) ||
+		failure.Kind != forwarding.FailureKindMalformedResponse ||
+		failure.AttemptState != forwarding.AttemptStateNotSent ||
+		!failure.RouteRetryCandidate {
+		t.Fatalf("failure=%#v err=%v", failure, err)
 	}
 }

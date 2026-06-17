@@ -11,9 +11,9 @@ import (
 
 func TestFailureContract(t *testing.T) {
 	cause := errors.New("internal cause")
-	err := NewFailure(FailureKindServerError, 502, AttemptStateResponseReceived, true, cause)
+	err := NewFailure(FailureKindProvider5XX, 502, AttemptStateResponseReceived, true, cause)
 	var failure *Failure
-	if !errors.As(err, &failure) || failure.Kind != FailureKindServerError || failure.AttemptState != AttemptStateResponseReceived || !failure.RouteRetryCandidate {
+	if !errors.As(err, &failure) || failure.Kind != FailureKindProvider5XX || failure.AttemptState != AttemptStateResponseReceived || !failure.RouteRetryCandidate {
 		t.Fatalf("unexpected failure: %#v", failure)
 	}
 	if !errors.Is(err, cause) {
@@ -33,10 +33,11 @@ func TestStableValues(t *testing.T) {
 		FailureKindRateLimited:                 "rate_limited",
 		FailureKindQuotaExceeded:               "quota_exceeded",
 		FailureKindInsufficientResellerBalance: "insufficient_reseller_balance",
-		FailureKindServerError:                 "server_error",
-		FailureKindUnavailable:                 "unavailable",
-		FailureKindUnexpectedResponse:          "unexpected_response",
-		FailureKindResponseTooLarge:            "response_too_large",
+		FailureKindProvider5XX:                 "provider_5xx",
+		FailureKindTimeout:                     "timeout",
+		FailureKindConnectionError:             "connection_error",
+		FailureKindUncertainProcessing:         "uncertain_processing",
+		FailureKindMalformedResponse:           "malformed_response",
 		FailureKindInvalidAdapterInput:         "invalid_adapter_input",
 	}
 	for got, want := range kinds {

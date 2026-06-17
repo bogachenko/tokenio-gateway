@@ -44,7 +44,7 @@ func (StatusClassifier) Classify(
 		}
 	case statusCode >= 500 && statusCode <= 599:
 		classification := forwarding.Classification{
-			Kind:                forwarding.FailureKindServerError,
+			Kind:                forwarding.FailureKindProvider5XX,
 			RouteRetryCandidate: true,
 		}
 		if statusCode == http.StatusServiceUnavailable {
@@ -53,11 +53,11 @@ func (StatusClassifier) Classify(
 		return classification
 	case statusCode >= 300 && statusCode <= 399:
 		return forwarding.Classification{
-			Kind: forwarding.FailureKindUnexpectedResponse,
+			Kind: forwarding.FailureKindMalformedResponse,
 		}
 	default:
 		return forwarding.Classification{
-			Kind: forwarding.FailureKindUnexpectedResponse,
+			Kind: forwarding.FailureKindMalformedResponse,
 		}
 	}
 }

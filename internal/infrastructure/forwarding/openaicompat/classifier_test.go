@@ -10,17 +10,17 @@ import (
 
 func TestStatusClassifier(t *testing.T) {
 	cases := map[int]forwarding.Classification{
-		300: {Kind: forwarding.FailureKindUnexpectedResponse},
-		307: {Kind: forwarding.FailureKindUnexpectedResponse},
+		300: {Kind: forwarding.FailureKindMalformedResponse},
+		307: {Kind: forwarding.FailureKindMalformedResponse},
 		400: {Kind: forwarding.FailureKindRequestError},
 		401: {Kind: forwarding.FailureKindAuthError, RouteRetryCandidate: true},
 		403: {Kind: forwarding.FailureKindAuthError, RouteRetryCandidate: true},
 		404: {Kind: forwarding.FailureKindRequestError},
 		409: {Kind: forwarding.FailureKindRequestError},
 		429: {Kind: forwarding.FailureKindRateLimited, RouteRetryCandidate: true},
-		500: {Kind: forwarding.FailureKindServerError, RouteRetryCandidate: true},
-		599: {Kind: forwarding.FailureKindServerError, RouteRetryCandidate: true},
-		102: {Kind: forwarding.FailureKindUnexpectedResponse},
+		500: {Kind: forwarding.FailureKindProvider5XX, RouteRetryCandidate: true},
+		599: {Kind: forwarding.FailureKindProvider5XX, RouteRetryCandidate: true},
+		102: {Kind: forwarding.FailureKindMalformedResponse},
 	}
 	for status, want := range cases {
 		if got := (StatusClassifier{}).Classify(status, nil, []byte("ignored"), true); got != want {

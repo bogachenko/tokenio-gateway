@@ -3,8 +3,10 @@ package openaicompat
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptrace"
 	"net/url"
@@ -57,7 +59,19 @@ func NewAdapter(config Config, classifier ErrorClassifier) (*Adapter, error) {
 
 func (a *Adapter) Forward(ctx context.Context, request ports.ForwardRequest) (ports.ForwardResponse, error) {
 	if err := ctx.Err(); err != nil {
-		return ports.ForwardResponse{}, forwarding.NewFailure(forwarding.FailureKindUnavailable, 0, forwarding.AttemptStateNotSent, true, err)
+		kind := forwarding.FailureKindRequestError
+		retry := false
+		if errors.Is(err, context.DeadlineExceeded) {
+			kind = forwarding.FailureKindTimeout
+			retry = true
+		}
+		return ports.ForwardResponse{}, forwarding.NewFailure(
+			kind,
+			0,
+			forwarding.AttemptStateNotSent,
+			retry,
+			err,
+		)
 	}
 	if err := a.validateRouteAndRequest(request); err != nil {
 		return ports.ForwardResponse{}, err
@@ -90,15 +104,30 @@ func (a *Adapter) Forward(ctx context.Context, request ports.ForwardRequest) (po
 		return a.handleResponse(resp, err)
 	}
 	if err != nil {
-		attemptState := forwarding.AttemptStateNotSent
-		routeRetryCandidate := true
 		if writeAttempted.Load() {
-			attemptState = forwarding.AttemptStateSentNoResponse
-			routeRetryCandidate = false
+			return ports.ForwardResponse{}, forwarding.NewFailure(
+				forwarding.FailureKindUncertainProcessing,
+				0,
+				forwarding.AttemptStateSentNoResponse,
+				false,
+				err,
+			)
 		}
-		return ports.ForwardResponse{}, forwarding.NewFailure(forwarding.FailureKindUnavailable, 0, attemptState, routeRetryCandidate, err)
+		return ports.ForwardResponse{}, forwarding.NewFailure(
+			forwardingTransportFailureKind(err),
+			0,
+			forwarding.AttemptStateNotSent,
+			true,
+			err,
+		)
 	}
-	return ports.ForwardResponse{}, forwarding.NewFailure(forwarding.FailureKindUnavailable, 0, forwarding.AttemptStateNotSent, true, nil)
+	return ports.ForwardResponse{}, forwarding.NewFailure(
+		forwarding.FailureKindMalformedResponse,
+		0,
+		forwarding.AttemptStateNotSent,
+		true,
+		nil,
+	)
 }
 
 func (a *Adapter) handleResponse(resp *http.Response, cause error) (ports.ForwardResponse, error) {
@@ -109,14 +138,14 @@ func (a *Adapter) handleResponse(resp *http.Response, cause error) (ports.Forwar
 
 	bodyBytes, truncated, readErr := readBounded(resp.Body, a.maxResponseBodyBytes)
 	if readErr != nil {
-		return ports.ForwardResponse{}, forwarding.NewFailure(forwarding.FailureKindUnavailable, resp.StatusCode, forwarding.AttemptStateResponseReceived, false, readErr)
+		return ports.ForwardResponse{}, forwarding.NewFailure(forwarding.FailureKindMalformedResponse, resp.StatusCode, forwarding.AttemptStateResponseReceived, false, readErr)
 	}
 	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
 		if cause != nil {
-			return ports.ForwardResponse{}, forwarding.NewFailure(forwarding.FailureKindUnavailable, resp.StatusCode, forwarding.AttemptStateResponseReceived, false, cause)
+			return ports.ForwardResponse{}, forwarding.NewFailure(forwarding.FailureKindMalformedResponse, resp.StatusCode, forwarding.AttemptStateResponseReceived, false, cause)
 		}
 		if truncated {
-			failure := forwarding.NewFailure(forwarding.FailureKindResponseTooLarge, resp.StatusCode, forwarding.AttemptStateResponseReceived, false, ErrUpstreamResponseTooLarge)
+			failure := forwarding.NewFailure(forwarding.FailureKindMalformedResponse, resp.StatusCode, forwarding.AttemptStateResponseReceived, false, ErrUpstreamResponseTooLarge)
 			return ports.ForwardResponse{}, fmt.Errorf("%w: %w", ErrUpstreamResponseTooLarge, failure)
 		}
 		return ports.ForwardResponse{StatusCode: resp.StatusCode, Headers: cloneHeaders(resp.Header), Body: bodyBytes}, nil
@@ -214,3 +243,14 @@ func (r *attemptReadCloser) Read(p []byte) (int, error) {
 }
 
 func (r *attemptReadCloser) Close() error { return nil }
+
+func forwardingTransportFailureKind(err error) forwarding.FailureKind {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return forwarding.FailureKindTimeout
+	}
+	var networkError net.Error
+	if errors.As(err, &networkError) && networkError.Timeout() {
+		return forwarding.FailureKindTimeout
+	}
+	return forwarding.FailureKindConnectionError
+}

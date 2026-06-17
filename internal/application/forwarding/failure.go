@@ -16,10 +16,11 @@ const (
 	FailureKindRateLimited                 FailureKind = "rate_limited"
 	FailureKindQuotaExceeded               FailureKind = "quota_exceeded"
 	FailureKindInsufficientResellerBalance FailureKind = "insufficient_reseller_balance"
-	FailureKindServerError                 FailureKind = "server_error"
-	FailureKindUnavailable                 FailureKind = "unavailable"
-	FailureKindUnexpectedResponse          FailureKind = "unexpected_response"
-	FailureKindResponseTooLarge            FailureKind = "response_too_large"
+	FailureKindProvider5XX                 FailureKind = "provider_5xx"
+	FailureKindTimeout                     FailureKind = "timeout"
+	FailureKindConnectionError             FailureKind = "connection_error"
+	FailureKindUncertainProcessing         FailureKind = "uncertain_processing"
+	FailureKindMalformedResponse           FailureKind = "malformed_response"
 	FailureKindInvalidAdapterInput         FailureKind = "invalid_adapter_input"
 )
 
