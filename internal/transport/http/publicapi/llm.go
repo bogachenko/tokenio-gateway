@@ -174,17 +174,6 @@ func writeLLMApplicationError(
 	switch {
 	case errors.Is(err, ledgerapp.ErrInsufficientFunds):
 		writeError(writer, requestID, http.StatusPaymentRequired, domain.ErrorCodeInsufficientFunds, "Insufficient balance")
-	case errors.Is(err, llmrequestapp.ErrIdempotencyKeyReused),
-		errors.Is(err, ledgerapp.ErrIdempotencyKeyReused),
-		errors.Is(err, llmrequestapp.ErrLocalRequestConflict),
-		errors.Is(err, ledgerapp.ErrLocalRequestConflict):
-		writeError(writer, requestID, http.StatusConflict, domain.ErrorCodeIdempotencyKeyReused, "Idempotency key conflicts with an existing request")
-	case errors.Is(err, llmrequestapp.ErrRequestInProgress),
-		errors.Is(err, ledgerapp.ErrRequestInProgress):
-		writeError(writer, requestID, http.StatusConflict, domain.ErrorCodeRequestInProgress, "Request is already in progress")
-	case errors.Is(err, llmrequestapp.ErrIdempotencyReplayNotAvailable),
-		errors.Is(err, ledgerapp.ErrIdempotencyReplayNotAvailable):
-		writeError(writer, requestID, http.StatusConflict, domain.ErrorCodeIdempotencyReplayNotAvailable, "Idempotency replay is not available")
 	case errors.Is(err, llmrequestapp.ErrUnresolvedUsage),
 		errors.Is(err, ledgerapp.ErrUnresolvedUsage):
 		writeError(writer, requestID, http.StatusConflict, domain.ErrorCodeUnresolvedUsage, "Previous usage requires resolution")
