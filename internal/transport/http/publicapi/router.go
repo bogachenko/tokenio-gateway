@@ -12,6 +12,7 @@ import (
 	modelcatalogapp "github.com/bogachenko/tokenio-gateway/internal/application/modelcatalog"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
+	"github.com/bogachenko/tokenio-gateway/internal/transport/httptransport"
 )
 
 const (
@@ -215,7 +216,7 @@ func writeAuthenticationError(
 	writeError(
 		writer,
 		requestID,
-		statusForApplicationError(applicationError),
+		httptransport.StatusForApplicationError(applicationError),
 		applicationError.Code,
 		applicationError.SafeMessage,
 	)
@@ -241,36 +242,10 @@ func writeCatalogError(
 	writeError(
 		writer,
 		requestID,
-		statusForApplicationError(applicationError),
+		httptransport.StatusForApplicationError(applicationError),
 		applicationError.Code,
 		applicationError.SafeMessage,
 	)
-}
-
-func statusForApplicationError(
-	applicationError *ports.ApplicationError,
-) int {
-	if applicationError == nil {
-		return http.StatusInternalServerError
-	}
-	switch applicationError.Category {
-	case ports.FailureCategoryInvalidRequest:
-		return http.StatusBadRequest
-	case ports.FailureCategoryUnauthorized:
-		return http.StatusUnauthorized
-	case ports.FailureCategoryForbidden:
-		return http.StatusForbidden
-	case ports.FailureCategoryPaymentRequired:
-		return http.StatusPaymentRequired
-	case ports.FailureCategoryConflict:
-		return http.StatusConflict
-	case ports.FailureCategoryDependencyUnavailable:
-		return http.StatusBadGateway
-	case ports.FailureCategoryUnavailable:
-		return http.StatusServiceUnavailable
-	default:
-		return http.StatusInternalServerError
-	}
 }
 
 type errorResponse struct {

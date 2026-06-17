@@ -365,6 +365,11 @@ func TestProvisioningApplicationErrorMapping(
 			wantStatus: http.StatusInternalServerError,
 			wantCode:   domain.ErrorCodeProvisioningCryptoUnavailable,
 		},
+		{
+			err:        application.ErrInternal,
+			wantStatus: http.StatusInternalServerError,
+			wantCode:   domain.ErrorCodeInternalError,
+		},
 	}
 
 	for _, test := range tests {

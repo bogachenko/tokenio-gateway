@@ -13,6 +13,7 @@ import (
 	application "github.com/bogachenko/tokenio-gateway/internal/application/provisioning"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
+	"github.com/bogachenko/tokenio-gateway/internal/transport/httptransport"
 )
 
 const (
@@ -349,54 +350,8 @@ func writeApplicationError(
 	requestID string,
 	err error,
 ) {
-	switch {
-	case errors.Is(
-		err,
-		application.ErrInvalidRequest,
-	):
-		writeProvisioningInvalidRequest(
-			writer,
-			requestID,
-		)
-	case errors.Is(err, application.ErrConflict):
-		writeError(
-			writer,
-			requestID,
-			http.StatusConflict,
-			domain.ErrorCodeProvisioningConflict,
-			"Provisioning request conflicts with existing state",
-		)
-	case errors.Is(err, application.ErrExpired):
-		writeError(
-			writer,
-			requestID,
-			http.StatusGone,
-			domain.ErrorCodeProvisioningExpired,
-			"Provisioning delivery window has expired",
-		)
-	case errors.Is(
-		err,
-		application.ErrStoreUnavailable,
-	):
-		writeError(
-			writer,
-			requestID,
-			http.StatusServiceUnavailable,
-			domain.ErrorCodeProvisioningStoreUnavailable,
-			"Provisioning store is unavailable",
-		)
-	case errors.Is(
-		err,
-		application.ErrCryptoUnavailable,
-	):
-		writeError(
-			writer,
-			requestID,
-			http.StatusInternalServerError,
-			domain.ErrorCodeProvisioningCryptoUnavailable,
-			"Provisioning encryption is unavailable",
-		)
-	default:
+	applicationError, ok := ports.AsApplicationError(err)
+	if !ok {
 		writeError(
 			writer,
 			requestID,
@@ -404,7 +359,15 @@ func writeApplicationError(
 			domain.ErrorCodeInternalError,
 			"Internal error",
 		)
+		return
 	}
+	writeError(
+		writer,
+		requestID,
+		httptransport.StatusForApplicationError(applicationError),
+		applicationError.Code,
+		applicationError.SafeMessage,
+	)
 }
 
 func methodNotAllowed(

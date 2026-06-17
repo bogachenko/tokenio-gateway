@@ -162,7 +162,7 @@ func writeLLMApplicationError(
 		writeError(
 			writer,
 			requestID,
-			statusForApplicationError(applicationError),
+			httptransport.StatusForApplicationError(applicationError),
 			applicationError.Code,
 			applicationError.SafeMessage,
 		)
