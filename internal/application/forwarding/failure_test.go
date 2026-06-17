@@ -84,8 +84,9 @@ func TestRetryAfterContract(t *testing.T) {
 		delay,
 		errors.New("internal"),
 	)
-	if failure.FailureRetryAfter().Delay() != 3*time.Second ||
-		!failure.FailureRetryAfter().At().IsZero() {
+	if !failure.FailureRetryAfterPresent() ||
+		failure.FailureRetryAfterDelay() != 3*time.Second ||
+		!failure.FailureRetryAfterTime().IsZero() {
 		t.Fatalf("retry-after = %#v", failure.FailureRetryAfter())
 	}
 
@@ -98,6 +99,14 @@ func TestRetryAfterContract(t *testing.T) {
 		absolute.At().Location() != time.UTC ||
 		absolute.Delay() != 0 {
 		t.Fatalf("absolute retry-after = %#v", absolute)
+	}
+
+	zero, err := NewRetryAfterDelay(0)
+	if err != nil {
+		t.Fatalf("NewRetryAfterDelay zero: %v", err)
+	}
+	if zero.IsZero() {
+		t.Fatal("explicit zero retry-after lost presence")
 	}
 
 	if _, err := NewRetryAfterDelay(-time.Second); !errors.Is(

@@ -35,6 +35,16 @@ type ForwardingFailure interface {
 	FailureRouteRetryCandidate() bool
 }
 
+type ForwardingRetryAfter interface {
+	FailureRetryAfterPresent() bool
+	FailureRetryAfterDelay() time.Duration
+	FailureRetryAfterTime() time.Time
+}
+
+type RetryWaiter interface {
+	Wait(context.Context, time.Duration) error
+}
+
 type ForwardingStage struct {
 	capacity    ports.RouteCapacityManager
 	reservation AtomicReservation
@@ -43,6 +53,7 @@ type ForwardingStage struct {
 	clock       ports.Clock
 	forwarder   ForwardingExecutor
 	policy      RoutingPolicy
+	waiter      RetryWaiter
 }
 
 type ForwardedRequest struct {
@@ -61,13 +72,15 @@ func NewForwardingStage(
 	clock ports.Clock,
 	forwarder ForwardingExecutor,
 	policy RoutingPolicy,
+	waiter RetryWaiter,
 ) (*ForwardingStage, error) {
 	if capacity == nil ||
 		reservation == nil ||
 		transfer == nil ||
 		attempts == nil ||
 		clock == nil ||
-		forwarder == nil {
+		forwarder == nil ||
+		waiter == nil {
 		return nil, ErrDependencyRequired
 	}
 	if policy.UpstreamTimeout() <= 0 ||
@@ -82,6 +95,7 @@ func NewForwardingStage(
 		clock:       clock,
 		forwarder:   forwarder,
 		policy:      policy,
+		waiter:      waiter,
 	}, nil
 }
 
@@ -198,6 +212,26 @@ func (s *ForwardingStage) Execute(
 		if err := ctx.Err(); err != nil {
 			return ForwardedRequest{}, errors.Join(attemptErr, err)
 		}
+		if index+1 < len(candidates) {
+			delay, delayErr := s.retryDelay(
+				attemptResult,
+				attemptNumber,
+			)
+			if delayErr != nil {
+				return ForwardedRequest{}, errors.Join(
+					attemptErr,
+					delayErr,
+				)
+			}
+			if delay > 0 {
+				if waitErr := s.waiter.Wait(ctx, delay); waitErr != nil {
+					return ForwardedRequest{}, errors.Join(
+						attemptErr,
+						waitErr,
+					)
+				}
+			}
+		}
 	}
 
 	switch {
@@ -223,10 +257,14 @@ type forwardingCandidate struct {
 }
 
 type leasedCandidateResult struct {
-	Prepared     PreparedRequest
-	Reservation  ReservationResult
-	Execution    ForwardingExecutionResult
-	RetryAllowed bool
+	Prepared          PreparedRequest
+	Reservation       ReservationResult
+	Execution         ForwardingExecutionResult
+	RetryAllowed      bool
+	FailureKind       string
+	RetryAfterPresent bool
+	RetryAfterDelay   time.Duration
+	RetryAfterAt      time.Time
 }
 
 func (s *ForwardingStage) executeLeasedCandidate(
@@ -390,6 +428,16 @@ func (s *ForwardingStage) executeLeasedCandidate(
 		)
 	}
 	result.RetryAllowed = forwardingAttemptAllowsRetry(ctx, terminal)
+	result.FailureKind = terminal.FailureKind
+	present, delay, at, metadataErr := forwardingFailureRetryAfter(
+		forwardErr,
+	)
+	if metadataErr != nil {
+		return result, errors.Join(forwardErr, metadataErr)
+	}
+	result.RetryAfterPresent = present
+	result.RetryAfterDelay = delay
+	result.RetryAfterAt = at
 	return result, fmt.Errorf(
 		"forward route %q attempt %d: %w",
 		prepared.Plan.Route.ID,
@@ -699,4 +747,105 @@ func cloneForwardHeaders(
 		result[key] = append([]string(nil), values...)
 	}
 	return result
+}
+
+func forwardingFailureRetryAfter(
+	err error,
+) (
+	present bool,
+	delay time.Duration,
+	at time.Time,
+	contractErr error,
+) {
+	var metadata ForwardingRetryAfter
+	if !errors.As(err, &metadata) {
+		return false, 0, time.Time{}, nil
+	}
+
+	present = metadata.FailureRetryAfterPresent()
+	delay = metadata.FailureRetryAfterDelay()
+	at = metadata.FailureRetryAfterTime()
+
+	if !present {
+		if delay != 0 || !at.IsZero() {
+			return false, 0, time.Time{}, fmt.Errorf(
+				"%w: retry-after values without presence",
+				ErrStageContractViolation,
+			)
+		}
+		return false, 0, time.Time{}, nil
+	}
+	if delay < 0 || (delay != 0 && !at.IsZero()) {
+		return false, 0, time.Time{}, fmt.Errorf(
+			"%w: invalid retry-after values",
+			ErrStageContractViolation,
+		)
+	}
+	if !at.IsZero() && at.Location() != time.UTC {
+		return false, 0, time.Time{}, fmt.Errorf(
+			"%w: retry-after time must be UTC",
+			ErrStageContractViolation,
+		)
+	}
+	return present, delay, at, nil
+}
+
+func (s *ForwardingStage) retryDelay(
+	result leasedCandidateResult,
+	attemptNumber int,
+) (time.Duration, error) {
+	if result.RetryAfterPresent {
+		delay := result.RetryAfterDelay
+		if !result.RetryAfterAt.IsZero() {
+			now, err := forwardingStageNow(s.clock)
+			if err != nil {
+				return 0, err
+			}
+			delay = result.RetryAfterAt.Sub(now)
+			if delay < 0 {
+				delay = 0
+			}
+		}
+
+		maximum := s.policy.UpstreamMaxBackoff()
+		if result.FailureKind == "rate_limited" &&
+			s.policy.RateLimitMaxWait() < maximum {
+			maximum = s.policy.RateLimitMaxWait()
+		}
+		if delay > maximum {
+			delay = maximum
+		}
+		return delay, nil
+	}
+
+	return boundedExponentialBackoff(
+		s.policy.UpstreamMaxAttempts(),
+		attemptNumber,
+		s.policy.UpstreamMaxBackoff(),
+	)
+}
+
+func boundedExponentialBackoff(
+	maxAttempts int,
+	attemptNumber int,
+	maximum time.Duration,
+) (time.Duration, error) {
+	if maxAttempts < 2 ||
+		attemptNumber < 1 ||
+		attemptNumber >= maxAttempts ||
+		maximum <= 0 {
+		return 0, fmt.Errorf(
+			"%w: invalid backoff input",
+			ErrStageContractViolation,
+		)
+	}
+
+	delay := maximum
+	for remaining := maxAttempts - attemptNumber - 1; remaining > 0; remaining-- {
+		delay /= 2
+	}
+	if delay <= 0 {
+		delay = time.Nanosecond
+	}
+	return delay, nil
 }

@@ -154,6 +154,7 @@ func TestForwardingStageRetriesOrderedFallback(t *testing.T) {
 		forwardingStageClock{now: validForwardingStageTime()},
 		forwarder,
 		mustValidRoutingPolicy(t),
+		immediateRetryWaiter{},
 	)
 	if err != nil {
 		t.Fatalf("NewForwardingStage: %v", err)
@@ -253,6 +254,7 @@ func TestForwardingStageSkipsCapacityUnavailableCandidate(t *testing.T) {
 			}, nil
 		}),
 		mustValidRoutingPolicy(t),
+		immediateRetryWaiter{},
 	)
 	if err != nil {
 		t.Fatalf("NewForwardingStage: %v", err)
@@ -318,6 +320,7 @@ func TestForwardingStageReturnsRouteUnavailableAfterCapacityFallbacksExhausted(
 			return ForwardingExecutionResult{}, nil
 		}),
 		mustValidRoutingPolicy(t),
+		immediateRetryWaiter{},
 	)
 	if err != nil {
 		t.Fatalf("NewForwardingStage: %v", err)
@@ -398,6 +401,7 @@ func TestForwardingStageDoesNotRetrySentNoResponse(t *testing.T) {
 			return ForwardingExecutionResult{}, forwardErr
 		}),
 		mustValidRoutingPolicy(t),
+		immediateRetryWaiter{},
 	)
 	if err != nil {
 		t.Fatalf("NewForwardingStage: %v", err)
@@ -493,6 +497,7 @@ func TestForwardingStageStopsAfterConfiguredMaximumCandidates(
 			return ForwardingExecutionResult{}, nil
 		}),
 		policy,
+		immediateRetryWaiter{},
 	)
 	if err != nil {
 		t.Fatalf("NewForwardingStage: %v", err)
@@ -556,6 +561,7 @@ func TestForwardingStageUsesSeparateTimeoutForEachUpstreamAttempt(
 			}, nil
 		}),
 		policy,
+		immediateRetryWaiter{},
 	)
 	if err != nil {
 		t.Fatalf("NewForwardingStage: %v", err)
@@ -578,4 +584,299 @@ func TestForwardingStageUsesSeparateTimeoutForEachUpstreamAttempt(
 			timeout,
 		)
 	}
+}
+
+type recordingRetryWaiter struct {
+	delays []time.Duration
+	err    error
+}
+
+func (waiter *recordingRetryWaiter) Wait(
+	_ context.Context,
+	delay time.Duration,
+) error {
+	waiter.delays = append(waiter.delays, delay)
+	return waiter.err
+}
+
+type retryAfterFailure struct {
+	*retryFailure
+	present bool
+	delay   time.Duration
+	at      time.Time
+}
+
+func (failure *retryAfterFailure) FailureRetryAfterPresent() bool {
+	return failure.present
+}
+
+func (failure *retryAfterFailure) FailureRetryAfterDelay() time.Duration {
+	return failure.delay
+}
+
+func (failure *retryAfterFailure) FailureRetryAfterTime() time.Time {
+	return failure.at
+}
+
+func TestForwardingStageUsesBoundedExponentialBackoff(t *testing.T) {
+	prepared := validForwardingPreparedRequest()
+	prepared.Plan.Fallbacks = []RouteFallbackPlan{
+		retryFallbackPlan(prepared, "route-2", "reseller-2"),
+		retryFallbackPlan(prepared, "route-3", "reseller-3"),
+	}
+
+	waiter := &recordingRetryWaiter{}
+	forwardCalls := 0
+	stage := mustRetryTestForwardingStage(
+		t,
+		prepared,
+		waiter,
+		forwardingExecutorFunc(func(
+			_ context.Context,
+			_ ForwardingExecutionInput,
+		) (ForwardingExecutionResult, error) {
+			forwardCalls++
+			if forwardCalls < 3 {
+				return ForwardingExecutionResult{}, &retryFailure{
+					kind:       "server_error",
+					statusCode: 503,
+					attemptState: string(
+						domain.ForwardingAttemptStateResponseReceived,
+					),
+					retry: true,
+					cause: errors.New("retryable"),
+				}
+			}
+			return ForwardingExecutionResult{
+				Response: ports.ForwardResponse{StatusCode: 200},
+			}, nil
+		}),
+		mustValidRoutingPolicy(t),
+	)
+
+	_, err := stage.Execute(
+		context.Background(),
+		prepared,
+		validForwardingAdmission(prepared),
+	)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if !reflect.DeepEqual(
+		waiter.delays,
+		[]time.Duration{time.Second, 2 * time.Second},
+	) {
+		t.Fatalf("delays = %#v", waiter.delays)
+	}
+}
+
+func TestForwardingStagePrefersAndBoundsRetryAfter(t *testing.T) {
+	prepared := validForwardingPreparedRequest()
+	prepared.Plan.Fallbacks = []RouteFallbackPlan{
+		retryFallbackPlan(prepared, "route-2", "reseller-2"),
+	}
+
+	policyInput := validRoutingPolicyInput()
+	policyInput.UpstreamMaxBackoff = 2 * time.Second
+	policyInput.RateLimitMaxWait = 500 * time.Millisecond
+	policy, err := NewRoutingPolicy(policyInput)
+	if err != nil {
+		t.Fatalf("NewRoutingPolicy: %v", err)
+	}
+
+	waiter := &recordingRetryWaiter{}
+	forwardCalls := 0
+	stage := mustRetryTestForwardingStage(
+		t,
+		prepared,
+		waiter,
+		forwardingExecutorFunc(func(
+			_ context.Context,
+			_ ForwardingExecutionInput,
+		) (ForwardingExecutionResult, error) {
+			forwardCalls++
+			if forwardCalls == 1 {
+				return ForwardingExecutionResult{}, &retryAfterFailure{
+					retryFailure: &retryFailure{
+						kind:       "rate_limited",
+						statusCode: 429,
+						attemptState: string(
+							domain.ForwardingAttemptStateResponseReceived,
+						),
+						retry: true,
+						cause: errors.New("rate limited"),
+					},
+					present: true,
+					delay:   10 * time.Second,
+				}
+			}
+			return ForwardingExecutionResult{
+				Response: ports.ForwardResponse{StatusCode: 200},
+			}, nil
+		}),
+		policy,
+	)
+
+	_, err = stage.Execute(
+		context.Background(),
+		prepared,
+		validForwardingAdmission(prepared),
+	)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if !reflect.DeepEqual(
+		waiter.delays,
+		[]time.Duration{500 * time.Millisecond},
+	) {
+		t.Fatalf("delays = %#v", waiter.delays)
+	}
+}
+
+func TestForwardingStageHonorsExplicitZeroRetryAfter(t *testing.T) {
+	prepared := validForwardingPreparedRequest()
+	prepared.Plan.Fallbacks = []RouteFallbackPlan{
+		retryFallbackPlan(prepared, "route-2", "reseller-2"),
+	}
+
+	waiter := &recordingRetryWaiter{}
+	forwardCalls := 0
+	stage := mustRetryTestForwardingStage(
+		t,
+		prepared,
+		waiter,
+		forwardingExecutorFunc(func(
+			_ context.Context,
+			_ ForwardingExecutionInput,
+		) (ForwardingExecutionResult, error) {
+			forwardCalls++
+			if forwardCalls == 1 {
+				return ForwardingExecutionResult{}, &retryAfterFailure{
+					retryFailure: &retryFailure{
+						kind:       "rate_limited",
+						statusCode: 429,
+						attemptState: string(
+							domain.ForwardingAttemptStateResponseReceived,
+						),
+						retry: true,
+						cause: errors.New("rate limited"),
+					},
+					present: true,
+				}
+			}
+			return ForwardingExecutionResult{
+				Response: ports.ForwardResponse{StatusCode: 200},
+			}, nil
+		}),
+		mustValidRoutingPolicy(t),
+	)
+
+	_, err := stage.Execute(
+		context.Background(),
+		prepared,
+		validForwardingAdmission(prepared),
+	)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if len(waiter.delays) != 0 {
+		t.Fatalf("explicit zero retry-after waited: %#v", waiter.delays)
+	}
+}
+
+func TestForwardingStageStopsWhenRetryWaitIsCancelled(t *testing.T) {
+	prepared := validForwardingPreparedRequest()
+	prepared.Plan.Fallbacks = []RouteFallbackPlan{
+		retryFallbackPlan(prepared, "route-2", "reseller-2"),
+	}
+
+	waiter := &recordingRetryWaiter{err: context.Canceled}
+	forwardCalls := 0
+	stage := mustRetryTestForwardingStage(
+		t,
+		prepared,
+		waiter,
+		forwardingExecutorFunc(func(
+			_ context.Context,
+			_ ForwardingExecutionInput,
+		) (ForwardingExecutionResult, error) {
+			forwardCalls++
+			return ForwardingExecutionResult{}, &retryFailure{
+				kind:       "server_error",
+				statusCode: 503,
+				attemptState: string(
+					domain.ForwardingAttemptStateResponseReceived,
+				),
+				retry: true,
+				cause: errors.New("retryable"),
+			}
+		}),
+		mustValidRoutingPolicy(t),
+	)
+
+	_, err := stage.Execute(
+		context.Background(),
+		prepared,
+		validForwardingAdmission(prepared),
+	)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v, want context canceled", err)
+	}
+	if forwardCalls != 1 {
+		t.Fatalf("forward calls = %d, want 1", forwardCalls)
+	}
+}
+
+func mustRetryTestForwardingStage(
+	t *testing.T,
+	prepared PreparedRequest,
+	waiter RetryWaiter,
+	forwarder ForwardingExecutor,
+	policy RoutingPolicy,
+) *ForwardingStage {
+	t.Helper()
+
+	capacity := validForwardingCapacityManager(nil)
+	reservation := reserveFunc(func(
+		_ context.Context,
+		input ReservationInput,
+	) (ReservationResult, error) {
+		return validReservation(input), nil
+	})
+	transfer := retryTransferFunc(func(
+		_ context.Context,
+		input RouteReservationTransferInput,
+	) (RouteReservationTransferResult, error) {
+		usage := input.ExpectedUsage
+		usage.SelectedRouteID = input.Target.Route.ID
+		usage.SelectedResellerID = input.Target.Reseller.ID
+		usage.ProviderType = input.Target.Route.ProviderType
+		usage.ProviderModel = input.Target.Route.ProviderModel
+		usage.BillingModel = input.Target.BillingModel
+		usage.EstimatedUsage = input.Target.EstimatedUsage
+		usage.EstimatedClientAmountCents =
+			input.Target.EstimatedClientAmountCents
+		usage.EstimatedUpstreamCostCents =
+			input.Target.EstimatedUpstreamCostCents
+		usage.Currency = input.Target.Currency
+		return RouteReservationTransferResult{
+			Usage:            usage,
+			ReservedReseller: input.Target.Reseller,
+		}, nil
+	})
+
+	stage, err := NewForwardingStage(
+		capacity,
+		reservation,
+		transfer,
+		&forwardingAttemptStoreStub{},
+		forwardingStageClock{now: validForwardingStageTime()},
+		forwarder,
+		policy,
+		waiter,
+	)
+	if err != nil {
+		t.Fatalf("NewForwardingStage: %v", err)
+	}
+	return stage
 }

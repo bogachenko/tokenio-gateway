@@ -231,6 +231,7 @@ func NewApplicationGraph(
 		primitives.Clock,
 		forwardingExecutor,
 		routingPolicy,
+		contextRetryWaiter{},
 	)
 	if err != nil {
 		return ApplicationGraph{}, fmt.Errorf(

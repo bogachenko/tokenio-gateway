@@ -32,22 +32,23 @@ const (
 )
 
 type RetryAfter struct {
-	delay time.Duration
-	at    time.Time
+	present bool
+	delay   time.Duration
+	at      time.Time
 }
 
 func NewRetryAfterDelay(delay time.Duration) (RetryAfter, error) {
 	if delay < 0 {
 		return RetryAfter{}, ErrInvalidRetryAfter
 	}
-	return RetryAfter{delay: delay}, nil
+	return RetryAfter{present: true, delay: delay}, nil
 }
 
 func NewRetryAfterTime(at time.Time) (RetryAfter, error) {
 	if at.IsZero() {
 		return RetryAfter{}, ErrInvalidRetryAfter
 	}
-	return RetryAfter{at: at.UTC()}, nil
+	return RetryAfter{present: true, at: at.UTC()}, nil
 }
 
 func (value RetryAfter) Delay() time.Duration {
@@ -59,7 +60,7 @@ func (value RetryAfter) At() time.Time {
 }
 
 func (value RetryAfter) IsZero() bool {
-	return value.delay == 0 && value.at.IsZero()
+	return !value.present
 }
 
 type Classification struct {
@@ -167,6 +168,24 @@ func (f *Failure) FailureRetryAfter() RetryAfter {
 		return RetryAfter{}
 	}
 	return f.retryAfter
+}
+
+func (f *Failure) FailureRetryAfterPresent() bool {
+	return f != nil && !f.retryAfter.IsZero()
+}
+
+func (f *Failure) FailureRetryAfterDelay() time.Duration {
+	if f == nil {
+		return 0
+	}
+	return f.retryAfter.Delay()
+}
+
+func (f *Failure) FailureRetryAfterTime() time.Time {
+	if f == nil {
+		return time.Time{}
+	}
+	return f.retryAfter.At()
 }
 
 func (f *Failure) Unwrap() error {

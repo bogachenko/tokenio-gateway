@@ -539,6 +539,7 @@ func TestNewForwardingStageRequiresDependencies(t *testing.T) {
 				test.clock,
 				test.forwarder,
 				mustValidRoutingPolicy(t),
+				immediateRetryWaiter{},
 			)
 			if !errors.Is(err, ErrDependencyRequired) {
 				t.Fatalf(
@@ -568,6 +569,7 @@ func mustForwardingStage(
 		},
 		forwarder,
 		mustValidRoutingPolicy(t),
+		immediateRetryWaiter{},
 	)
 	if err != nil {
 		t.Fatalf("NewForwardingStage: %v", err)
@@ -657,4 +659,13 @@ func mustValidRoutingPolicy(t *testing.T) RoutingPolicy {
 		t.Fatalf("NewRoutingPolicy: %v", err)
 	}
 	return policy
+}
+
+type immediateRetryWaiter struct{}
+
+func (immediateRetryWaiter) Wait(
+	ctx context.Context,
+	_ time.Duration,
+) error {
+	return ctx.Err()
 }
