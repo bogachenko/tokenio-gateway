@@ -42,6 +42,7 @@ type ForwardingStage struct {
 	attempts    ports.ForwardingAttemptStore
 	clock       ports.Clock
 	forwarder   ForwardingExecutor
+	policy      RoutingPolicy
 }
 
 type ForwardedRequest struct {
@@ -59,6 +60,7 @@ func NewForwardingStage(
 	attempts ports.ForwardingAttemptStore,
 	clock ports.Clock,
 	forwarder ForwardingExecutor,
+	policy RoutingPolicy,
 ) (*ForwardingStage, error) {
 	if capacity == nil ||
 		reservation == nil ||
@@ -68,6 +70,10 @@ func NewForwardingStage(
 		forwarder == nil {
 		return nil, ErrDependencyRequired
 	}
+	if policy.UpstreamTimeout() <= 0 ||
+		policy.UpstreamMaxAttempts() < 1 {
+		return nil, ErrInvalidInput
+	}
 	return &ForwardingStage{
 		capacity:    capacity,
 		reservation: reservation,
@@ -75,6 +81,7 @@ func NewForwardingStage(
 		attempts:    attempts,
 		clock:       clock,
 		forwarder:   forwarder,
+		policy:      policy,
 	}, nil
 }
 
@@ -102,6 +109,9 @@ func (s *ForwardingStage) Execute(
 	}
 
 	candidates := forwardingCandidates(prepared.Plan)
+	if len(candidates) > s.policy.UpstreamMaxAttempts() {
+		candidates = candidates[:s.policy.UpstreamMaxAttempts()]
+	}
 	var reservation ReservationResult
 	reservationCreated := false
 	var lastForwardErr error
@@ -303,14 +313,19 @@ func (s *ForwardingStage) executeLeasedCandidate(
 		)
 	}
 
-	execution, forwardErr := s.forwarder.Forward(
+	attemptContext, cancelAttempt := context.WithTimeout(
 		ctx,
+		s.policy.UpstreamTimeout(),
+	)
+	execution, forwardErr := s.forwarder.Forward(
+		attemptContext,
 		ForwardingExecutionInput{
 			Prepared:    clonePreparedRequest(prepared),
 			Admission:   admission,
 			Reservation: cloneReservationResult(reservation),
 		},
 	)
+	cancelAttempt()
 	result.Execution = execution
 	completedAt, clockErr := forwardingStageNow(s.clock)
 	if clockErr != nil {

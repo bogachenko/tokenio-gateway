@@ -538,6 +538,7 @@ func TestNewForwardingStageRequiresDependencies(t *testing.T) {
 				test.attempts,
 				test.clock,
 				test.forwarder,
+				mustValidRoutingPolicy(t),
 			)
 			if !errors.Is(err, ErrDependencyRequired) {
 				t.Fatalf(
@@ -566,6 +567,7 @@ func mustForwardingStage(
 			now: validForwardingStageTime(),
 		},
 		forwarder,
+		mustValidRoutingPolicy(t),
 	)
 	if err != nil {
 		t.Fatalf("NewForwardingStage: %v", err)
@@ -646,4 +648,13 @@ func validForwardingAdmission(
 			Currency: prepared.Plan.Currency,
 		},
 	)
+}
+
+func mustValidRoutingPolicy(t *testing.T) RoutingPolicy {
+	t.Helper()
+	policy, err := NewRoutingPolicy(validRoutingPolicyInput())
+	if err != nil {
+		t.Fatalf("NewRoutingPolicy: %v", err)
+	}
+	return policy
 }

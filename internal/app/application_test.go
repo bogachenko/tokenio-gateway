@@ -60,6 +60,15 @@ func validApplicationGraphInputs(
 		CostEstimationSafetyFactor:             1.10,
 		RequestBodyMaxBytes:                    1024,
 		UpstreamResponseBodyMaxBytes:           1024,
+		UpstreamTimeout:                        90 * time.Second,
+		UpstreamMaxAttempts:                    3,
+		UpstreamMaxBackoff:                     2 * time.Second,
+		RateLimitMaxWait:                       5 * time.Second,
+		CooldownRateLimit:                      time.Minute,
+		CooldownQuotaExceeded:                  24 * time.Hour,
+		Cooldown5XX:                            30 * time.Second,
+		CooldownTimeout:                        30 * time.Second,
+		CooldownAuthError:                      24 * time.Hour,
 	}
 	security, err := NewSecurityGraph(cfg)
 	if err != nil {
@@ -376,5 +385,34 @@ func TestApplicationGraphValidateRejectsMissingCapability(
 	var graph ApplicationGraph
 	if err := graph.Validate(); err == nil {
 		t.Fatal("expected incomplete graph validation error")
+	}
+}
+
+func TestNewApplicationGraphRejectsInvalidRoutingPolicyConfig(
+	t *testing.T,
+) {
+	cfg,
+		primitives,
+		security,
+		provisioningInfrastructure,
+		billingInfrastructure,
+		forwardingInfrastructure,
+		repositories := validApplicationGraphInputs(t)
+	cfg.UpstreamTimeout = 0
+
+	graph, err := NewApplicationGraph(
+		cfg,
+		primitives,
+		security,
+		provisioningInfrastructure,
+		billingInfrastructure,
+		forwardingInfrastructure,
+		repositories,
+	)
+	if err == nil {
+		t.Fatal("expected routing policy configuration error")
+	}
+	if graph.LLMRequest != nil {
+		t.Fatal("invalid routing policy unexpectedly produced service")
 	}
 }

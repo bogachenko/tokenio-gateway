@@ -203,6 +203,14 @@ func NewApplicationGraph(
 		)
 	}
 
+	routingPolicy, err := assembleRoutingPolicy(cfg)
+	if err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"assemble routing policy: %w",
+			err,
+		)
+	}
+
 	forwardingExecutor, err :=
 		NewLLMRequestForwardingExecutor(
 			security.Secrets,
@@ -222,6 +230,7 @@ func NewApplicationGraph(
 		repositories.ForwardingAttempts,
 		primitives.Clock,
 		forwardingExecutor,
+		routingPolicy,
 	)
 	if err != nil {
 		return ApplicationGraph{}, fmt.Errorf(

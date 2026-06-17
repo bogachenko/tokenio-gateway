@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
@@ -152,6 +153,7 @@ func TestForwardingStageRetriesOrderedFallback(t *testing.T) {
 		attempts,
 		forwardingStageClock{now: validForwardingStageTime()},
 		forwarder,
+		mustValidRoutingPolicy(t),
 	)
 	if err != nil {
 		t.Fatalf("NewForwardingStage: %v", err)
@@ -250,6 +252,7 @@ func TestForwardingStageSkipsCapacityUnavailableCandidate(t *testing.T) {
 				Response: ports.ForwardResponse{StatusCode: 200},
 			}, nil
 		}),
+		mustValidRoutingPolicy(t),
 	)
 	if err != nil {
 		t.Fatalf("NewForwardingStage: %v", err)
@@ -314,6 +317,7 @@ func TestForwardingStageReturnsRouteUnavailableAfterCapacityFallbacksExhausted(
 			forwardCalled = true
 			return ForwardingExecutionResult{}, nil
 		}),
+		mustValidRoutingPolicy(t),
 	)
 	if err != nil {
 		t.Fatalf("NewForwardingStage: %v", err)
@@ -393,6 +397,7 @@ func TestForwardingStageDoesNotRetrySentNoResponse(t *testing.T) {
 		) (ForwardingExecutionResult, error) {
 			return ForwardingExecutionResult{}, forwardErr
 		}),
+		mustValidRoutingPolicy(t),
 	)
 	if err != nil {
 		t.Fatalf("NewForwardingStage: %v", err)
@@ -432,5 +437,145 @@ func retryFallbackPlan(
 		EstimatedUpstreamCostCents: prepared.Plan.EstimatedUpstreamCostCents,
 		Currency:                   prepared.Plan.Currency,
 		Confidence:                 prepared.Plan.Confidence,
+	}
+}
+
+func TestForwardingStageStopsAfterConfiguredMaximumCandidates(
+	t *testing.T,
+) {
+	prepared := validForwardingPreparedRequest()
+	prepared.Plan.Fallbacks = []RouteFallbackPlan{
+		retryFallbackPlan(prepared, "route-2", "reseller-2"),
+		retryFallbackPlan(prepared, "route-3", "reseller-3"),
+	}
+
+	var acquiredRoutes []string
+	capacity := validForwardingCapacityManager(nil)
+	capacity.acquireFunc = func(
+		_ context.Context,
+		input ports.RouteCapacityAcquireInput,
+	) (ports.RouteCapacityReservation, error) {
+		acquiredRoutes = append(acquiredRoutes, input.Route.ID)
+		return ports.RouteCapacityReservation{},
+			ports.ErrRouteCapacityUnavailable
+	}
+
+	policyInput := validRoutingPolicyInput()
+	policyInput.UpstreamMaxAttempts = 2
+	policy, err := NewRoutingPolicy(policyInput)
+	if err != nil {
+		t.Fatalf("NewRoutingPolicy: %v", err)
+	}
+
+	stage, err := NewForwardingStage(
+		capacity,
+		reserveFunc(func(
+			context.Context,
+			ReservationInput,
+		) (ReservationResult, error) {
+			t.Fatal("reservation must not run without capacity")
+			return ReservationResult{}, nil
+		}),
+		retryTransferFunc(func(
+			context.Context,
+			RouteReservationTransferInput,
+		) (RouteReservationTransferResult, error) {
+			t.Fatal("transfer must not run without reservation")
+			return RouteReservationTransferResult{}, nil
+		}),
+		&forwardingAttemptStoreStub{},
+		forwardingStageClock{now: validForwardingStageTime()},
+		forwardingExecutorFunc(func(
+			context.Context,
+			ForwardingExecutionInput,
+		) (ForwardingExecutionResult, error) {
+			t.Fatal("forwarder must not run without capacity")
+			return ForwardingExecutionResult{}, nil
+		}),
+		policy,
+	)
+	if err != nil {
+		t.Fatalf("NewForwardingStage: %v", err)
+	}
+
+	_, err = stage.Execute(
+		context.Background(),
+		prepared,
+		validForwardingAdmission(prepared),
+	)
+	if !errors.Is(err, ErrRouteUnavailable) {
+		t.Fatalf("error = %v, want route unavailable", err)
+	}
+	if !reflect.DeepEqual(
+		acquiredRoutes,
+		[]string{prepared.Plan.Route.ID, "route-2"},
+	) {
+		t.Fatalf("acquired routes = %#v", acquiredRoutes)
+	}
+}
+
+func TestForwardingStageUsesSeparateTimeoutForEachUpstreamAttempt(
+	t *testing.T,
+) {
+	prepared := validForwardingPreparedRequest()
+	timeout := 50 * time.Millisecond
+
+	policyInput := validRoutingPolicyInput()
+	policyInput.UpstreamTimeout = timeout
+	policy, err := NewRoutingPolicy(policyInput)
+	if err != nil {
+		t.Fatalf("NewRoutingPolicy: %v", err)
+	}
+
+	var observedDeadline time.Time
+	stage, err := NewForwardingStage(
+		validForwardingCapacityManager(nil),
+		reserveFunc(func(
+			_ context.Context,
+			input ReservationInput,
+		) (ReservationResult, error) {
+			return validReservation(input), nil
+		}),
+		&routeReservationTransferStub{},
+		&forwardingAttemptStoreStub{},
+		forwardingStageClock{now: validForwardingStageTime()},
+		forwardingExecutorFunc(func(
+			ctx context.Context,
+			_ ForwardingExecutionInput,
+		) (ForwardingExecutionResult, error) {
+			deadline, ok := ctx.Deadline()
+			if !ok {
+				t.Fatal("upstream attempt context has no deadline")
+			}
+			observedDeadline = deadline
+			return ForwardingExecutionResult{
+				Response: ports.ForwardResponse{
+					StatusCode: 200,
+					Body:       []byte(`{"ok":true}`),
+				},
+			}, nil
+		}),
+		policy,
+	)
+	if err != nil {
+		t.Fatalf("NewForwardingStage: %v", err)
+	}
+
+	_, err = stage.Execute(
+		context.Background(),
+		prepared,
+		validForwardingAdmission(prepared),
+	)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	remaining := time.Until(observedDeadline)
+	if remaining <= 0 || remaining > timeout {
+		t.Fatalf(
+			"attempt deadline remaining = %s, want > 0 and <= %s",
+			remaining,
+			timeout,
+		)
 	}
 }
