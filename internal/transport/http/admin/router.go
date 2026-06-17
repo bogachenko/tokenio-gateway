@@ -399,7 +399,7 @@ func (h *Router) handleRoutes(w http.ResponseWriter, r *http.Request, command ap
 			return
 		}
 		if dto.Capabilities == nil {
-			writeApplicationError(w, command.RequestID, application.ErrInvalidRequest)
+			writeAdminValidationError(w, command.RequestID)
 			return
 		}
 		route := domain.Route{ID: dto.ID, ResellerID: dto.ResellerID, ProviderType: dto.ProviderType, APIFamily: dto.APIFamily, EndpointKind: dto.EndpointKind, ClientModel: dto.ClientModel, ProviderModel: dto.ProviderModel, ModelRewritePolicy: dto.ModelRewritePolicy, Enabled: dto.Enabled, Priority: dto.Priority, RequestsPerMinute: dto.RequestsPerMinute, TokensPerMinute: dto.TokensPerMinute, ConcurrentRequests: dto.ConcurrentRequests, DefaultMaxOutputTokens: dto.DefaultMaxOutputTokens, Capabilities: *dto.Capabilities}
@@ -791,12 +791,12 @@ type pageQuery struct{ limit, offset int }
 func parsePage(w http.ResponseWriter, r *http.Request, requestID string) (pageQuery, bool) {
 	limit, ok := parseOptionalInt(r.URL.Query().Get("limit"), 50)
 	if !ok || limit < 1 || limit > 500 {
-		writeApplicationError(w, requestID, application.ErrInvalidRequest)
+		writeAdminValidationError(w, requestID)
 		return pageQuery{}, false
 	}
 	offset, ok := parseOptionalInt(r.URL.Query().Get("offset"), 0)
 	if !ok || offset < 0 {
-		writeApplicationError(w, requestID, application.ErrInvalidRequest)
+		writeAdminValidationError(w, requestID)
 		return pageQuery{}, false
 	}
 	return pageQuery{limit: limit, offset: offset}, true
@@ -816,7 +816,7 @@ func parseOptionalBool(w http.ResponseWriter, r *http.Request, requestID, name s
 	}
 	value, err := strconv.ParseBool(raw)
 	if err != nil {
-		writeApplicationError(w, requestID, application.ErrInvalidRequest)
+		writeAdminValidationError(w, requestID)
 		return nil, false
 	}
 	return &value, true
@@ -828,7 +828,7 @@ func parseOptionalTime(w http.ResponseWriter, r *http.Request, requestID, name s
 	}
 	value, err := time.Parse(time.RFC3339Nano, raw)
 	if err != nil || value.Location() != time.UTC {
-		writeApplicationError(w, requestID, application.ErrInvalidRequest)
+		writeAdminValidationError(w, requestID)
 		return nil, false
 	}
 	return &value, true
@@ -873,6 +873,16 @@ func writeError(w http.ResponseWriter, requestID string, status int, code domain
 func methodNotAllowed(w http.ResponseWriter, requestID, allow string) {
 	w.Header().Set("Allow", allow)
 	writeError(w, requestID, http.StatusMethodNotAllowed, domain.ErrorCodeMethodNotAllowed, "Method is not allowed")
+}
+
+func writeAdminValidationError(w http.ResponseWriter, requestID string) {
+	writeError(
+		w,
+		requestID,
+		http.StatusBadRequest,
+		domain.ErrorCodeAdminValidationError,
+		"Invalid admin request",
+	)
 }
 func writeApplicationError(w http.ResponseWriter, requestID string, err error) {
 	applicationError, ok := ports.AsApplicationError(err)

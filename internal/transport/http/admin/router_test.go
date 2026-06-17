@@ -362,3 +362,30 @@ func TestAdminApplicationErrorMappingUsesNormalizedContract(t *testing.T) {
 		})
 	}
 }
+
+func TestAdminTransportValidationDoesNotRequireApplicationError(t *testing.T) {
+	response := httptest.NewRecorder()
+	writeAdminValidationError(response, "admreq_transport")
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf(
+			"status = %d, want %d; body = %s",
+			response.Code,
+			http.StatusBadRequest,
+			response.Body.String(),
+		)
+	}
+	if !strings.Contains(
+		response.Body.String(),
+		string(domain.ErrorCodeAdminValidationError),
+	) {
+		t.Fatalf(
+			"body = %s, want code %q",
+			response.Body.String(),
+			domain.ErrorCodeAdminValidationError,
+		)
+	}
+	if !strings.Contains(response.Body.String(), "admreq_transport") {
+		t.Fatalf("request ID missing: %s", response.Body.String())
+	}
+}
