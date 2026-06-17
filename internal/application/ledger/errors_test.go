@@ -1,6 +1,7 @@
 package ledger
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
@@ -58,6 +59,43 @@ func TestIdempotencyErrorsUseNormalizedApplicationContract(t *testing.T) {
 				failure.RequestStage != ports.RequestStagePreForwarding ||
 				failure.Cause == nil {
 				t.Fatalf("failure = %+v", failure)
+			}
+		})
+	}
+}
+
+func TestUsageStoreUnavailableUsesStageAwareApplicationContract(
+	t *testing.T,
+) {
+	repositoryCause := errors.New("repository unavailable")
+
+	for _, stage := range []ports.RequestStage{
+		ports.RequestStagePreForwarding,
+		ports.RequestStagePostForwarding,
+	} {
+		t.Run(string(stage), func(t *testing.T) {
+			err := usageStoreUnavailable(stage, repositoryCause)
+
+			failure, ok := ports.AsApplicationError(err)
+			if !ok {
+				t.Fatal("usage-store error is not normalized")
+			}
+			if failure.Code != domain.ErrorCodeUsageStoreUnavailable ||
+				failure.SafeMessage != "Usage store is unavailable" ||
+				failure.Category != ports.FailureCategoryUnavailable ||
+				failure.Retryability != ports.RetryabilityRetryable ||
+				failure.RequestStage != stage ||
+				failure.Cause == nil {
+				t.Fatalf("failure = %+v", failure)
+			}
+			if !errors.Is(err, ErrUsageStoreUnavailable) {
+				t.Fatal("ledger sentinel identity was not preserved")
+			}
+			if !errors.Is(err, repositoryCause) {
+				t.Fatal("repository cause was not preserved")
+			}
+			if err.Error() != "Usage store is unavailable" {
+				t.Fatalf("public error = %q", err.Error())
 			}
 		})
 	}

@@ -20,7 +20,10 @@ func (s *Service) LoadExposure(ctx context.Context, userID string, currency stri
 	}
 	snapshot, err := s.ledger.LoadExposure(ctx, userID, currency)
 	if err != nil {
-		return Exposure{}, fmt.Errorf("%w: load exposure: %w", ErrUsageStoreUnavailable, err)
+		return Exposure{}, usageStoreUnavailable(
+			ports.RequestStagePreForwarding,
+			fmt.Errorf("load exposure: %w", err),
+		)
 	}
 	return CalculateExposure(snapshot)
 }

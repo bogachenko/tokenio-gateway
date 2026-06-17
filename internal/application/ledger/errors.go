@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
@@ -52,3 +53,25 @@ var (
 	ErrAmountOverflow      = domain.ErrFinancialAmountOverflow
 	ErrRecordCorrupt       = domain.ErrUsageRecordCorrupt
 )
+
+func usageStoreUnavailable(
+	stage ports.RequestStage,
+	cause error,
+) error {
+	wrappedCause := error(ErrUsageStoreUnavailable)
+	if cause != nil {
+		wrappedCause = fmt.Errorf(
+			"%w: %w",
+			ErrUsageStoreUnavailable,
+			cause,
+		)
+	}
+	return &ports.ApplicationError{
+		Code:         domain.ErrorCodeUsageStoreUnavailable,
+		SafeMessage:  "Usage store is unavailable",
+		Category:     ports.FailureCategoryUnavailable,
+		Retryability: ports.RetryabilityRetryable,
+		RequestStage: stage,
+		Cause:        wrappedCause,
+	}
+}

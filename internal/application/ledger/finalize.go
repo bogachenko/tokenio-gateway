@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
+	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
 
 type ReleaseInput struct {
@@ -53,7 +54,12 @@ func (s *Service) Release(ctx context.Context, input ReleaseInput) (domain.Usage
 	if err != nil {
 		return domain.UsageRecord{}, err
 	}
-	current, err := findRecord(ctx, s.ledger, input.LocalRequestID)
+	current, err := findRecord(
+		ctx,
+		s.ledger,
+		input.LocalRequestID,
+		ports.RequestStagePostForwarding,
+	)
 	if err != nil {
 		return domain.UsageRecord{}, err
 	}
@@ -76,7 +82,12 @@ func (s *Service) Fail(ctx context.Context, input FailInput) (domain.UsageRecord
 	if err != nil {
 		return domain.UsageRecord{}, err
 	}
-	current, err := findRecord(ctx, s.ledger, input.LocalRequestID)
+	current, err := findRecord(
+		ctx,
+		s.ledger,
+		input.LocalRequestID,
+		ports.RequestStagePostForwarding,
+	)
 	if err != nil {
 		return domain.UsageRecord{}, err
 	}
@@ -96,7 +107,12 @@ func (s *Service) CommitBillable(ctx context.Context, input CommitBillableInput)
 	if err != nil {
 		return domain.UsageRecord{}, err
 	}
-	current, err := findRecord(ctx, s.ledger, input.LocalRequestID)
+	current, err := findRecord(
+		ctx,
+		s.ledger,
+		input.LocalRequestID,
+		ports.RequestStagePostForwarding,
+	)
 	if err != nil {
 		return domain.UsageRecord{}, err
 	}
@@ -123,7 +139,12 @@ func (s *Service) MarkPricingFailed(ctx context.Context, input MarkPricingFailed
 	if err != nil {
 		return domain.UsageRecord{}, err
 	}
-	current, err := findRecord(ctx, s.ledger, input.LocalRequestID)
+	current, err := findRecord(
+		ctx,
+		s.ledger,
+		input.LocalRequestID,
+		ports.RequestStagePostForwarding,
+	)
 	if err != nil {
 		return domain.UsageRecord{}, err
 	}
@@ -198,7 +219,10 @@ func (s *Service) persistReservedTransition(ctx context.Context, current domain.
 	}
 	result, err := s.ledger.CompareAndSwap(ctx, current.LocalRequestID, domain.UsageStatusReserved, desired)
 	if err != nil {
-		return domain.UsageRecord{}, fmt.Errorf("%w: compare and swap: %w", ErrUsageStoreUnavailable, err)
+		return domain.UsageRecord{}, usageStoreUnavailable(
+			ports.RequestStagePostForwarding,
+			fmt.Errorf("compare and swap: %w", err),
+		)
 	}
 	if result.Applied {
 		return desired, nil

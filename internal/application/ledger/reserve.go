@@ -89,7 +89,10 @@ func (s *Service) Reserve(ctx context.Context, input ReserveInput) (ReserveResul
 	}
 	result, err := s.ledger.CreateReserved(ctx, record)
 	if err != nil {
-		return ReserveResult{}, fmt.Errorf("%w: create reserved: %w", ErrUsageStoreUnavailable, err)
+		return ReserveResult{}, usageStoreUnavailable(
+			ports.RequestStagePreForwarding,
+			fmt.Errorf("create reserved: %w", err),
+		)
 	}
 	return classifyReserveResult(record, result)
 }
@@ -194,13 +197,21 @@ func SameReservation(left domain.UsageRecord, right domain.UsageRecord) bool {
 		left.Currency == right.Currency
 }
 
-func findRecord(ctx context.Context, usageLedger ports.UsageLedger, localRequestID string) (domain.UsageRecord, error) {
+func findRecord(
+	ctx context.Context,
+	usageLedger ports.UsageLedger,
+	localRequestID string,
+	stage ports.RequestStage,
+) (domain.UsageRecord, error) {
 	record, err := usageLedger.FindByLocalRequestID(ctx, localRequestID)
 	if err != nil {
 		if errors.Is(err, ports.ErrNotFound) {
 			return domain.UsageRecord{}, ErrUsageNotFound
 		}
-		return domain.UsageRecord{}, fmt.Errorf("%w: find usage: %w", ErrUsageStoreUnavailable, err)
+		return domain.UsageRecord{}, usageStoreUnavailable(
+			stage,
+			fmt.Errorf("find usage: %w", err),
+		)
 	}
 	if record == nil {
 		return domain.UsageRecord{}, fmt.Errorf("%w: nil find result", ErrUsageStoreContractViolation)

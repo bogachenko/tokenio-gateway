@@ -175,8 +175,6 @@ func writeLLMApplicationError(
 		writeError(writer, requestID, http.StatusPaymentRequired, domain.ErrorCodeInsufficientFunds, "Insufficient balance")
 	case errors.Is(err, ledgerapp.ErrUnresolvedUsage):
 		writeError(writer, requestID, http.StatusConflict, domain.ErrorCodeUnresolvedUsage, "Previous usage requires resolution")
-	case errors.Is(err, ledgerapp.ErrUsageStoreUnavailable):
-		writeError(writer, requestID, http.StatusServiceUnavailable, domain.ErrorCodeUsageStoreUnavailable, "Usage store is unavailable")
 	case errors.Is(err, context.DeadlineExceeded):
 		writeError(writer, requestID, http.StatusGatewayTimeout, domain.ErrorCodeUpstreamUnavailable, "Upstream request timed out")
 	default:
