@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strconv"
 
-	ledgerapp "github.com/bogachenko/tokenio-gateway/internal/application/ledger"
 	llmrequestapp "github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
@@ -171,10 +170,6 @@ func writeLLMApplicationError(
 	}
 
 	switch {
-	case errors.Is(err, ledgerapp.ErrInsufficientFunds):
-		writeError(writer, requestID, http.StatusPaymentRequired, domain.ErrorCodeInsufficientFunds, "Insufficient balance")
-	case errors.Is(err, ledgerapp.ErrUnresolvedUsage):
-		writeError(writer, requestID, http.StatusConflict, domain.ErrorCodeUnresolvedUsage, "Previous usage requires resolution")
 	case errors.Is(err, context.DeadlineExceeded):
 		writeError(writer, requestID, http.StatusGatewayTimeout, domain.ErrorCodeUpstreamUnavailable, "Upstream request timed out")
 	default:
