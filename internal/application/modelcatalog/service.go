@@ -324,8 +324,9 @@ func (s *Service) buildModel(
 	selectedPricing := candidates[0].pricing
 	model.Active = true
 	model.Pricing = &selectedPricing
-	for _, candidate := range candidates {
-		model.Capabilities = unionCapabilities(
+	model.Capabilities = candidates[0].route.Capabilities
+	for _, candidate := range candidates[1:] {
+		model.Capabilities = intersectCapabilities(
 			model.Capabilities,
 			candidate.route.Capabilities,
 		)
@@ -457,32 +458,32 @@ func endpointCapabilityPresent(
 	}
 }
 
-func unionCapabilities(
+func intersectCapabilities(
 	left domain.CapabilitySet,
 	right domain.CapabilitySet,
 ) domain.CapabilitySet {
 	return domain.CapabilitySet{
-		Chat: left.Chat || right.Chat,
-		Embeddings: left.Embeddings ||
+		Chat: left.Chat && right.Chat,
+		Embeddings: left.Embeddings &&
 			right.Embeddings,
-		ImagesGeneration: left.ImagesGeneration ||
+		ImagesGeneration: left.ImagesGeneration &&
 			right.ImagesGeneration,
-		Tools: left.Tools || right.Tools,
-		ToolChoice: left.ToolChoice ||
+		Tools: left.Tools && right.Tools,
+		ToolChoice: left.ToolChoice &&
 			right.ToolChoice,
-		ResponseFormat: left.ResponseFormat ||
+		ResponseFormat: left.ResponseFormat &&
 			right.ResponseFormat,
-		JSONSchema: left.JSONSchema ||
+		JSONSchema: left.JSONSchema &&
 			right.JSONSchema,
-		ImageInput: left.ImageInput ||
+		ImageInput: left.ImageInput &&
 			right.ImageInput,
-		AudioInput: left.AudioInput ||
+		AudioInput: left.AudioInput &&
 			right.AudioInput,
-		FileInput: left.FileInput ||
+		FileInput: left.FileInput &&
 			right.FileInput,
-		VideoInput: left.VideoInput ||
+		VideoInput: left.VideoInput &&
 			right.VideoInput,
-		Reasoning: left.Reasoning ||
+		Reasoning: left.Reasoning &&
 			right.Reasoning,
 	}
 }

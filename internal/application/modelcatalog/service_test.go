@@ -244,6 +244,7 @@ func TestListBuildsSafeDeterministicCatalog(
 		"reseller_selected",
 		10,
 	)
+	routeSelected.Capabilities.Tools = true
 	routeSelected.Capabilities.ImageInput = true
 
 	routeInactive := testRoute(
@@ -350,7 +351,7 @@ func TestListBuildsSafeDeterministicCatalog(
 		active.Pricing.OutputPricePer1MTokensCents != 300 ||
 		!active.Capabilities.Chat ||
 		!active.Capabilities.Tools ||
-		!active.Capabilities.ImageInput {
+		active.Capabilities.ImageInput {
 		t.Fatalf("active model = %+v", active)
 	}
 
