@@ -169,12 +169,13 @@ func writeLLMApplicationError(
 		return
 	}
 
-	switch {
-	case errors.Is(err, context.DeadlineExceeded):
-		writeError(writer, requestID, http.StatusGatewayTimeout, domain.ErrorCodeUpstreamUnavailable, "Upstream request timed out")
-	default:
-		writeError(writer, requestID, http.StatusInternalServerError, domain.ErrorCodeInternalError, "Internal error")
-	}
+	writeError(
+		writer,
+		requestID,
+		http.StatusInternalServerError,
+		domain.ErrorCodeInternalError,
+		"Internal error",
+	)
 }
 
 func llmEndpointKind(path string) (domain.EndpointKind, bool) {

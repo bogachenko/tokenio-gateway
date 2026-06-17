@@ -369,7 +369,7 @@ func TestLLMRouterMapsApplicationErrors(t *testing.T) {
 		{"billing identity unavailable", billingapp.ErrBillingIdentityUnavailable, http.StatusBadGateway, domain.ErrorCodeBillingUnavailable, "Billing service is unavailable"},
 		{"billing unavailable", billingapp.ErrBillingUnavailable, http.StatusBadGateway, domain.ErrorCodeBillingUnavailable, "Billing service is unavailable"},
 		{"billing usage store unavailable", billingapp.ErrBillingStoreUnavailable, http.StatusServiceUnavailable, domain.ErrorCodeUsageStoreUnavailable, "Usage store is unavailable"},
-		{"timeout", context.DeadlineExceeded, http.StatusGatewayTimeout, domain.ErrorCodeUpstreamUnavailable, "Upstream request timed out"},
+		{"raw deadline", context.DeadlineExceeded, http.StatusInternalServerError, domain.ErrorCodeInternalError, "Internal error"},
 		{"internal", errors.New("postgres sk_live_secret"), http.StatusInternalServerError, domain.ErrorCodeInternalError, "Internal error"},
 	}
 

@@ -1049,3 +1049,90 @@ func mustService(
 	}
 	return service
 }
+
+type serviceTimeoutForwardingFailure struct {
+	cause error
+}
+
+func (failure *serviceTimeoutForwardingFailure) Error() string {
+	return "classified forwarding timeout"
+}
+
+func (failure *serviceTimeoutForwardingFailure) Unwrap() error {
+	return failure.cause
+}
+
+func (failure *serviceTimeoutForwardingFailure) FailureKindValue() string {
+	return "unavailable"
+}
+
+func (failure *serviceTimeoutForwardingFailure) FailureStatusCode() int {
+	return 0
+}
+
+func (failure *serviceTimeoutForwardingFailure) FailureAttemptStateValue() string {
+	return string(domain.ForwardingAttemptStateSentNoResponse)
+}
+
+func (failure *serviceTimeoutForwardingFailure) FailureRouteRetryCandidate() bool {
+	return false
+}
+
+func TestServiceNormalizesOnlyClassifiedForwardingTimeout(
+	t *testing.T,
+) {
+	classified := &serviceTimeoutForwardingFailure{
+		cause: context.DeadlineExceeded,
+	}
+	dependencies := validDependencies(nil)
+	dependencies.Forwarding = forwardingStageFunc(
+		func(
+			context.Context,
+			PreparedRequest,
+			BillingAdmissionResult,
+		) (ForwardedRequest, error) {
+			return ForwardedRequest{}, classified
+		},
+	)
+
+	service := mustService(t, dependencies)
+	_, err := service.Execute(context.Background(), validInput())
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("error = %v, want deadline cause", err)
+	}
+
+	failure, ok := ports.AsApplicationError(err)
+	if !ok {
+		t.Fatal("classified forwarding timeout is not normalized")
+	}
+	if failure.Code != domain.ErrorCodeUpstreamUnavailable ||
+		failure.SafeMessage != "Upstream request timed out" ||
+		failure.Category != ports.FailureCategoryDependencyUnavailable ||
+		failure.Retryability != ports.RetryabilityRetryable ||
+		failure.RequestStage != ports.RequestStageForwarding ||
+		failure.Cause == nil {
+		t.Fatalf("failure = %+v", failure)
+	}
+
+	rawDependencies := validDependencies(nil)
+	rawDependencies.Forwarding = forwardingStageFunc(
+		func(
+			context.Context,
+			PreparedRequest,
+			BillingAdmissionResult,
+		) (ForwardedRequest, error) {
+			return ForwardedRequest{}, context.DeadlineExceeded
+		},
+	)
+	rawService := mustService(t, rawDependencies)
+	_, rawErr := rawService.Execute(
+		context.Background(),
+		validInput(),
+	)
+	if _, ok := ports.AsApplicationError(rawErr); ok {
+		t.Fatal("raw deadline was incorrectly classified as upstream timeout")
+	}
+	if !errors.Is(rawErr, context.DeadlineExceeded) {
+		t.Fatalf("raw error = %v, want deadline", rawErr)
+	}
+}

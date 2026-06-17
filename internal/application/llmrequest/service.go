@@ -105,7 +105,7 @@ func (s *Service) Execute(
 	if err != nil {
 		return ForwardedRequest{}, fmt.Errorf(
 			"execute forwarding stage: %w",
-			err,
+			normalizeForwardingError(err),
 		)
 	}
 
@@ -187,6 +187,19 @@ func (s *Service) Execute(
 		),
 	)
 	return forwarded, nil
+}
+
+func normalizeForwardingError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var failure ForwardingFailure
+	if !errors.As(err, &failure) ||
+		failure == nil ||
+		!errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
+	return upstreamTimeoutError(err)
 }
 
 func cloneAutoChargeResult(

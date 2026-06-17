@@ -103,3 +103,14 @@ var (
 	}
 	ErrResellerReserveUnavailable = errors.New("reseller reserve unavailable")
 )
+
+func upstreamTimeoutError(cause error) error {
+	return &ports.ApplicationError{
+		Code:         domain.ErrorCodeUpstreamUnavailable,
+		SafeMessage:  "Upstream request timed out",
+		Category:     ports.FailureCategoryDependencyUnavailable,
+		Retryability: ports.RetryabilityRetryable,
+		RequestStage: ports.RequestStageForwarding,
+		Cause:        cause,
+	}
+}
