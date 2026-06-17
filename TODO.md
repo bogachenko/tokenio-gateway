@@ -1,936 +1,749 @@
-## Проблема в слое
+# Tokenio Gateway — TODO
 
-Оставшаяся работа относится сразу к нескольким слоям:
+## Правила выполнения
 
-* `domain/application` — финансовые и routing-инварианты;
-* `ports/infrastructure` — Postgres, Billing, Telegram и provider adapters;
-* `transport` — public/admin/native HTTP-контракты;
-* `worker` — durable recovery;
-* `app` — DI, конфигурация и lifecycle;
-* `tests/integration` — доказательство соответствия спецификациям.
+* [ ] Не добавлять provider-specific условия в generic transport/application/runtime.
+* [ ] Не добавлять fallback между разными `api_family`.
+* [ ] Не изменять semantic request payload, кроме разрешённого model identifier rewrite.
+* [ ] Не добавлять временные, legacy или MVP paths.
+* [ ] Не считать функцию реализованной без wiring, persistence и автоматического acceptance test.
+* [ ] Один этап должен завершаться рабочим вертикальным сценарием.
+* [ ] После каждого этапа выполнять:
 
-Источником истины должны быть `docs/spec/*` и `docs/adr/*`, а не текущий `TODO.md` или `README.md`. Это прямо закреплено в `AGENTS.md`. 
-
-## Инвариант
-
-На всех этапах необходимо сохранять:
-
-```text
-request semantic payload не конвертируется;
-разрешён только explicit model identifier rewrite;
-response body успешного upstream не изменяется;
-fallback не пересекает api_family;
-provider-specific логика остаётся в adapters;
-финансовое состояние хранится в Postgres;
-worker вызывает application service, а не repository напрямую;
-внешнее списание невозможно без durable local ledger command.
-```
-
-Эти правила закреплены спецификацией и ADR.  
-
-## Неправильное решение
-
-Нельзя:
-
-* добавлять все оставшиеся функции одним большим patch;
-* сначала реализовывать native families поверх незакрытого billing recovery;
-* подключать workers напрямую к Postgres;
-* добавлять `if provider == ...` в generic routing или transport;
-* считать наличие интерфейса доказательством выполнения спецификации;
-* писать acceptance-тесты до устранения противоречий между спецификациями;
-* сохранять текущие незадействованные config-поля как «реализованную конфигурацию».
-
-## Правильное решение
-
-Реализовывать по зависимостям: сначала нормализовать контракты и архитектурные границы, затем закрыть OpenAI-compatible core, durable finance и routing, после этого Telegram и native families, а в конце — единый integration environment и полная spec matrix.
+  ```bash
+  gofmt -w .
+  go vet ./...
+  go test ./...
+  go test -race ./...
+  go build ./cmd/gateway
+  go build ./cmd/migrate
+  ```
+* [ ] Статус `verified` в `docs/implementation-matrix.md` разрешён только при наличии конкретного test path и команды запуска.
 
 ---
 
-# Пошаговый план
+# 1. Восстановить исполнимый baseline
 
-## Шаг 0. Зафиксировать baseline и устранить противоречия в спецификациях
+## 1.1. SQL migrations
 
-### Сделать
+* [ ] Проверить наличие canonical migrations в `db/migrations/*.up.sql`.
+* [ ] Если migrations отсутствуют, создать полный набор forward-only migrations.
+* [ ] Реализовать все таблицы из `docs/spec/070-database-schema.ru.md`.
+* [ ] Добавить foreign keys.
+* [ ] Добавить unique constraints.
+* [ ] Добавить check constraints для enum-like состояний.
+* [ ] Добавить индексы для worker scans и runtime lookup.
+* [ ] Добавить partial indexes для pending/failed записей.
+* [ ] Добавить CAS-compatible поля и predicates.
+* [ ] Добавить schema migration metadata.
+* [ ] Добавить checksum validation.
+* [ ] Запретить runtime filesystem override canonical migrations.
+* [ ] Убедиться, что `cmd/gateway` не применяет migrations.
+* [ ] Убедиться, что `cmd/migrate` применяет migrations под advisory lock.
+* [ ] Убедиться, что gateway fail-fast завершается при:
 
-1. Зафиксировать SHA актуального `main`.
-2. Получить отдельный `git diff` локальной рабочей копии.
-3. Не включать незакоммиченные изменения в статус GitHub `main`.
-4. Создать `docs/implementation-matrix.md` с колонками:
+  * [ ] отсутствующей schema;
+  * [ ] schema behind;
+  * [ ] несовместимой schema ahead;
+  * [ ] checksum mismatch.
 
-```text
-spec
-section
-requirement_id
-requirement
-implementation
-automated_test
-status
-evidence
-```
+## 1.2. Migration integration tests
 
-5. Разрешить нормативные противоречия.
+* [ ] Добавить PostgreSQL integration test harness.
+* [ ] Проверить migrate на пустой БД.
+* [ ] Проверить повторный migrate.
+* [ ] Проверить последовательный upgrade.
+* [ ] Проверить checksum mismatch.
+* [ ] Проверить concurrent migrate.
+* [ ] Проверить gateway startup без schema.
+* [ ] Проверить gateway startup со старой schema.
+* [ ] Проверить gateway startup с корректной schema.
 
-### 0.1. Capabilities в `/v1/models`
+## 1.3. Architecture enforcement
 
-`010` требует union capabilities доступных routes, а `030` — conservative intersection.  
+* [ ] Добавить автоматический architecture test для dependency rules.
+* [ ] Запретить импорты между соседними `internal/application/*`.
+* [ ] Запретить `application -> infrastructure`.
+* [ ] Запретить `transport -> infrastructure`.
+* [ ] Запретить `domain -> application|ports|infrastructure|transport`.
+* [ ] Запретить `os.Getenv` вне `internal/config`, composition root и разрешённых secret resolvers.
 
-Нужно принять одно решение и обновить обе спецификации. Практичный production-вариант первой версии:
+## Критерий завершения
 
-```text
-capabilities = intersection доступных routes
-```
-
-Это не обещает клиенту комбинацию возможностей, которую ни один route не может обслужить.
-
-### 0.2. Auth для native SDK
-
-`011` требует стандартные Anthropic/Gemini/Ollama paths и drop-in замену `base_url`, но `020` определяет единственный public auth contract:
-
-```http
-Authorization: Bearer sk_...
-```
-
- 
-
-До native implementation нужен ADR:
-
-```text
-вариант A: все native endpoints принимают только Bearer sk_;
-вариант B: family-native auth carriers принимают Tokenio sk_,
-           но нормализуются transport adapter-ом в один public principal.
-```
-
-Для настоящей SDK drop-in совместимости нужен вариант B, однако конкретные разрешённые headers/query parameters должны быть явно описаны.
-
-### 0.3. Billing recovery configuration
-
-Добавить в `050` и `090` явный контракт:
-
-```text
-TOKENIO_BILLING_RECOVERY_INTERVAL
-TOKENIO_BILLING_RECOVERY_BATCH_SIZE
-```
-
-Зафиксировать:
-
-```text
-первый цикл запускается сразу;
-следующие — по interval;
-один цикл ограничен batch size;
-worker не зависит от нового LLM request.
-```
-
-### 0.4. Migration execution policy
-
-`090` требует explicit command или controlled startup mode, а не неявные destructive migrations. 
-
-Рекомендуемое решение:
-
-```text
-cmd/migrate     — применяет migrations;
-cmd/gateway     — только проверяет совместимость schema version.
-```
-
-### Готово, когда
-
-* противоречащих нормативных требований больше нет;
-* каждый последующий PR ссылается на конкретные строки implementation matrix;
-* локальный diff отделён от состояния `main`.
+* [ ] Чистый checkout собирается.
+* [ ] Migrations полностью воспроизводят production schema.
+* [ ] Architecture violations выявляются тестом.
 
 ---
 
-## Шаг 1. Устранить связи между application packages
+# 2. Закрыть нарушения OpenAI-compatible contract
 
-### Проблема
+## 2.1. Model catalog capabilities
 
-`internal/application/billing` напрямую импортирует соседние application-пакеты `ledger` и `pricing`. 
+* [ ] В `internal/application/modelcatalog` заменить union capabilities на conservative intersection capabilities всех доступных routes.
+* [ ] Не учитывать недоступные routes.
+* [ ] При отсутствии доступных routes возвращать:
 
-Это нарушает установленное направление зависимостей:
+  * [ ] `active=false`;
+  * [ ] отсутствующий pricing;
+  * [ ] все capabilities `false`.
+* [ ] Добавить тесты для routes с разными capability combinations.
+* [ ] Проверить, что catalog не обещает capability, отсутствующую хотя бы у одного доступного route.
 
-```text
-application -> domain + ports
-```
+## 2.2. Единая application error model
 
+* [ ] Создать общий normalized application error contract:
 
+  ```text
+  code
+  safe_message
+  category
+  retryability
+  request_stage
+  cause
+  ```
+* [ ] Application layer не должен содержать HTTP status codes.
+* [ ] Infrastructure classifiers должны возвращать normalized failure categories.
+* [ ] Transport должен быть единственным владельцем HTTP status mapping.
+* [ ] Удалить дублирующий error mapping из public/admin/provisioning routers.
+* [ ] Не возвращать пользователю raw repository, Billing или upstream errors.
 
-### Сделать
+## 2.3. Исправить HTTP mapping
 
-1. Вынести чистые финансовые value objects и проверки в `internal/domain`.
-2. Контракты, необходимые конкретному use case, определить на consumer side или в `internal/ports`.
-3. Не превращать `application/ledger` и `application/pricing` в библиотеки общего назначения.
-4. `internal/app` должен связать:
+* [ ] `billing_unavailable` до upstream forwarding возвращать `502`.
+* [ ] Invalid client/upstream request возвращать `400`.
+* [ ] `upstream_unavailable` возвращать `502`.
+* [ ] `no_route_available` возвращать `503`.
+* [ ] `pricing_unavailable` возвращать `503`.
+* [ ] Capacity exhaustion без доступного fallback возвращать `503`.
+* [ ] Неизвестная gateway-owned ошибка возвращает `500 internal_error`.
+* [ ] Все gateway-owned errors содержат `request_id`.
 
-   * billing service;
-   * pricing calculator;
-   * ledger port;
-   * external Billing clients.
-5. Добавить architecture test, который запрещает импорты:
+## 2.4. Boundary acceptance tests
 
-```text
-internal/application/<package A>
-    -> internal/application/<package B>
-```
+* [ ] Проверить byte-for-byte сохранение request body.
+* [ ] Проверить изменение только model identifier.
+* [ ] Проверить byte-for-byte сохранение successful response body.
+* [ ] Проверить invalid UTF-8.
+* [ ] Проверить duplicate JSON keys на любом уровне.
+* [ ] Проверить nesting depth limit.
+* [ ] Проверить trailing JSON value.
+* [ ] Проверить top-level non-object.
+* [ ] Проверить `stream=true`.
+* [ ] Проверить missing/invalid model.
+* [ ] Проверить body size limit.
+* [ ] Проверить полный набор billing headers.
+* [ ] Проверить `pricing_failed` после успешного upstream response.
+* [ ] Проверить все idempotency states.
+* [ ] Проверить отсутствие raw upstream error body в gateway-owned response.
 
-### Готово, когда
+## Критерий завершения
 
-```bash
-go list -deps ./...
-go test ./internal/app/...
-go test ./internal/application/...
-```
-
-проходят, а application-пакеты не импортируют друг друга.
-
----
-
-## Шаг 2. Закрыть нарушения OpenAI-compatible core contract
-
-Это нужно сделать до новых workers и native families.
-
-### 2.1. Исправить `pricing_failed` после успешного upstream
-
-Сейчас `llmrequest.Service` сохраняет `pricing_failed`, но затем возвращает Go error, из-за чего transport теряет успешный upstream response. 
-
-Спецификация требует:
-
-```text
-upstream status сохраняется;
-upstream body возвращается без изменений;
-usage сохраняется как pricing_failed;
-X-Billing-Status: pricing_failed;
-auto-charge не запускается.
-```
-
-
-
-Нужно изменить application result так, чтобы post-upstream pricing failure являлся успешным forwarding result с отдельным billing state, а не transport-level error.
-
-### 2.2. Завершить billing headers
-
-Сейчас возвращается только часть usage dimensions и используются названия `X-Auto-Charge-*`. 
-
-Добавить точный контракт:
-
-```text
-X-Billing-Input-Tokens
-X-Billing-Cached-Input-Tokens
-X-Billing-Output-Tokens
-X-Billing-Reasoning-Tokens
-X-Billing-Image-Input-Tokens
-X-Billing-Audio-Input-Tokens
-X-Billing-Audio-Output-Tokens
-X-Billing-File-Input-Tokens
-X-Billing-Video-Input-Tokens
-X-Billing-Image-Generation-Units
-X-Billing-Amount-Cents
-X-Billing-Currency
-X-Wallet-Balance-Cents
-X-Wallet-Effective-Balance-Cents
-X-Billing-Pending-Cents
-X-Billing-Auto-Charge-Status
-```
-
-
-
-Headers должны строиться только из committed ledger state и результата balance admission/auto-charge.
-
-### 2.3. Подключить minimum request balance
-
-`AdmissionService` сейчас учитывает required reserve, но не принимает `MinRequestBalanceCents` в конфигурации. 
-
-Добавить проверку:
-
-```text
-effective_balance >= estimated_client_amount
-AND
-effective_balance >= TOKENIO_MIN_REQUEST_BALANCE_CENTS
-```
-
-
-
-### 2.4. Подключить `last_used_at`
-
-1. Обернуть public authenticator в существующий `UsageRecordingAuthenticator`.
-2. Передать:
-
-   * `APIKeyUsageRecorder`;
-   * clock;
-   * `TOKENIO_API_KEY_LAST_USED_TIMEOUT`.
-3. Ошибка secondary update не должна отменять успешную authentication.
-
-### 2.5. Завершить boundary tests
-
-Покрыть:
-
-```text
-byte-for-byte request passthrough;
-model-only rewrite;
-byte-for-byte success response;
-pricing_failed success passthrough;
-полный набор billing headers;
-missing Content-Type как JSON;
-duplicate JSON keys;
-depth > 128;
-invalid UTF-8;
-all idempotency states.
-```
-
-Structural parser обязан отклонять duplicate keys, trailing values и глубину более 128. 
-
-### Готово, когда
-
-Все OpenAI-compatible acceptance requirements `010`, `040` и соответствующие требования `050` имеют implementation и automated test.
+* [ ] Все OpenAI-compatible endpoints соответствуют `docs/spec/010-external-api.ru.md`.
+* [ ] Все ошибки соответствуют `docs/spec/080-error-model.ru.md`.
 
 ---
 
-## Шаг 3. Провести полный storage и migrations audit
+# 3. Завершить operational routing
 
-### Сделать
+## 3.1. Typed runtime policy
 
-Сопоставить `070` с migrations, domain structs и каждым Postgres adapter.
+* [ ] Создать immutable routing policy в application contract.
+* [ ] Собирать policy только в `internal/app`.
+* [ ] Подключить:
 
-Проверить:
+  ```text
+  TOKENIO_UPSTREAM_TIMEOUT
+  TOKENIO_UPSTREAM_MAX_ATTEMPTS
+  TOKENIO_UPSTREAM_MAX_BACKOFF
+  TOKENIO_RATE_LIMIT_MAX_WAIT
+  TOKENIO_COOLDOWN_RATE_LIMIT
+  TOKENIO_COOLDOWN_QUOTA_EXCEEDED
+  TOKENIO_COOLDOWN_5XX
+  TOKENIO_COOLDOWN_TIMEOUT
+  TOKENIO_COOLDOWN_AUTH_ERROR
+  ```
+* [ ] Удалить config fields, которые не имеют runtime consumer.
 
-```text
-users
-api_keys
-api_key_provisionings
-resellers
-routes
-route_prices
-usage_records
-billing_sessions
-billing_charge_batches
-billing_charge_allocations
-billing_charge_expected_records
-forwarding_attempts
-route_events
-telegram_alerts
-telegram_delivery_attempts
-admin_audit_log
-schema migrations table
-```
+## 3.2. Attempt execution
 
-Postgres является source of truth, а migrations должны быть explicit SQL. 
+* [ ] Ограничить общее количество forwarding attempts.
+* [ ] Создавать отдельный `context.WithTimeout` для каждого attempt.
+* [ ] Реализовать bounded exponential backoff.
+* [ ] Поддержать безопасный `Retry-After`.
+* [ ] Не ждать дольше configured rate-limit maximum wait.
+* [ ] Не повторять non-retryable request errors.
+* [ ] Не повторять uncertain-processing requests, если повтор может создать duplicate provider operation.
+* [ ] Всегда освобождать concurrency/rate capacity.
+* [ ] Всегда завершать durable forwarding attempt state.
 
-Особенно проверить:
+## 3.3. Failure classification
 
-* exact persistence всех десяти `EstimatedUsage` и `Usage` dimensions;
-* partial indexes для pending и chargeable records;
-* idempotency unique constraints;
-* immutable batch command;
-* ordered allocations и expected records;
-* exact `float64` round trip для markup;
-* nullable/non-null contracts;
-* foreign keys;
-* CAS predicates;
-* canonical timestamps UTC.
+* [ ] Расширить adapter classifiers категориями:
 
-Usage schema требует полное сохранение всех dimensions без synthetic zero reconstruction. 
+  ```text
+  request_error
+  auth_error
+  rate_limit
+  quota_exceeded
+  provider_5xx
+  timeout
+  connection_error
+  uncertain_processing
+  malformed_response
+  ```
+* [ ] Classification должна находиться в concrete provider adapter.
+* [ ] Generic routing не должен определять provider behavior по имени provider.
+* [ ] Не использовать substring/keyword heuristics вне adapter-owned protocol parsing.
 
-### Integration tests migrations
+## 3.4. Durable cooldown
 
-```text
-пустая PostgreSQL;
-повторное применение;
-upgrade с предыдущей schema version;
-ошибка migration и rollback;
-изменённый checksum;
-несовместимая schema version;
-параллельный запуск migrate;
-gateway startup без требуемой migration.
-```
+* [ ] Добавить application port для изменения operational route state.
+* [ ] Атомарно сохранять cooldown и route event.
+* [ ] Применять разные cooldown durations по normalized failure category.
+* [ ] Auth error должен отключать route на configured cooldown.
+* [ ] Quota exceeded должен отличаться от temporary rate limit.
+* [ ] Истёкший cooldown должен снова делать route доступным.
+* [ ] Добавить recovery/cleanup истёкших cooldown records при необходимости.
 
-### Готово, когда
+## 3.5. Route events
 
-`cmd/migrate` и schema validator имеют отдельные integration tests, а каждая таблица и constraint из `070` отмечены в implementation matrix.
+* [ ] Подключить существующий `route_events` repository к application layer.
+* [ ] Сохранять события:
 
----
+  ```text
+  selected
+  skipped
+  capacity_rejected
+  forwarding_started
+  retry_scheduled
+  forwarding_succeeded
+  forwarding_failed
+  cooldown_set
+  cooldown_expired
+  ```
+* [ ] Не сохранять raw API keys, JWT, request body или provider secrets.
+* [ ] Добавить deterministic reason codes.
+* [ ] Добавить correlation через `local_request_id`, route, reseller и attempt.
 
-## Шаг 4. Реализовать периодический billing recovery
+## 3.6. Routing tests
 
-Текущий `WorkerGraph` запускает только provisioning expiration и forwarding-attempt recovery. 
+* [ ] Самый дешёвый доступный route выбирается первым.
+* [ ] Priority и route ID используются как deterministic tie-breaker.
+* [ ] Fallback не пересекает `api_family`.
+* [ ] Fallback не пересекает `endpoint_kind`.
+* [ ] Fallback не пересекает `client_model`.
+* [ ] Unsupported capability исключает route.
+* [ ] Disabled route/reseller исключается.
+* [ ] Cooldown route исключается.
+* [ ] Недостаточный reseller balance исключает route.
+* [ ] RPM/TPM/concurrency capacity корректно резервируется и освобождается.
+* [ ] Max attempts соблюдается.
+* [ ] Timeout и backoff соблюдаются.
+* [ ] Route events соответствуют фактическому выполнению.
 
-### Сделать
+## Критерий завершения
 
-1. Создать application use case:
-
-```text
-BillingRecoveryService.RunCycle(ctx, limit)
-```
-
-2. Worker должен вызывать только этот use case.
-3. За один цикл:
-
-```text
-1. найти persisted open batches;
-2. восстановить pending batches;
-3. повторить failed batches с тем же batch ID;
-4. обработать succeeded replay без повторного Billing call;
-5. продолжить partially_charged records;
-6. загрузить новые billable candidates;
-7. разбить их по provider_type + client_model + currency;
-8. обработать все группы;
-9. ограничить число операций cycle limit.
-```
-
-4. External Billing call выполняется только после committed `PrepareChargeBatch`.
-5. После restart используется тот же stable financial command.
-6. Worker не должен повторно отправлять LLM request.
-7. Неопределённый результат Billing восстанавливается через тот же idempotency key.
-
-Durable preparation, succeeded replay и historical/active claims подробно определены в `050`. 
-
-### Обязательные crash-point tests
-
-```text
-process died before PrepareChargeBatch commit;
-died after prepare, before Billing call;
-died after Billing success, before ApplyChargeSuccess;
-died during partial charge;
-concurrent recovery cycles;
-several provider/model groups;
-failed batch retry;
-succeeded replay without response balance;
-no double charge after restart.
-```
-
-### Готово, когда
-
-Billing recovery работает без поступления новых LLM requests и после любого restart продолжает persisted command без duplicate charge.
+* [ ] Routing полностью соответствует `docs/spec/030-routing-and-resellers.ru.md`.
+* [ ] Все operational decisions имеют durable audit trail.
 
 ---
 
-## Шаг 5. Завершить operational routing policy
+# 4. Завершить durable billing и auto-charge
 
-### Сделать
+## 4.1. Recovery prepared batches
 
-1. Передать в routing/forwarding typed policy:
+* [ ] Восстанавливать `pending` batches.
+* [ ] Восстанавливать retryable `failed` batches.
+* [ ] Использовать тот же immutable billing charge request ID.
+* [ ] Не создавать новый external charge для succeeded batch.
+* [ ] Корректно обрабатывать неизвестный результат Billing.
+* [ ] Ограничивать число batch operations за recovery cycle.
 
-```text
-UpstreamTimeout
-UpstreamMaxAttempts
-UpstreamMaxBackoff
-RateLimitMaxWait
-CooldownRateLimit
-CooldownQuotaExceeded
-Cooldown5XX
-CooldownTimeout
-CooldownAuthError
-```
+## 4.2. Создание новых charge batches worker-ом
 
-2. Ограничить общее число forwarding attempts.
-3. Применять per-attempt timeout.
-4. Retry разрешать только по normalized classifier и только до unsafe processing boundary.
-5. Не retry-ить deterministic client 4xx.
-6. Никогда не переходить в другую:
+* [ ] После recovery prepared batches загружать новые billable candidates.
+* [ ] Загружать partially charged records, у которых остался billable amount.
+* [ ] Не загружать records, уже полностью allocated в active batch.
+* [ ] Разбивать records по:
 
-   * `api_family`;
-   * `endpoint_kind`;
-   * `client_model`.
-7. При переходе на fallback:
+  ```text
+  user
+  provider_type
+  client_model
+  currency
+  ```
+* [ ] Для каждой группы создавать отдельный immutable billing command.
+* [ ] Обрабатывать все группы за один recovery run в пределах operation budget.
+* [ ] Не завершать run после первой группы.
+* [ ] Claim применять только к records, реально включённым в allocations.
+* [ ] Records без allocation должны оставаться доступными.
+* [ ] После partial charge record должен снова стать доступным для остатка.
 
-   * завершить attempt;
-   * освободить capacity;
-   * atomically transfer reseller reserve;
-   * создать новый attempt.
-8. Реализовать automatic cooldown update.
-9. Сохранять `route_event` для:
+## 4.3. Transaction boundaries
 
-   * selected;
-   * skipped;
-   * retry;
-   * failure;
-   * success;
-   * cooldown set/expired.
-10. Подключить request, token и concurrent capacity limits.
+* [ ] Prepare batch и allocations выполнять одной транзакцией.
+* [ ] External Billing вызывать только после commit.
+* [ ] Success reconciliation выполнять одной транзакцией.
+* [ ] Failure reconciliation выполнять одной транзакцией.
+* [ ] Использовать CAS/state predicates для concurrent workers.
+* [ ] Исключить двойное списание при crash/restart.
 
-Спецификация определяет retry boundary, cooldown reasons и route limits.  
+## 4.4. Request-triggered auto-charge
 
-### Архитектурное ограничение
+* [ ] Сохранить request-triggered auto-charge как ускорение.
+* [ ] Не считать его единственным trigger.
+* [ ] Использовать тот же durable command pipeline, что и recovery worker.
+* [ ] Не иметь отдельной финансовой логики для request path.
 
-Generic routing получает только normalized classification:
+## 4.5. Billing tests
 
-```text
-rate_limit
-quota_exceeded
-auth_error
-provider_5xx
-timeout
-connection_error
-client_request_error
-```
+* [ ] Crash до prepare.
+* [ ] Crash после prepare.
+* [ ] Crash после external Billing success.
+* [ ] Crash до local success reconciliation.
+* [ ] Несколько charge groups.
+* [ ] Partial charge.
+* [ ] Record без allocation.
+* [ ] Concurrent workers.
+* [ ] Failed batch retry.
+* [ ] Succeeded batch replay.
+* [ ] Restart без новых LLM requests.
+* [ ] Unknown Billing result.
+* [ ] Отсутствие duplicate charge.
 
-Provider-specific JSON parsing остаётся в adapter package.
+## Критерий завершения
 
-### Готово, когда
-
-Полностью выполнены 17 acceptance criteria routing specification. 
-
----
-
-## Шаг 6. Завершить единый error model
-
-### Сделать
-
-1. Ввести один normalized application error contract.
-2. Provider adapters возвращают классификацию, но не HTTP status публичного API.
-3. Transport выполняет точный mapping по `080`.
-4. Raw upstream error body никогда не возвращается клиенту.
-5. Successful upstream body остаётся byte-for-byte неизменным.
-6. Для всех ошибок после создания request ID возвращать:
-
-   * `X-Local-Request-ID`;
-   * `error.request_id`.
-7. Исправить статусы:
-
-```text
-billing_unavailable before upstream -> 502
-upstream_request_error              -> 400
-upstream_unavailable                -> 502
-no_route_available                  -> 503
-pricing_unavailable                 -> 503
-```
-
-Полный registry и status mapping закреплены в `080`. 
-
-### Tests
-
-```text
-auth;
-validation;
-routing;
-billing before upstream;
-billing after successful upstream;
-pricing_failed;
-every upstream classifier;
-request ID;
-no raw provider body;
-no SQL/internal errors;
-no credentials.
-```
-
-### Готово, когда
-
-Любая gateway-owned ошибка имеет стабильный code и envelope, а provider failure не может попасть в public response как raw body. 
+* [ ] Pending usage гарантированно списывается без новых пользовательских запросов.
+* [ ] Один usage amount не может быть списан дважды.
+* [ ] Полный workflow соответствует `docs/spec/050-ledger-and-auto-charge.ru.md`.
 
 ---
 
-## Шаг 7. Завершить configuration и security wiring
+# 5. Завершить Admin API и provisioning
 
-### Сделать
+## 5.1. Недостающие Admin endpoints
 
-1. Построить таблицу:
+* [ ] Добавить:
 
-```text
-Config field
-env key
-validation
-runtime consumer
-automated test
-```
+  ```text
+  GET /admin/v1/api-key-provisionings/{id}
+  GET /admin/v1/route-events
+  ```
+* [ ] После реализации Telegram добавить:
 
-2. Не считать поле реализованным, пока оно не передано конкретному consumer.
-3. Подключить:
+  ```text
+  GET  /admin/v1/telegram-alerts
+  POST /admin/v1/telegram-alerts/{id}/retry
+  ```
 
-   * upstream timeout/retry;
-   * cooldowns;
-   * rate-limit wait;
-   * minimum request balance;
-   * API-key last-used timeout;
-   * Telegram settings;
-   * logging level/format;
-   * body logging policy.
-4. В production запретить `TOKENIO_LOG_BODIES=true`.
-5. Проверить redaction ключей с `TOKEN`, `SECRET`, `KEY`, `PASSWORD`, `DSN`, `AUTHORIZATION`.
-6. Проверить:
+## 5.2. Admin mutation invariants
 
-   * HMAC secret обязателен;
-   * provisioning encryption key — ровно 32 байта;
-   * provisioning key отличается от HMAC secret;
-   * production admin token удовлетворяет требованиям;
-   * typed config неизменяем после старта.
-7. Разделить migration execution и gateway startup согласно решению шага 0.
+* [ ] Каждая mutation должна выполняться одной транзакцией.
+* [ ] Загружать current state до изменения.
+* [ ] Проверять expected state.
+* [ ] Сохранять точный `before_state`.
+* [ ] Сохранять точный `after_state`.
+* [ ] Сохранять обязательный reason.
+* [ ] Сохранять admin identity.
+* [ ] Не сохранять secrets в audit.
+* [ ] Не завершать mutation без audit event.
 
-Config должен загружаться единожды, валидироваться fail-fast и передаваться как typed immutable value.  
+## 5.3. Provisioning contract
 
-### Готово, когда
+* [ ] Проверить first provision.
+* [ ] Проверить same-input idempotent replay.
+* [ ] Проверить conflicting replay.
+* [ ] Запретить provision для disabled user.
+* [ ] Не создавать второй active API key при replay.
+* [ ] Хранить raw material только encrypted.
+* [ ] Не писать raw key в logs/audit/errors.
+* [ ] Confirm delivery должен быть idempotent.
+* [ ] Expiration worker должен закрывать недоставленные provisioning records.
+* [ ] Delivered raw key нельзя получить повторно.
+* [ ] Status endpoint не должен раскрывать raw material.
+* [ ] Provisioning repository должен использовать deterministic state transitions.
 
-Каждый config key из `090` либо используется runtime consumer, либо явно удалён из спецификации и кода.
+## 5.4. Admin acceptance tests
 
----
+* [ ] CRUD users.
+* [ ] CRUD API keys.
+* [ ] CRUD resellers.
+* [ ] CRUD routes.
+* [ ] CRUD route prices.
+* [ ] Reseller balance correction.
+* [ ] Usage record listing.
+* [ ] Manual usage resolution.
+* [ ] Charge batch retry.
+* [ ] Route events listing.
+* [ ] Provisioning lifecycle.
+* [ ] Audit completeness.
+* [ ] Authentication and authorization failures.
 
-## Шаг 8. Замкнуть Telegram vertical slice
+## Критерий завершения
 
-### Сделать
-
-1. Создать Telegram infrastructure graph:
-
-   * sender;
-   * alert store;
-   * delivery-attempt store.
-2. Собрать application services:
-
-   * low-balance check;
-   * alert delivery;
-   * failed delivery retry;
-   * stale attempt recovery;
-   * periodic reseller balance scan.
-3. После каждого committed изменения reseller balance запускать best-effort check.
-4. Ошибка Telegram не должна откатывать:
-
-   * reseller balance;
-   * usage finalization;
-   * charge success;
-   * admin balance adjustment.
-5. Periodic checker должен восстанавливать alerts, пропущенные post-commit вызовом.
-6. Alert сначала сохраняется, затем отправляется.
-7. Подключить в `WorkerGraph`:
-
-   * pending delivery worker;
-   * stale-attempt recovery;
-   * periodic balance checker.
-8. Если Telegram config отсутствует, весь Telegram graph выключается явно.
-9. Добавить Admin API:
-
-   * `GET /admin/v1/telegram-alerts`;
-   * `POST /admin/v1/telegram-alerts/{id}/retry`.
-10. Retry фиксировать в audit log.
-
-Threshold и безопасное содержимое alert определены в routing spec. 
-
-### Tests
-
-```text
-above threshold -> no alert;
-below threshold -> pending alert;
-deduplication;
-send success;
-temporary failure;
-retry;
-stale attempt recovery;
-restart recovery;
-financial transaction survives Telegram failure;
-alert contains no secret.
-```
+* [ ] Admin API соответствует `docs/spec/060-admin-api.ru.md`.
+* [ ] Provisioning соответствует `docs/spec/021-api-key-provisioning.ru.md`.
 
 ---
 
-## Шаг 9. Завершить Admin API и provisioning acceptance
+# 6. Завершить Telegram vertical slice
 
-### Admin API
+## 6.1. Composition root
 
-Добавить отсутствующие endpoints:
+* [ ] Создать `TelegramInfrastructureGraph`.
+* [ ] Создать Telegram HTTP client только при валидной конфигурации.
+* [ ] Fail-fast при частично заданной Telegram конфигурации.
+* [ ] Подключить Telegram application services.
+* [ ] Подключить Telegram repositories.
+* [ ] Подключить Telegram workers в `WorkerGraph`.
 
-```text
-GET  /admin/v1/api-key-provisionings/{id}
-GET  /admin/v1/route-events
-GET  /admin/v1/telegram-alerts
-POST /admin/v1/telegram-alerts/{id}/retry
-```
+## 6.2. Alert creation
 
-Они прямо предусмотрены спецификацией.  
+* [ ] После commit изменения reseller balance выполнять best-effort threshold check.
+* [ ] Не выполнять Telegram HTTP request внутри финансовой транзакции.
+* [ ] Создавать durable pending alert.
+* [ ] Использовать deterministic deduplication key.
+* [ ] Не создавать повторный active alert для того же threshold condition.
+* [ ] Поддержать восстановление после пополнения баланса и повторное срабатывание.
 
-Для каждой изменяющей операции проверить:
+## 6.3. Delivery workers
 
-```text
-separate admin auth;
-validation;
-transaction;
-exact before_state;
-exact after_state;
-reason;
-CAS/locking;
-audit commit in same transaction;
-no raw secret in DTO.
-```
+* [ ] Реализовать pending delivery worker.
+* [ ] Реализовать retry failed delivery worker.
+* [ ] Подключить stale-attempt recovery worker.
+* [ ] Добавить attempt timeout.
+* [ ] Добавить retry/backoff policy.
+* [ ] Сохранять Telegram message ID при успехе.
+* [ ] Ошибка Telegram не должна откатывать финансовую операцию.
 
-### Provisioning
+## 6.4. Periodic balance scan
 
-Закрыть acceptance matrix:
+* [ ] Добавить periodic scan всех enabled resellers.
+* [ ] Проверять threshold независимо от новых LLM requests.
+* [ ] Использовать те же application rules, что и post-commit check.
+* [ ] Ограничить batch size и operation budget.
 
-```text
-first creation;
-same-input replay returns same raw key;
-different-input replay -> 409;
-existing active key -> already_provisioned;
-disabled user rejection;
-delivery_attempt recorded before raw response;
-confirm delivery idempotency;
-encrypted material cleared;
-expired provisioning -> 410;
-delivered provisioning never returns raw key;
-expiration worker immediate startup cycle;
-service token rejected by public API;
-raw key absent from logs and audit.
-```
+## 6.5. Admin operations
 
-Provisioning transaction и replay contract определены в `021`. 
+* [ ] Реализовать listing Telegram alerts.
+* [ ] Реализовать manual retry.
+* [ ] Manual retry должен создавать admin audit event.
+* [ ] Нельзя повторно отправлять уже успешно доставленный alert без explicit admin transition.
 
-### Готово, когда
+## 6.6. Telegram tests
 
-Все dangerous Admin operations имеют transactional audit, а provisioning lifecycle полностью проверен на реальном PostgreSQL.
+* [ ] Threshold crossing.
+* [ ] Repeated balance update без duplicate alert.
+* [ ] Temporary Telegram failure.
+* [ ] Permanent Telegram failure.
+* [ ] Stale attempt recovery.
+* [ ] Restart recovery.
+* [ ] Manual retry.
+* [ ] Ошибка Telegram не влияет на committed balance operation.
 
----
+## Критерий завершения
 
-## Шаг 10. Реализовать native API families
-
-Начинать только после ADR по native auth.
-
-### Общая архитектура
-
-Не изменять generic `llmrequest` под vendor-specific поля.
-
-Для каждой family создать отдельные:
-
-```text
-inbound path adapter;
-request metadata parser;
-model identifier rewriter;
-forwarding adapter;
-usage extractor;
-error classifier;
-safe request header policy;
-safe response header policy;
-catalog response adapter.
-```
-
-Generic pipeline получает только:
-
-```text
-api_family
-endpoint_kind
-client_model
-requested capabilities
-opaque original body
-normalized usage
-normalized forwarding failure
-```
-
-### 10.1. Anthropic native
-
-Реализовать:
-
-```text
-POST /v1/messages
-api_family = anthropic_native
-endpoint_kind = chat
-model = body.model
-```
-
-Затем acceptance:
-
-```text
-body passthrough;
-model-only rewrite;
-usage extraction;
-error normalization;
-stream=true rejection;
-fallback only anthropic_native.
-```
-
-### 10.2. Gemini native
-
-Реализовать:
-
-```text
-POST /v1beta/models/{model}:generateContent
-POST /v1beta/models/{model}:embedContent
-POST /v1beta/models/{model}:batchEmbedContents
-GET  /v1beta/models
-```
-
-До появления streaming spec:
-
-```text
-POST ...:streamGenerateContent
--> 400 streaming_unsupported
-```
-
-Model извлекается и при необходимости переписывается только в path segment.
-
-### 10.3. Ollama native
-
-Реализовать:
-
-```text
-POST /api/chat
-POST /api/generate
-POST /api/embeddings
-GET  /api/tags
-```
-
-Для Ollama отдельно определить conservative usage estimation, поскольку native responses могут не содержать полный billable usage.
-
-Стандартные paths и acceptance criteria закреплены в `011`.  
-
-### Готово, когда
-
-Каждая family проходит одинаковые проверки:
-
-```text
-path detection;
-auth normalization;
-model extraction;
-model rewrite boundary;
-request passthrough;
-response passthrough;
-usage/pricing;
-error classification;
-same-family fallback;
-no cross-family route.
-```
+* [ ] Telegram alerts работают после restart и без новых запросов.
+* [ ] Доставка полностью durable и наблюдаема через Admin API.
 
 ---
 
-## Шаг 11. Создать воспроизводимый integration environment
+# 7. Реализовать native API families
 
-### Состав
+## 7.1. Общий registry contract
 
-```text
-PostgreSQL
-fake Billing Service
-fake OpenAI-compatible upstream
-fake Anthropic upstream
-fake Gemini upstream
-fake Ollama upstream
-fake Telegram API
-gateway
-migration command
-```
+* [ ] Registry должен выбирать adapter по:
 
-### Fake services должны воспроизводить
+  ```text
+  api_family + provider_type
+  ```
+* [ ] Отдельно регистрировать:
 
-```text
-success;
-401/403;
-429;
-quota exceeded;
-5xx;
-timeout;
-connection reset;
-response headers received then body failure;
-missing usage;
-malformed usage;
-aggregate usage;
-partial wallet balance;
-duplicate charge request;
-successful charge without returned balance;
-uncertain charge result;
-Telegram temporary failure.
-```
+  ```text
+  inbound parser
+  auth carrier parser
+  forwarding adapter
+  model rewrite capability
+  usage extractor
+  failure classifier
+  header policy
+  model catalog adapter
+  ```
+* [ ] Generic application pipeline не должен импортировать concrete adapters.
+* [ ] Unknown `api_family + provider_type` должен deterministic отклоняться.
+* [ ] Native implementation не должна изменять OpenAI-compatible contract.
 
-### Tests
+## 7.2. Anthropic native
 
-Запускать через один command, например:
+* [ ] Реализовать `POST /v1/messages`.
+* [ ] Принимать Tokenio key только через `x-api-key`.
+* [ ] Reject conflicting/unsupported auth carriers.
+* [ ] Не передавать Tokenio key upstream.
+* [ ] Извлекать model из native request.
+* [ ] Сохранять body byte-for-byte.
+* [ ] Поддержать model-only rewrite.
+* [ ] Реализовать Anthropic usage extraction.
+* [ ] Реализовать Anthropic failure classifier.
+* [ ] Возвращать upstream response body без изменений.
+* [ ] Добавить native acceptance tests.
 
-```bash
-go test -tags=integration ./integration/...
-```
+## 7.3. Gemini native
 
-Ни один acceptance test не должен обращаться к реальному LLM provider или Telegram.
+* [ ] Реализовать:
+
+  ```text
+  POST /v1beta/models/{model}:generateContent
+  POST /v1beta/models/{model}:embedContent
+  POST /v1beta/models/{model}:batchEmbedContents
+  GET  /v1beta/models
+  ```
+* [ ] Принимать Tokenio key только через `x-goog-api-key`.
+* [ ] Запретить query-string `?key=`.
+* [ ] Извлекать model из path.
+* [ ] Поддержать model path-segment rewrite.
+* [ ] Сохранять body byte-for-byte.
+* [ ] Реализовать Gemini usage extraction.
+* [ ] Реализовать Gemini failure classifier.
+* [ ] Возвращать upstream response body без изменений.
+* [ ] Добавить native acceptance tests.
+
+## 7.4. Ollama native
+
+* [ ] Реализовать:
+
+  ```text
+  POST /api/chat
+  POST /api/generate
+  POST /api/embeddings
+  GET  /api/tags
+  ```
+* [ ] Принимать Tokenio key через `Authorization: Bearer`.
+* [ ] Извлекать model из native request.
+* [ ] Сохранять body byte-for-byte.
+* [ ] Поддержать model-only rewrite.
+* [ ] Реализовать Ollama usage extraction или conservative estimation.
+* [ ] Реализовать Ollama failure classifier.
+* [ ] Возвращать upstream response body без изменений.
+* [ ] Добавить native acceptance tests.
+
+## 7.5. Cross-family tests
+
+* [ ] OpenAI request не может попасть в Anthropic/Gemini/Ollama native route.
+* [ ] Anthropic request не может попасть в другую family.
+* [ ] Gemini request не может попасть в другую family.
+* [ ] Ollama request не может попасть в другую family.
+* [ ] Model rewrite не разрешает API conversion.
+* [ ] Tokenio credential никогда не передаётся upstream.
+* [ ] Billing model отражает фактически использованный provider type и client model.
+
+## Критерий завершения
+
+* [ ] Все native paths соответствуют `docs/spec/011-native-api-families.ru.md`.
+* [ ] Для каждой family реализован полный transport-to-ledger vertical slice.
 
 ---
 
-## Шаг 12. Выполнить полный spec-to-code audit
+# 8. Завершить configuration, logging и security
 
-Для каждого требования из:
+## 8.1. Config consumption audit
 
-```text
-000
-010
-011
-020
-021
-030
-040
-050
-060
-070
-080
-090
-ADR
-```
+Для каждого config field обеспечить:
 
-зафиксировать ровно один результат:
+* [ ] env key;
 
-```text
-implemented + automated test;
-или
-explicitly unsupported by current specification.
-```
+* [ ] parsing;
 
-Недопустимые статусы:
+* [ ] validation;
 
-```text
-interface exists;
-repository method exists;
-struct exists;
-planned;
-probably works.
-```
+* [ ] typed config field;
 
-Результат считается выполненным только при наличии executable evidence.
+* [ ] composition-root consumer;
+
+* [ ] behavioral test;
+
+* [ ] documentation.
+
+* [ ] Удалить неиспользуемые config fields.
+
+* [ ] Не читать env внутри application/domain/transport.
+
+## 8.2. Logging
+
+* [ ] Создать central structured logger.
+* [ ] Подключить log level.
+* [ ] Подключить log format.
+* [ ] Добавить correlation fields:
+
+  ```text
+  local_request_id
+  user_id
+  api_key_id
+  route_id
+  reseller_id
+  forwarding_attempt_id
+  billing_batch_id
+  ```
+* [ ] Не логировать request/response bodies по умолчанию.
+* [ ] `LogBodies=true` в production должен останавливать startup.
+* [ ] Добавить redaction для:
+
+  ```text
+  Authorization
+  x-api-key
+  x-goog-api-key
+  API keys
+  JWT
+  DSN password
+  reseller credentials
+  provisioning material
+  Telegram bot token
+  ```
+
+## 8.3. Security verification
+
+* [ ] User API keys хешируются только HMAC-SHA256.
+* [ ] Startup завершается без `TOKENIO_API_KEY_HASH_SECRET`.
+* [ ] Billing JWT имеет корректные issuer/audience/TTL.
+* [ ] Reseller keys разрешаются только через configured secret resolver.
+* [ ] Raw secrets отсутствуют в database, audit, errors и logs.
+* [ ] Query-string credentials запрещены.
+* [ ] Hop-by-hop headers удаляются.
+* [ ] Inbound Tokenio auth headers удаляются перед forwarding.
+* [ ] Admin auth отделён от public auth.
+* [ ] Provisioning auth отделён от public/admin auth.
+
+## Критерий завершения
+
+* [ ] Все config keys из `docs/spec/090-configuration.ru.md` имеют реального consumer.
+* [ ] Security invariants покрыты автоматическими тестами.
 
 ---
 
-## Шаг 13. Финальная production verification
+# 9. Integration environment
 
-Выполнить на чистом checkout точного commit:
+## 9.1. Test dependencies
 
-```bash
-gofmt -w .
-go vet ./...
-go test ./...
-go test -race ./...
-go build ./cmd/gateway
-go build ./cmd/migrate
-```
+* [ ] Создать `integration/`.
+* [ ] Добавить reproducible PostgreSQL environment.
+* [ ] Добавить fake Billing service.
+* [ ] Добавить fake OpenAI-compatible upstream.
+* [ ] Добавить fake Anthropic upstream.
+* [ ] Добавить fake Gemini upstream.
+* [ ] Добавить fake Ollama upstream.
+* [ ] Добавить fake Telegram API.
+* [ ] Добавить команду запуска migrations.
+* [ ] Добавить команду запуска gateway.
+* [ ] Не использовать внешние production services в integration tests.
 
-Затем проверить:
+## 9.2. Управляемые сценарии fake services
 
-```text
-migration на пустой PostgreSQL;
-повторный migrate;
-upgrade предыдущей schema;
-gateway startup с актуальной schema;
-gateway отказ с несовместимой schema;
-graceful shutdown;
-billing recovery после restart;
-provisioning expiration после restart;
-Telegram recovery после restart;
-parallel reservations;
-parallel charge recovery;
-отсутствие duplicate charge;
-byte-for-byte request passthrough;
-byte-for-byte successful response passthrough;
-model-only rewrite;
-полный public error registry;
-полный billing-header contract;
-отсутствие secrets в logs;
-реальные HTTP acceptance requests ко всем endpoint families.
-```
+* [ ] Success.
+* [ ] Invalid request.
+* [ ] Authentication failure.
+* [ ] Rate limit.
+* [ ] Quota exhausted.
+* [ ] Provider 5xx.
+* [ ] Timeout.
+* [ ] Connection reset.
+* [ ] Headers received, body failed.
+* [ ] Missing usage.
+* [ ] Malformed usage.
+* [ ] Partial Billing charge.
+* [ ] Duplicate Billing request.
+* [ ] Unknown Billing result.
+* [ ] Telegram temporary failure.
+* [ ] Telegram permanent failure.
 
-## Рекомендуемый порядок PR
+## 9.3. End-to-end scenarios
 
-```text
-PR-01  Spec conflicts, ADRs, implementation matrix
-PR-02  Application dependency cleanup
-PR-03  pricing_failed success passthrough
-PR-04  Billing headers, min balance, last_used_at
-PR-05  Storage and migration contract audit
-PR-06  Periodic billing recovery
-PR-07  Operational routing policy and route events
-PR-08  Unified error model
-PR-09  Configuration and security wiring
-PR-10  Telegram application/runtime wiring
-PR-11  Telegram workers and Admin API
-PR-12  Admin and provisioning acceptance gaps
-PR-13  Anthropic-native
-PR-14  Gemini-native
-PR-15  Ollama-native
-PR-16  Reproducible integration environment
-PR-17  Final specification matrix and production verification
-```
+* [ ] Public authentication.
+* [ ] Model catalog.
+* [ ] Chat completion.
+* [ ] Embeddings.
+* [ ] Image generation.
+* [ ] Anthropic messages.
+* [ ] Gemini generate/embed/models.
+* [ ] Ollama chat/generate/embeddings/tags.
+* [ ] Route fallback.
+* [ ] Cooldown.
+* [ ] Capacity rejection.
+* [ ] Usage finalization.
+* [ ] Request-triggered charge.
+* [ ] Worker-triggered charge.
+* [ ] Restart recovery.
+* [ ] Provisioning lifecycle.
+* [ ] Admin mutations and audit.
+* [ ] Telegram alert lifecycle.
+* [ ] Migration lifecycle.
 
-Каждый PR должен закрывать один архитектурный инвариант, содержать собственные unit/integration tests и оставлять `go test ./...`, `go test -race ./...`, `go vet ./...` и `go build ./cmd/gateway` зелёными.
+## Критерий завершения
+
+* [ ] Полный сервис поднимается одной воспроизводимой командой.
+* [ ] Все внешние зависимости заменяемы deterministic fake implementations.
+
+---
+
+# 10. Production verification
+
+* [ ] Выполнить на clean checkout:
+
+  ```bash
+  gofmt -w .
+  go vet ./...
+  go test ./...
+  go test -race ./...
+  go test -tags=integration ./integration/...
+  go build ./cmd/gateway
+  go build ./cmd/migrate
+  ```
+* [ ] Проверить shutdown по `SIGTERM`.
+* [ ] Проверить остановку всех workers.
+* [ ] Проверить закрытие HTTP server.
+* [ ] Проверить закрытие PostgreSQL pool.
+* [ ] Проверить отсутствие goroutine leaks.
+* [ ] Проверить bounded worker cycles.
+* [ ] Проверить restart во всех durable intermediate states.
+* [ ] Проверить concurrent gateway replicas.
+* [ ] Проверить concurrent workers.
+* [ ] Проверить migration deployment order.
+* [ ] Проверить отсутствие schema mutation из gateway process.
+* [ ] Проверить логи на отсутствие secrets.
+* [ ] Проверить все public/admin/internal error envelopes.
+* [ ] Проверить все response headers.
+* [ ] Проверить все API families реальными SDK-compatible requests.
+
+---
+
+# 11. Финальная актуализация документации
+
+* [ ] Обновить `docs/implementation-matrix.md`.
+* [ ] Для каждого требования указать:
+
+  ```text
+  specification section
+  implementation path
+  wiring path
+  test path
+  verification command
+  status
+  ```
+* [ ] Удалить устаревшие и дублирующие пункты.
+* [ ] Не оставлять `verified` без acceptance evidence.
+* [ ] Проверить соответствие:
+
+  ```text
+  docs/spec/000-tokenio-gateway.ru.md
+  docs/spec/010-external-api.ru.md
+  docs/spec/011-native-api-families.ru.md
+  docs/spec/020-auth-and-billing-identity.ru.md
+  docs/spec/021-api-key-provisioning.ru.md
+  docs/spec/030-routing-and-resellers.ru.md
+  docs/spec/040-pricing-and-usage.ru.md
+  docs/spec/050-ledger-and-auto-charge.ru.md
+  docs/spec/060-admin-api.ru.md
+  docs/spec/070-database-schema.ru.md
+  docs/spec/080-error-model.ru.md
+  docs/spec/090-configuration.ru.md
+  docs/adr/*
+  ```
