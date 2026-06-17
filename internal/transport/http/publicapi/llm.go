@@ -161,23 +161,33 @@ func writeLLMApplicationError(
 	requestID string,
 	err error,
 ) {
+	if applicationError, ok := ports.AsApplicationError(err); ok {
+		status := http.StatusInternalServerError
+		switch applicationError.Category {
+		case ports.FailureCategoryInvalidRequest:
+			status = http.StatusBadRequest
+		case ports.FailureCategoryConflict:
+			status = http.StatusConflict
+		case ports.FailureCategoryDependencyUnavailable:
+			status = http.StatusBadGateway
+		case ports.FailureCategoryUnavailable:
+			status = http.StatusServiceUnavailable
+		}
+		writeError(
+			writer,
+			requestID,
+			status,
+			applicationError.Code,
+			applicationError.SafeMessage,
+		)
+		return
+	}
+
 	switch {
 	case errors.Is(err, authenticateapp.ErrInvalidAPIKey):
 		writeError(writer, requestID, http.StatusUnauthorized, domain.ErrorCodeInvalidAPIKey, "Invalid API key")
 	case errors.Is(err, authenticateapp.ErrUserDisabled):
 		writeError(writer, requestID, http.StatusForbidden, domain.ErrorCodeUserDisabled, "User is disabled")
-	case errors.Is(err, llmrequestapp.ErrInvalidJSON):
-		writeError(writer, requestID, http.StatusBadRequest, domain.ErrorCodeInvalidJSON, "Request body must contain valid JSON")
-	case errors.Is(err, llmrequestapp.ErrModelRequired):
-		writeError(writer, requestID, http.StatusBadRequest, domain.ErrorCodeModelRequired, "Model is required")
-	case errors.Is(err, llmrequestapp.ErrStreamingUnsupported):
-		writeError(writer, requestID, http.StatusBadRequest, domain.ErrorCodeStreamingUnsupported, "Streaming is not supported")
-	case errors.Is(err, llmrequestapp.ErrUnknownModel):
-		writeError(writer, requestID, http.StatusBadRequest, domain.ErrorCodeUnknownModel, "Unknown model")
-	case errors.Is(err, llmrequestapp.ErrUnsupportedCapability):
-		writeError(writer, requestID, http.StatusBadRequest, domain.ErrorCodeUnsupportedCapability, "Unsupported capability")
-	case errors.Is(err, llmrequestapp.ErrNoRouteAvailable):
-		writeError(writer, requestID, http.StatusServiceUnavailable, domain.ErrorCodeNoRouteAvailable, "No route is available")
 	case errors.Is(err, ledgerapp.ErrInsufficientFunds):
 		writeError(writer, requestID, http.StatusPaymentRequired, domain.ErrorCodeInsufficientFunds, "Insufficient balance")
 	case errors.Is(err, llmrequestapp.ErrIdempotencyKeyReused),

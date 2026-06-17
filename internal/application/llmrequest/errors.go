@@ -1,17 +1,66 @@
 package llmrequest
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/bogachenko/tokenio-gateway/internal/domain"
+	"github.com/bogachenko/tokenio-gateway/internal/ports"
+)
 
 var (
-	ErrDependencyRequired            = errors.New("llm request dependency is required")
-	ErrInvalidInput                  = errors.New("invalid llm request input")
-	ErrStageContractViolation        = errors.New("llm request stage contract violation")
-	ErrInvalidJSON                   = errors.New("invalid json")
-	ErrModelRequired                 = errors.New("model required")
-	ErrStreamingUnsupported          = errors.New("streaming unsupported")
-	ErrUnknownModel                  = errors.New("unknown model")
-	ErrUnsupportedCapability         = errors.New("unsupported capability")
-	ErrNoRouteAvailable              = errors.New("no route available")
+	ErrDependencyRequired     = errors.New("llm request dependency is required")
+	ErrInvalidInput           = errors.New("invalid llm request input")
+	ErrStageContractViolation = errors.New("llm request stage contract violation")
+
+	ErrInvalidJSON = &ports.ApplicationError{
+		Code:         domain.ErrorCodeInvalidJSON,
+		SafeMessage:  "Request body must contain valid JSON",
+		Category:     ports.FailureCategoryInvalidRequest,
+		Retryability: ports.RetryabilityNonRetryable,
+		RequestStage: ports.RequestStagePreForwarding,
+		Cause:        errors.New("invalid json"),
+	}
+	ErrModelRequired = &ports.ApplicationError{
+		Code:         domain.ErrorCodeModelRequired,
+		SafeMessage:  "Model is required",
+		Category:     ports.FailureCategoryInvalidRequest,
+		Retryability: ports.RetryabilityNonRetryable,
+		RequestStage: ports.RequestStagePreForwarding,
+		Cause:        errors.New("model required"),
+	}
+	ErrStreamingUnsupported = &ports.ApplicationError{
+		Code:         domain.ErrorCodeStreamingUnsupported,
+		SafeMessage:  "Streaming is not supported",
+		Category:     ports.FailureCategoryInvalidRequest,
+		Retryability: ports.RetryabilityNonRetryable,
+		RequestStage: ports.RequestStagePreForwarding,
+		Cause:        errors.New("streaming unsupported"),
+	}
+	ErrUnknownModel = &ports.ApplicationError{
+		Code:         domain.ErrorCodeUnknownModel,
+		SafeMessage:  "Unknown model",
+		Category:     ports.FailureCategoryInvalidRequest,
+		Retryability: ports.RetryabilityNonRetryable,
+		RequestStage: ports.RequestStagePreForwarding,
+		Cause:        errors.New("unknown model"),
+	}
+	ErrUnsupportedCapability = &ports.ApplicationError{
+		Code:         domain.ErrorCodeUnsupportedCapability,
+		SafeMessage:  "Unsupported capability",
+		Category:     ports.FailureCategoryInvalidRequest,
+		Retryability: ports.RetryabilityNonRetryable,
+		RequestStage: ports.RequestStagePreForwarding,
+		Cause:        errors.New("unsupported capability"),
+	}
+	ErrNoRouteAvailable = &ports.ApplicationError{
+		Code:         domain.ErrorCodeNoRouteAvailable,
+		SafeMessage:  "No route is available",
+		Category:     ports.FailureCategoryUnavailable,
+		Retryability: ports.RetryabilityRetryable,
+		RequestStage: ports.RequestStagePreForwarding,
+		Cause:        errors.New("no route available"),
+	}
+
 	ErrLocalRequestConflict          = errors.New("local request conflict")
 	ErrRequestInProgress             = errors.New("request in progress")
 	ErrIdempotencyReplayNotAvailable = errors.New("idempotency replay not available")
