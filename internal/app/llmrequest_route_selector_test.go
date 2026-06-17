@@ -175,6 +175,69 @@ func TestLLMRequestRouteSelectorKeepsMixedOperationalFailureGeneric(
 	}
 }
 
+func TestLLMRequestRouteSelectorMapsCapacityExhaustionToNoRouteAvailable(
+	t *testing.T,
+) {
+	tests := []struct {
+		name   string
+		mutate func(*llmrequest.RouteSelectionCandidate)
+	}{
+		{
+			name: "rate limit",
+			mutate: func(candidate *llmrequest.RouteSelectionCandidate) {
+				candidate.Preflight.RateLimitAllowed = false
+			},
+		},
+		{
+			name: "concurrency limit",
+			mutate: func(candidate *llmrequest.RouteSelectionCandidate) {
+				candidate.Preflight.ConcurrencyAllowed = false
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			selector := mustLLMRequestRouteSelector(
+				t,
+				time.Now().UTC(),
+			)
+			input := validLLMRequestRouteSelectionInput()
+
+			first := validLLMRequestRouteSelectionCandidate(
+				"route-a",
+				10,
+				1,
+			)
+			second := validLLMRequestRouteSelectionCandidate(
+				"route-b",
+				10,
+				2,
+			)
+			test.mutate(&first)
+			test.mutate(&second)
+			input.Candidates = []llmrequest.RouteSelectionCandidate{
+				first,
+				second,
+			}
+
+			_, err := selector.Select(context.Background(), input)
+			if !errors.Is(err, llmrequest.ErrNoRouteAvailable) {
+				t.Fatalf(
+					"error = %v, want no route available",
+					err,
+				)
+			}
+			if errors.Is(err, llmrequest.ErrPricingUnavailable) {
+				t.Fatalf(
+					"capacity exhaustion was classified as pricing: %v",
+					err,
+				)
+			}
+		})
+	}
+}
+
 func TestLLMRequestRouteSelectorMapsNoRouteAvailable(
 	t *testing.T,
 ) {
