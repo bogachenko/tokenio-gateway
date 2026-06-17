@@ -33,10 +33,18 @@ type RouteEventListFilter struct {
 }
 
 type RouteCooldownStore interface {
+	RouteEventStore
+
 	// CompareAndSwapRouteCooldownWithEvent atomically verifies the exact
 	// persisted route snapshot, applies only operational cooldown fields,
 	// and appends the corresponding cooldown_set event.
 	CompareAndSwapRouteCooldownWithEvent(
+		context.Context,
+		domain.Route,
+		domain.Route,
+		domain.RouteEvent,
+	) (domain.Route, error)
+	CompareAndSwapRouteCooldownExpiryWithEvent(
 		context.Context,
 		domain.Route,
 		domain.Route,

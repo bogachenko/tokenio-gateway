@@ -345,6 +345,8 @@ func NewApplicationGraph(
 		repositories.RoutePrices,
 		routePreflighter,
 		routeSelector,
+		repositories.RouteCooldowns,
+		primitives.Clock,
 	)
 	if err != nil {
 		return ApplicationGraph{}, fmt.Errorf(

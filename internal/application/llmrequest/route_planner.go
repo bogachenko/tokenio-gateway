@@ -2,6 +2,7 @@ package llmrequest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -78,6 +79,8 @@ type RepositoryRoutePlanner struct {
 	prices      ports.RoutePriceRepository
 	preflighter RouteCandidatePreflighter
 	selector    RouteCandidateSelector
+	operational ports.RouteCooldownStore
+	clock       ports.Clock
 }
 
 var _ RoutePlanner = (*RepositoryRoutePlanner)(nil)
@@ -88,12 +91,16 @@ func NewRepositoryRoutePlanner(
 	prices ports.RoutePriceRepository,
 	preflighter RouteCandidatePreflighter,
 	selector RouteCandidateSelector,
+	operational ports.RouteCooldownStore,
+	clock ports.Clock,
 ) (*RepositoryRoutePlanner, error) {
 	if routes == nil ||
 		resellers == nil ||
 		prices == nil ||
 		preflighter == nil ||
-		selector == nil {
+		selector == nil ||
+		operational == nil ||
+		clock == nil {
 		return nil, ErrDependencyRequired
 	}
 	return &RepositoryRoutePlanner{
@@ -102,6 +109,8 @@ func NewRepositoryRoutePlanner(
 		prices:      prices,
 		preflighter: preflighter,
 		selector:    selector,
+		operational: operational,
+		clock:       clock,
 	}, nil
 }
 
@@ -114,7 +123,9 @@ func (p *RepositoryRoutePlanner) Plan(
 		p.resellers == nil ||
 		p.prices == nil ||
 		p.preflighter == nil ||
-		p.selector == nil {
+		p.selector == nil ||
+		p.operational == nil ||
+		p.clock == nil {
 		return RoutePlan{}, ErrDependencyRequired
 	}
 	if ctx == nil {
@@ -147,6 +158,10 @@ func (p *RepositoryRoutePlanner) Plan(
 
 	canonicalRoutes, resellerIDs, routeIDs, err :=
 		canonicalRouteCandidates(input, routes)
+	if err != nil {
+		return RoutePlan{}, err
+	}
+	canonicalRoutes, err = p.expireCooldowns(ctx, input, canonicalRoutes)
 	if err != nil {
 		return RoutePlan{}, err
 	}
@@ -236,10 +251,20 @@ func (p *RepositoryRoutePlanner) Plan(
 		},
 	)
 	if err != nil {
-		return RoutePlan{}, fmt.Errorf(
+		selectionErr := fmt.Errorf(
 			"select route candidate: %w",
 			err,
 		)
+		eventErr := p.recordSelectionEvents(
+			ctx,
+			input,
+			candidates,
+			RouteSelectionResult{},
+		)
+		return RoutePlan{}, errors.Join(selectionErr, eventErr)
+	}
+	if err := p.recordSelectionEvents(ctx, input, candidates, selection); err != nil {
+		return RoutePlan{}, err
 	}
 
 	selected, err := selectedRouteCandidate(
@@ -288,7 +313,8 @@ func (p *RepositoryRoutePlanner) Plan(
 }
 
 func validateRoutePlanInput(input RoutePlanInput) error {
-	if strings.TrimSpace(input.Principal.UserID) == "" ||
+	if !validLocalRequestID(input.LocalRequestID) ||
+		strings.TrimSpace(input.Principal.UserID) == "" ||
 		strings.TrimSpace(input.Principal.APIKeyID) == "" ||
 		strings.TrimSpace(
 			input.Principal.BillingSubjectUserID,

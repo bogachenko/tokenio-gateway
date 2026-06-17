@@ -163,6 +163,21 @@ func (s *ForwardingStage) Execute(
 					candidatePrepared.Plan.Route.ID,
 					acquireErr,
 				)
+				eventAt, eventErr := forwardingStageNow(s.clock)
+				if eventErr != nil {
+					return ForwardedRequest{}, errors.Join(lastCapacityErr, eventErr)
+				}
+				if eventErr := s.appendForwardingEvent(
+					ctx,
+					candidatePrepared,
+					attemptNumber,
+					domain.RouteEventTypeCapacityRejected,
+					routeEventReasonCapacity,
+					eventAt,
+					domain.RouteEventMetadata{"attempt_number": attemptNumber},
+				); eventErr != nil {
+					return ForwardedRequest{}, errors.Join(lastCapacityErr, eventErr)
+				}
 				continue
 			}
 			return ForwardedRequest{}, fmt.Errorf(
@@ -227,6 +242,24 @@ func (s *ForwardingStage) Execute(
 					attemptErr,
 					delayErr,
 				)
+			}
+			eventAt, eventErr := forwardingStageNow(s.clock)
+			if eventErr != nil {
+				return ForwardedRequest{}, errors.Join(attemptErr, eventErr)
+			}
+			if eventErr := s.appendForwardingEvent(
+				ctx,
+				candidatePrepared,
+				attemptNumber,
+				domain.RouteEventTypeRetryScheduled,
+				routeEventReasonRetryScheduled,
+				eventAt,
+				domain.RouteEventMetadata{
+					"attempt_number": attemptNumber,
+					"delay_ms":       delay.Milliseconds(),
+				},
+			); eventErr != nil {
+				return ForwardedRequest{}, errors.Join(attemptErr, eventErr)
 			}
 			if delay > 0 {
 				if waitErr := s.waiter.Wait(ctx, delay); waitErr != nil {
@@ -355,6 +388,17 @@ func (s *ForwardingStage) executeLeasedCandidate(
 			ErrStageContractViolation,
 		)
 	}
+	if err := s.appendForwardingEvent(
+		ctx,
+		prepared,
+		attemptNumber,
+		domain.RouteEventTypeForwardingStarted,
+		routeEventReasonAttemptStarted,
+		startedAt,
+		domain.RouteEventMetadata{"attempt_number": attemptNumber},
+	); err != nil {
+		return result, err
+	}
 
 	attemptContext, cancelAttempt := context.WithTimeout(
 		ctx,
@@ -399,6 +443,20 @@ func (s *ForwardingStage) executeLeasedCandidate(
 				ErrStageContractViolation,
 			)
 		}
+		if err := s.appendForwardingEvent(
+			ctx,
+			prepared,
+			attemptNumber,
+			domain.RouteEventTypeForwardingSucceeded,
+			routeEventReasonSucceeded,
+			completedAt,
+			domain.RouteEventMetadata{
+				"attempt_number": attemptNumber,
+				"status_code":    execution.Response.StatusCode,
+			},
+		); err != nil {
+			return result, err
+		}
 		return result, nil
 	}
 
@@ -431,6 +489,21 @@ func (s *ForwardingStage) executeLeasedCandidate(
 				ErrStageContractViolation,
 			),
 		)
+	}
+	if eventErr := s.appendForwardingEvent(
+		ctx,
+		prepared,
+		attemptNumber,
+		domain.RouteEventTypeForwardingFailed,
+		terminal.FailureKind,
+		completedAt,
+		domain.RouteEventMetadata{
+			"attempt_number": attemptNumber,
+			"failure_kind":   terminal.FailureKind,
+			"status_code":    terminal.UpstreamStatusCode,
+		},
+	); eventErr != nil {
+		return result, errors.Join(forwardErr, eventErr)
 	}
 	if cooldownErr := s.persistRouteCooldown(
 		ctx,

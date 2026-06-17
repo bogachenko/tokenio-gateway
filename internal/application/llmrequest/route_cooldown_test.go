@@ -10,8 +10,9 @@ import (
 )
 
 type routeCooldownStoreStub struct {
-	calls int
-	fn    func(context.Context, domain.Route, domain.Route, domain.RouteEvent) (domain.Route, error)
+	calls  int
+	events []domain.RouteEvent
+	fn     func(context.Context, domain.Route, domain.Route, domain.RouteEvent) (domain.Route, error)
 }
 
 func (stub *routeCooldownStoreStub) CompareAndSwapRouteCooldownWithEvent(

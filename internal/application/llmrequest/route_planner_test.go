@@ -601,6 +601,8 @@ func mustRepositoryRoutePlanner(
 		prices,
 		preflighter,
 		selector,
+		&routeCooldownStoreStub{},
+		forwardingStageClock{now: validForwardingStageTime()},
 	)
 	if err != nil {
 		t.Fatalf("NewRepositoryRoutePlanner: %v", err)
@@ -610,6 +612,7 @@ func mustRepositoryRoutePlanner(
 
 func validRoutePlanInput() RoutePlanInput {
 	return RoutePlanInput{
+		LocalRequestID: "llmreq_route_planner_1",
 		Principal: Principal{
 			UserID:               "user-1",
 			APIKeyID:             "key-1",

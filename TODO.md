@@ -208,8 +208,8 @@
 
 ## 3.5. Route events
 
-* [ ] Подключить существующий `route_events` repository к application layer.
-* [ ] Сохранять события:
+* [x] Подключить существующий `route_events` repository к application layer.
+* [x] Сохранять события:
 
   ```text
   selected
@@ -222,9 +222,9 @@
   cooldown_set
   cooldown_expired
   ```
-* [ ] Не сохранять raw API keys, JWT, request body или provider secrets.
-* [ ] Добавить deterministic reason codes.
-* [ ] Добавить correlation через `local_request_id`, route, reseller и attempt.
+* [x] Не сохранять raw API keys, JWT, request body или provider secrets.
+* [x] Добавить deterministic reason codes.
+* [x] Добавить correlation через `local_request_id`, route, reseller и attempt.
 
 ## 3.6. Routing tests
 

@@ -345,6 +345,7 @@ func (s *Service) prepare(
 	plan, err := s.routePlanner.Plan(
 		ctx,
 		RoutePlanInput{
+			LocalRequestID:        input.LocalRequestID,
 			Principal:             principal,
 			APIFamily:             input.APIFamily,
 			EndpointKind:          input.EndpointKind,

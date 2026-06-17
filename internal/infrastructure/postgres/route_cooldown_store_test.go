@@ -46,7 +46,7 @@ func TestValidateRouteCooldownTransition(t *testing.T) {
 		{
 			name: "wrong event type",
 			mutate: func(_ *domain.Route, event *domain.RouteEvent) {
-				event.EventType = domain.RouteEventTypeFailure
+				event.EventType = domain.RouteEventTypeForwardingFailed
 			},
 		},
 		{

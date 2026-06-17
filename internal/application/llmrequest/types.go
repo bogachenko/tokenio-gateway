@@ -40,7 +40,8 @@ type CapabilityInput struct {
 }
 
 type RoutePlanInput struct {
-	Principal Principal
+	LocalRequestID string
+	Principal      Principal
 
 	APIFamily             domain.APIFamily
 	EndpointKind          domain.EndpointKind
