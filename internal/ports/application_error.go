@@ -13,6 +13,7 @@ const (
 	FailureCategoryInvalidRequest        FailureCategory = "invalid_request"
 	FailureCategoryUnauthorized          FailureCategory = "unauthorized"
 	FailureCategoryForbidden             FailureCategory = "forbidden"
+	FailureCategoryPaymentRequired       FailureCategory = "payment_required"
 	FailureCategoryConflict              FailureCategory = "conflict"
 	FailureCategoryUnavailable           FailureCategory = "unavailable"
 	FailureCategoryInternal              FailureCategory = "internal"

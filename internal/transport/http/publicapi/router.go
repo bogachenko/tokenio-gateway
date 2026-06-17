@@ -260,6 +260,8 @@ func statusForApplicationError(
 		return http.StatusUnauthorized
 	case ports.FailureCategoryForbidden:
 		return http.StatusForbidden
+	case ports.FailureCategoryPaymentRequired:
+		return http.StatusPaymentRequired
 	case ports.FailureCategoryConflict:
 		return http.StatusConflict
 	case ports.FailureCategoryDependencyUnavailable:

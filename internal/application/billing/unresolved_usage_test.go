@@ -135,3 +135,69 @@ func TestAdmissionNormalizesUnresolvedUsageAtApplicationBoundary(t *testing.T) {
 		t.Fatalf("failure = %+v", failure)
 	}
 }
+
+type insufficientBalance struct{}
+
+func (insufficientBalance) GetBalance(
+	context.Context,
+	string,
+) (ports.BillingBalance, error) {
+	return ports.BillingBalance{
+		Currency:     "RUB",
+		BalanceCents: 10,
+	}, nil
+}
+
+type resolvedLedger struct {
+	unresolvedLedger
+}
+
+func (resolvedLedger) LoadExposure(
+	context.Context,
+	string,
+	string,
+) (ports.UsageExposureSnapshot, error) {
+	return ports.UsageExposureSnapshot{Currency: "RUB"}, nil
+}
+
+func TestAdmissionNormalizesInsufficientFundsAtApplicationBoundary(
+	t *testing.T,
+) {
+	service, err := NewAdmissionService(
+		unresolvedIdentity{},
+		insufficientBalance{},
+		resolvedLedger{},
+		AdmissionConfig{},
+	)
+	if err != nil {
+		t.Fatalf("NewAdmissionService: %v", err)
+	}
+
+	_, err = service.Admit(
+		context.Background(),
+		AdmissionInput{
+			UserID:               "user-1",
+			BillingSubjectUserID: "billing-1",
+			RequiredReserveCents: 20,
+			Currency:             "RUB",
+		},
+	)
+	if !errors.Is(err, ErrInsufficientFunds) {
+		t.Fatalf("error = %v, want ErrInsufficientFunds", err)
+	}
+	if !errors.Is(err, domain.ErrInsufficientFunds) {
+		t.Fatalf("error = %v, want domain.ErrInsufficientFunds compatibility", err)
+	}
+
+	failure, ok := ports.AsApplicationError(err)
+	if !ok {
+		t.Fatal("billing insufficient funds error is not normalized")
+	}
+	if failure.Code != domain.ErrorCodeInsufficientFunds ||
+		failure.SafeMessage != "Insufficient balance" ||
+		failure.Category != ports.FailureCategoryPaymentRequired ||
+		failure.Retryability != ports.RetryabilityNonRetryable ||
+		failure.RequestStage != ports.RequestStagePreForwarding {
+		t.Fatalf("failure = %+v", failure)
+	}
+}

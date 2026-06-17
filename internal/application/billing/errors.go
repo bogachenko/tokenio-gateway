@@ -21,6 +21,14 @@ var (
 		RequestStage: ports.RequestStagePreForwarding,
 		Cause:        domain.ErrUnresolvedUsage,
 	}
+	ErrInsufficientFunds = &ports.ApplicationError{
+		Code:         domain.ErrorCodeInsufficientFunds,
+		SafeMessage:  "Insufficient balance",
+		Category:     ports.FailureCategoryPaymentRequired,
+		Retryability: ports.RetryabilityNonRetryable,
+		RequestStage: ports.RequestStagePreForwarding,
+		Cause:        domain.ErrInsufficientFunds,
+	}
 	ErrChargeDeferred               = errors.New("charge deferred")
 	ErrChargeReconciliationRequired = errors.New("charge reconciliation required")
 	ErrInvalidChargePlan            = errors.New("invalid charge plan")

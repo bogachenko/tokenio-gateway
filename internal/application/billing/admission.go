@@ -120,6 +120,9 @@ func (s *AdmissionService) Admit(ctx context.Context, input AdmissionInput) (Adm
 	if errors.Is(err, domain.ErrUnresolvedUsage) {
 		return result, ErrUnresolvedUsage
 	}
+	if errors.Is(err, domain.ErrInsufficientFunds) {
+		return result, ErrInsufficientFunds
+	}
 	if err != nil {
 		return result, err
 	}
