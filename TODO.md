@@ -148,9 +148,9 @@
 
 ## 3.1. Typed runtime policy
 
-* [ ] Создать immutable routing policy в application contract.
-* [ ] Собирать policy только в `internal/app`.
-* [ ] Подключить:
+* [x] Создать immutable routing policy в application contract.
+* [x] Собирать policy только в `internal/app`.
+* [x] Подключить:
 
   ```text
   TOKENIO_UPSTREAM_TIMEOUT
@@ -163,23 +163,23 @@
   TOKENIO_COOLDOWN_TIMEOUT
   TOKENIO_COOLDOWN_AUTH_ERROR
   ```
-* [ ] Удалить config fields, которые не имеют runtime consumer.
+* [x] Удалить config fields, которые не имеют runtime consumer.
 
 ## 3.2. Attempt execution
 
-* [ ] Ограничить общее количество forwarding attempts.
-* [ ] Создавать отдельный `context.WithTimeout` для каждого attempt.
-* [ ] Реализовать bounded exponential backoff.
-* [ ] Поддержать безопасный `Retry-After`.
-* [ ] Не ждать дольше configured rate-limit maximum wait.
-* [ ] Не повторять non-retryable request errors.
-* [ ] Не повторять uncertain-processing requests, если повтор может создать duplicate provider operation.
-* [ ] Всегда освобождать concurrency/rate capacity.
-* [ ] Всегда завершать durable forwarding attempt state.
+* [x] Ограничить общее количество forwarding attempts.
+* [x] Создавать отдельный `context.WithTimeout` для каждого attempt.
+* [x] Реализовать bounded exponential backoff.
+* [x] Поддержать безопасный `Retry-After`.
+* [x] Не ждать дольше configured rate-limit maximum wait.
+* [x] Не повторять non-retryable request errors.
+* [x] Не повторять uncertain-processing requests, если повтор может создать duplicate provider operation.
+* [x] Всегда освобождать concurrency/rate capacity.
+* [x] Всегда завершать durable forwarding attempt state.
 
 ## 3.3. Failure classification
 
-* [ ] Расширить adapter classifiers категориями:
+* [x] Расширить adapter classifiers категориями:
 
   ```text
   request_error
@@ -192,9 +192,9 @@
   uncertain_processing
   malformed_response
   ```
-* [ ] Classification должна находиться в concrete provider adapter.
-* [ ] Generic routing не должен определять provider behavior по имени provider.
-* [ ] Не использовать substring/keyword heuristics вне adapter-owned protocol parsing.
+* [x] Classification должна находиться в concrete provider adapter.
+* [x] Generic routing не должен определять provider behavior по имени provider.
+* [x] Не использовать substring/keyword heuristics вне adapter-owned protocol parsing.
 
 ## 3.4. Durable cooldown
 
@@ -244,8 +244,8 @@
 
 ## Критерий завершения
 
-* [ ] Routing полностью соответствует `docs/spec/030-routing-and-resellers.ru.md`.
-* [ ] Все operational decisions имеют durable audit trail.
+* [x] Routing полностью соответствует `docs/spec/030-routing-and-resellers.ru.md`.
+* [x] Все operational decisions имеют durable audit trail.
 
 ---
 
