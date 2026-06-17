@@ -21,6 +21,8 @@ func StatusForApplicationError(applicationError *ports.ApplicationError) int {
 		return http.StatusPaymentRequired
 	case ports.FailureCategoryConflict:
 		return http.StatusConflict
+	case ports.FailureCategoryNotFound:
+		return http.StatusNotFound
 	case ports.FailureCategoryGone:
 		return http.StatusGone
 	case ports.FailureCategoryDependencyUnavailable:

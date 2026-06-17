@@ -14,6 +14,7 @@ import (
 	"github.com/bogachenko/tokenio-gateway/internal/auth"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
+	"github.com/bogachenko/tokenio-gateway/internal/transport/httptransport"
 )
 
 const (
@@ -874,20 +875,22 @@ func methodNotAllowed(w http.ResponseWriter, requestID, allow string) {
 	writeError(w, requestID, http.StatusMethodNotAllowed, domain.ErrorCodeMethodNotAllowed, "Method is not allowed")
 }
 func writeApplicationError(w http.ResponseWriter, requestID string, err error) {
-	switch {
-	case errors.Is(err, application.ErrInvalidRequest):
-		writeError(w, requestID, http.StatusBadRequest, domain.ErrorCodeAdminValidationError, "Invalid admin request")
-	case errors.Is(err, application.ErrNotFound):
-		writeError(w, requestID, http.StatusNotFound, domain.ErrorCodeAdminNotFound, "Resource not found")
-	case errors.Is(err, application.ErrConflict):
-		writeError(w, requestID, http.StatusConflict, domain.ErrorCodeAdminConflict, "Resource conflict")
-	case errors.Is(err, application.ErrStateConflict):
-		writeError(w, requestID, http.StatusConflict, domain.ErrorCodeAdminStateConflict, "Resource is in incompatible state")
-	case errors.Is(err, application.ErrSecretNotAvailable):
-		writeError(w, requestID, http.StatusConflict, domain.ErrorCodeAdminSecretNotAvailable, "Required secret is not available in environment")
-	case errors.Is(err, application.ErrStoreUnavailable):
-		writeError(w, requestID, http.StatusServiceUnavailable, domain.ErrorCodeStoreUnavailable, "Store is unavailable")
-	default:
-		writeError(w, requestID, http.StatusInternalServerError, domain.ErrorCodeInternalError, "Internal error")
+	applicationError, ok := ports.AsApplicationError(err)
+	if !ok {
+		writeError(
+			w,
+			requestID,
+			http.StatusInternalServerError,
+			domain.ErrorCodeInternalError,
+			"Internal error",
+		)
+		return
 	}
+	writeError(
+		w,
+		requestID,
+		httptransport.StatusForApplicationError(applicationError),
+		applicationError.Code,
+		applicationError.SafeMessage,
+	)
 }

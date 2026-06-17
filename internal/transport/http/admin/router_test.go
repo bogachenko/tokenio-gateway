@@ -319,3 +319,46 @@ func TestUnderlyingErrorsAreNeverReturned(t *testing.T) {
 		t.Fatalf("status=%d body=%s", res.Code, res.Body.String())
 	}
 }
+
+func TestAdminApplicationErrorMappingUsesNormalizedContract(t *testing.T) {
+	tests := []struct {
+		name   string
+		err    error
+		status int
+		code   domain.ErrorCode
+	}{
+		{"invalid", application.ErrInvalidRequest, http.StatusBadRequest, domain.ErrorCodeAdminValidationError},
+		{"not found", application.ErrNotFound, http.StatusNotFound, domain.ErrorCodeAdminNotFound},
+		{"conflict", application.ErrConflict, http.StatusConflict, domain.ErrorCodeAdminConflict},
+		{"state conflict", application.ErrStateConflict, http.StatusConflict, domain.ErrorCodeAdminStateConflict},
+		{"secret", application.ErrSecretNotAvailable, http.StatusConflict, domain.ErrorCodeAdminSecretNotAvailable},
+		{"store", application.ErrStoreUnavailable, http.StatusServiceUnavailable, domain.ErrorCodeStoreUnavailable},
+		{"internal", application.ErrInternal, http.StatusInternalServerError, domain.ErrorCodeInternalError},
+		{"plain", errors.New("postgres secret"), http.StatusInternalServerError, domain.ErrorCodeInternalError},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			response := httptest.NewRecorder()
+			writeApplicationError(response, "admreq_mapping", test.err)
+			if response.Code != test.status {
+				t.Fatalf(
+					"status = %d, want %d; body = %s",
+					response.Code,
+					test.status,
+					response.Body.String(),
+				)
+			}
+			if !strings.Contains(response.Body.String(), string(test.code)) {
+				t.Fatalf(
+					"body = %s, want code %q",
+					response.Body.String(),
+					test.code,
+				)
+			}
+			if strings.Contains(response.Body.String(), "postgres secret") {
+				t.Fatalf("raw error leaked: %s", response.Body.String())
+			}
+		})
+	}
+}

@@ -15,6 +15,7 @@ const (
 	FailureCategoryForbidden             FailureCategory = "forbidden"
 	FailureCategoryPaymentRequired       FailureCategory = "payment_required"
 	FailureCategoryConflict              FailureCategory = "conflict"
+	FailureCategoryNotFound              FailureCategory = "not_found"
 	FailureCategoryGone                  FailureCategory = "gone"
 	FailureCategoryUnavailable           FailureCategory = "unavailable"
 	FailureCategoryInternal              FailureCategory = "internal"
