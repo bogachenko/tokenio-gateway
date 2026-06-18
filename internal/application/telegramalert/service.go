@@ -119,6 +119,17 @@ func (s *Service) CheckReseller(
 		BelowThreshold:        available <= s.config.ThresholdCents,
 	}
 	if !result.BelowThreshold {
+		if _, err := s.alerts.ResetActiveTelegramAlertsForDedupeKey(
+			ctx,
+			AlertTypeResellerBalanceLow,
+			reseller.ID,
+		); err != nil {
+			return CheckResult{}, fmt.Errorf(
+				"%w: reset active alerts: %v",
+				ErrStoreUnavailable,
+				err,
+			)
+		}
 		return result, nil
 	}
 

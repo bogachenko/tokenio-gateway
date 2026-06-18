@@ -28,6 +28,10 @@ func (f *resellerReaderFake) FindResellerByID(
 
 type alertStoreFake struct {
 	result       domain.TelegramAlert
+	resetCalls   int
+	resetType    string
+	resetKey     string
+	resetResult  int
 	err          error
 	calls        int
 	requested    domain.TelegramAlert
@@ -49,6 +53,17 @@ func (f *alertStoreFake) CreateOrSuppressTelegramAlert(
 		return requested, nil
 	}
 	return f.result, nil
+}
+
+func (f *alertStoreFake) ResetActiveTelegramAlertsForDedupeKey(
+	_ context.Context,
+	alertType string,
+	dedupeKey string,
+) (int, error) {
+	f.resetCalls++
+	f.resetType = alertType
+	f.resetKey = dedupeKey
+	return f.resetResult, nil
 }
 
 func (f *alertStoreFake) FindTelegramAlertByID(
@@ -110,6 +125,16 @@ func TestCheckResellerDoesNotPersistAboveThreshold(t *testing.T) {
 	}
 	if store.calls != 0 {
 		t.Fatalf("store calls = %d, want 0", store.calls)
+	}
+	if store.resetCalls != 1 ||
+		store.resetType != AlertTypeResellerBalanceLow ||
+		store.resetKey != "reseller-1" {
+		t.Fatalf(
+			"reset calls=%d type=%q key=%q",
+			store.resetCalls,
+			store.resetType,
+			store.resetKey,
+		)
 	}
 }
 

@@ -316,6 +316,66 @@ LIMIT $%d OFFSET $%d
 	return result, nil
 }
 
+func (s *TelegramAlertStore) ResetActiveTelegramAlertsForDedupeKey(
+	ctx context.Context,
+	alertType string,
+	dedupeKey string,
+) (int, error) {
+	if strings.TrimSpace(alertType) == "" ||
+		strings.TrimSpace(dedupeKey) == "" {
+		return 0, ports.ErrStoreContractViolation
+	}
+
+	var affected int64
+	err := InTx(
+		ctx,
+		s.db,
+		pgx.TxOptions{IsoLevel: pgx.Serializable},
+		func(tx pgx.Tx) error {
+			if _, err := tx.Exec(
+				ctx,
+				`
+SELECT pg_advisory_xact_lock(
+    hashtextextended(
+        'tokenio_telegram_alert:' || $1 || ':' || $2,
+        0
+    )
+)
+`,
+				alertType,
+				dedupeKey,
+			); err != nil {
+				return NormalizeError(err)
+			}
+
+			tag, err := tx.Exec(
+				ctx,
+				`
+UPDATE tokenio_telegram_alerts
+SET
+    status = 'suppressed',
+    error = '',
+    sent_at = NULL
+WHERE alert_type = $1
+  AND dedupe_key = $2
+  AND status IN ('pending', 'failed')
+`,
+				alertType,
+				dedupeKey,
+			)
+			if err != nil {
+				return NormalizeError(err)
+			}
+			affected = tag.RowsAffected()
+			return nil
+		},
+	)
+	if err != nil {
+		return 0, err
+	}
+	return int(affected), nil
+}
+
 func (s *TelegramAlertStore) CompareAndSwapTelegramAlert(
 	ctx context.Context,
 	expected domain.TelegramAlert,
@@ -404,6 +464,11 @@ func validateTelegramAlertTransition(
 
 	switch expected.Status {
 	case domain.TelegramAlertStatusPending:
+		if next.Status == domain.TelegramAlertStatusSuppressed &&
+			next.Error == "" &&
+			next.SentAt == nil {
+			return nil
+		}
 		switch next.Status {
 		case domain.TelegramAlertStatusSent:
 			if next.Error != "" || next.SentAt == nil {
@@ -417,6 +482,11 @@ func validateTelegramAlertTransition(
 			return nil
 		}
 	case domain.TelegramAlertStatusFailed:
+		if next.Status == domain.TelegramAlertStatusSuppressed &&
+			next.Error == "" &&
+			next.SentAt == nil {
+			return nil
+		}
 		if next.Status ==
 			domain.TelegramAlertStatusPending &&
 			next.Error == "" &&

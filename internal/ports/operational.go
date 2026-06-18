@@ -93,6 +93,14 @@ type TelegramAlertStore interface {
 		TelegramAlertListFilter,
 	) (Page[domain.TelegramAlert], error)
 
+	// ResetActiveTelegramAlertsForDedupeKey suppresses active alerts when
+	// the alert condition has recovered.
+	ResetActiveTelegramAlertsForDedupeKey(
+		context.Context,
+		string,
+		string,
+	) (int, error)
+
 	// CompareAndSwapTelegramAlert applies an exact lifecycle transition.
 	CompareAndSwapTelegramAlert(
 		context.Context,

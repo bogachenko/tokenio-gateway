@@ -48,6 +48,14 @@ func (f *deliveryStoreFake) ListTelegramAlerts(
 	panic("unexpected call")
 }
 
+func (f *deliveryStoreFake) ResetActiveTelegramAlertsForDedupeKey(
+	context.Context,
+	string,
+	string,
+) (int, error) {
+	panic("unexpected call")
+}
+
 func (f *deliveryStoreFake) CompareAndSwapTelegramAlert(
 	_ context.Context,
 	expected domain.TelegramAlert,
