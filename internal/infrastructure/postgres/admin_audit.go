@@ -39,7 +39,7 @@ const adminAuditColumns = `
     entity_id,
     before_state,
     after_state,
-    reason,
+    COALESCE(reason, '') AS reason,
     request_id,
     created_at
 `

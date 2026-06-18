@@ -145,6 +145,7 @@ func TestAdminUsageLedgerIntegration(t *testing.T) {
 		EntityID:     pricingFailedID,
 		BeforeState:  adminUsageApplicationState(pricingFailed),
 		AfterState:   adminUsageApplicationState(resolved),
+		Reason:       "integration manual usage resolution",
 		RequestID:    "admreq-admin-usage-" + suffix + "-resolve",
 		CreatedAt:    resolvedAt,
 	}

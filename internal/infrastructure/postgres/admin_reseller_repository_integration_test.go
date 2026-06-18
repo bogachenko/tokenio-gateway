@@ -168,6 +168,7 @@ func TestAdminResellerRepositoryIntegration(t *testing.T) {
 		"admreq-reseller-balance-"+suffix,
 		balanceAt,
 	)
+	balanceAudit.Reason = "integration balance adjustment"
 	balanced, err := repository.CompareAndSwapResellerWithAudit(
 		ctx,
 		enabled,
@@ -194,6 +195,7 @@ func TestAdminResellerRepositoryIntegration(t *testing.T) {
 		"admreq-reseller-stale-"+suffix,
 		staleNext.UpdatedAt,
 	)
+	staleAudit.Reason = "integration stale balance adjustment"
 	_, err = repository.CompareAndSwapResellerWithAudit(
 		ctx,
 		enabled,
