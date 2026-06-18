@@ -351,18 +351,18 @@
 
 ## 5.3. Provisioning contract
 
-* [ ] Проверить first provision.
-* [ ] Проверить same-input idempotent replay.
-* [ ] Проверить conflicting replay.
-* [ ] Запретить provision для disabled user.
-* [ ] Не создавать второй active API key при replay.
-* [ ] Хранить raw material только encrypted.
-* [ ] Не писать raw key в logs/audit/errors.
-* [ ] Confirm delivery должен быть idempotent.
-* [ ] Expiration worker должен закрывать недоставленные provisioning records.
-* [ ] Delivered raw key нельзя получить повторно.
-* [ ] Status endpoint не должен раскрывать raw material.
-* [ ] Provisioning repository должен использовать deterministic state transitions.
+* [x] Проверить first provision.
+* [x] Проверить same-input idempotent replay.
+* [x] Проверить conflicting replay.
+* [x] Запретить provision для disabled user.
+* [x] Не создавать второй active API key при replay.
+* [x] Хранить raw material только encrypted.
+* [x] Не писать raw key в logs/audit/errors.
+* [x] Confirm delivery должен быть idempotent.
+* [x] Expiration worker должен закрывать недоставленные provisioning records.
+* [x] Delivered raw key нельзя получить повторно.
+* [x] Status endpoint не должен раскрывать raw material.
+* [x] Provisioning repository должен использовать deterministic state transitions.
 
 ## 5.4. Admin acceptance tests
 
