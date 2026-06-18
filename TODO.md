@@ -366,24 +366,24 @@
 
 ## 5.4. Admin acceptance tests
 
-* [ ] CRUD users.
-* [ ] CRUD API keys.
-* [ ] CRUD resellers.
-* [ ] CRUD routes.
-* [ ] CRUD route prices.
-* [ ] Reseller balance correction.
-* [ ] Usage record listing.
-* [ ] Manual usage resolution.
-* [ ] Charge batch retry.
-* [ ] Route events listing.
-* [ ] Provisioning lifecycle.
-* [ ] Audit completeness.
-* [ ] Authentication and authorization failures.
+* [x] CRUD users.
+* [x] CRUD API keys.
+* [x] CRUD resellers.
+* [x] CRUD routes.
+* [x] CRUD route prices.
+* [x] Reseller balance correction.
+* [x] Usage record listing.
+* [x] Manual usage resolution.
+* [x] Charge batch retry.
+* [x] Route events listing.
+* [x] Provisioning lifecycle.
+* [x] Audit completeness.
+* [x] Authentication and authorization failures.
 
 ## Критерий завершения
 
-* [ ] Admin API соответствует `docs/spec/060-admin-api.ru.md`.
-* [ ] Provisioning соответствует `docs/spec/021-api-key-provisioning.ru.md`.
+* [x] Admin API соответствует `docs/spec/060-admin-api.ru.md`.
+* [x] Provisioning соответствует `docs/spec/021-api-key-provisioning.ru.md`.
 
 ---
 
