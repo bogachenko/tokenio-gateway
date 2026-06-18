@@ -324,7 +324,7 @@
 
 ## 5.1. Недостающие Admin endpoints
 
-* [ ] Добавить:
+* [x] Добавить:
 
   ```text
   GET /admin/v1/api-key-provisionings/{id}
