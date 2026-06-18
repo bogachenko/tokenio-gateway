@@ -409,3 +409,221 @@ VALUES (
 		}
 	}
 }
+
+func TestUsageChargeSubjectDiscoveryIncludesPartialAndExcludesActiveClaim(
+	t *testing.T,
+) {
+	ctx := t.Context()
+	db := openIsolatedPostgresIntegrationDB(t)
+	ledger, err := NewUsageLedger(db)
+	if err != nil {
+		t.Fatalf("NewUsageLedger: %v", err)
+	}
+
+	suffix := strconv.FormatInt(time.Now().UnixNano(), 10)
+	userID := "discovery-user-" + suffix
+	keyID := "discovery-key-" + suffix
+	resellerID := "discovery-reseller-" + suffix
+	routeID := "discovery-route-" + suffix
+	model := "discovery-model-" + suffix
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	insertChargeTestRegistry(
+		t,
+		db,
+		userID,
+		keyID,
+		resellerID,
+		routeID,
+		model,
+		suffix,
+		now,
+	)
+
+	newRecord := func(
+		requestID string,
+		createdAt time.Time,
+	) domain.UsageRecord {
+		reservedAt := createdAt.Add(time.Second)
+		billableAt := reservedAt.Add(time.Second)
+		return domain.UsageRecord{
+			LocalRequestID:             requestID,
+			UserID:                     userID,
+			APIKeyID:                   keyID,
+			APIFamily:                  domain.APIFamilyOpenAICompatible,
+			EndpointKind:               domain.EndpointChat,
+			ClientModel:                model,
+			BillingModel:               "openai:" + model,
+			SelectedRouteID:            routeID,
+			SelectedResellerID:         resellerID,
+			ProviderType:               domain.ProviderOpenAI,
+			ProviderModel:              model,
+			EstimatedUsage:             domain.TokenUsage{InputTokens: 10},
+			Usage:                      domain.TokenUsage{InputTokens: 10},
+			EstimatedClientAmountCents: 100,
+			EstimatedUpstreamCostCents: 40,
+			ClientAmountCents:          100,
+			RemainingAmountCents:       100,
+			ActualUpstreamCostCents:    40,
+			Currency:                   "RUB",
+			UsageCompleteness:          "detailed",
+			Status:                     domain.UsageStatusBillable,
+			CreatedAt:                  createdAt,
+			ReservedAt:                 &reservedAt,
+			BillableAt:                 &billableAt,
+			UpdatedAt:                  billableAt,
+		}
+	}
+
+	unclaimed := newRecord(
+		"discovery-unclaimed-"+suffix,
+		now.Add(-3*time.Hour),
+	)
+	active := newRecord(
+		"discovery-active-"+suffix,
+		now.Add(-2*time.Hour),
+	)
+	partial := newRecord(
+		"discovery-partial-"+suffix,
+		now.Add(-time.Hour),
+	)
+	for _, record := range []domain.UsageRecord{
+		unclaimed,
+		active,
+		partial,
+	} {
+		if _, err := db.Exec(
+			ctx,
+			insertUsageRecordSQL,
+			usageRecordNamedArgs(record),
+		); err != nil {
+			t.Fatalf(
+				"insert usage %s: %v",
+				record.LocalRequestID,
+				err,
+			)
+		}
+	}
+
+	activeBatchID := "discovery-active-batch-" + suffix
+	activePlan := ports.UsageChargeBatchPlan{
+		Batch: domain.BillingChargeBatch{
+			ID:                   activeBatchID,
+			UserID:               userID,
+			BillingSubjectUserID: "billing-" + suffix,
+			ProviderType:         domain.ProviderOpenAI,
+			ClientModel:          model,
+			BillingModel:         "openai:" + model,
+			InputTokens:          10,
+			AmountCents:          100,
+			Currency:             "RUB",
+			Status:               domain.BillingChargeStatusPending,
+			CreatedAt:            now,
+			UpdatedAt:            now,
+		},
+		Allocations: []domain.BillingChargeAllocation{
+			{
+				ID:                   "discovery-active-allocation-" + suffix,
+				BatchID:              activeBatchID,
+				LocalRequestID:       active.LocalRequestID,
+				ChargedAmountCents:   100,
+				RemainingAmountCents: 0,
+				CreatedAt:            now,
+			},
+		},
+		ExpectedRecords: []domain.UsageRecord{active},
+	}
+	if _, err := ledger.PrepareChargeBatch(ctx, activePlan); err != nil {
+		t.Fatalf("prepare active batch: %v", err)
+	}
+
+	partialBatchID := "discovery-partial-batch-" + suffix
+	partialPlan := ports.UsageChargeBatchPlan{
+		Batch: domain.BillingChargeBatch{
+			ID:                   partialBatchID,
+			UserID:               userID,
+			BillingSubjectUserID: "billing-" + suffix,
+			ProviderType:         domain.ProviderOpenAI,
+			ClientModel:          model,
+			BillingModel:         "openai:" + model,
+			InputTokens:          5,
+			AmountCents:          50,
+			Currency:             "RUB",
+			Status:               domain.BillingChargeStatusPending,
+			CreatedAt:            now.Add(time.Second),
+			UpdatedAt:            now.Add(time.Second),
+		},
+		Allocations: []domain.BillingChargeAllocation{
+			{
+				ID:                   "discovery-partial-allocation-" + suffix,
+				BatchID:              partialBatchID,
+				LocalRequestID:       partial.LocalRequestID,
+				ChargedAmountCents:   50,
+				RemainingAmountCents: 50,
+				CreatedAt:            now.Add(time.Second),
+			},
+		},
+		ExpectedRecords: []domain.UsageRecord{partial},
+	}
+	preparedPartial, err := ledger.PrepareChargeBatch(
+		ctx,
+		partialPlan,
+	)
+	if err != nil {
+		t.Fatalf("prepare partial batch: %v", err)
+	}
+	chargedAt := now.Add(2 * time.Second)
+	if err := ledger.ApplyChargeSuccess(
+		ctx,
+		ports.UsageChargeSuccess{
+			BatchID:         partialBatchID,
+			ChargedAt:       chargedAt,
+			Allocations:     preparedPartial.Allocations,
+			ExpectedRecords: preparedPartial.ExpectedRecords,
+		},
+	); err != nil {
+		t.Fatalf("apply partial success: %v", err)
+	}
+
+	subjects, err := ledger.ListChargeableBillingSubjects(ctx, 10)
+	if err != nil {
+		t.Fatalf("ListChargeableBillingSubjects: %v", err)
+	}
+	if len(subjects) != 1 {
+		t.Fatalf("subjects=%+v, want one", subjects)
+	}
+	if subjects[0].UserID != userID ||
+		subjects[0].BillingSubjectUserID !=
+			"billing-"+suffix ||
+		subjects[0].Currency != "RUB" ||
+		!subjects[0].OldestChargeableAt.Equal(
+			unclaimed.CreatedAt,
+		) {
+		t.Fatalf("subject=%+v", subjects[0])
+	}
+
+	candidates, err := ledger.LoadChargeCandidates(
+		ctx,
+		userID,
+		"RUB",
+	)
+	if err != nil {
+		t.Fatalf("LoadChargeCandidates: %v", err)
+	}
+	got := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		got = append(got, candidate.LocalRequestID)
+	}
+	want := []string{
+		unclaimed.LocalRequestID,
+		partial.LocalRequestID,
+	}
+	if len(got) != len(want) {
+		t.Fatalf("candidate IDs=%v, want %v", got, want)
+	}
+	for index := range want {
+		if got[index] != want[index] {
+			t.Fatalf("candidate IDs=%v, want %v", got, want)
+		}
+	}
+}

@@ -1032,3 +1032,88 @@ func TestChargeBatchStateMachineIsConditionalAndIdempotent(t *testing.T) {
 		t.Fatalf("succeeded overwritten as %s", got)
 	}
 }
+
+func TestAutoChargeProcessNewBatchesRespectsOperationBudget(t *testing.T) {
+	now := time.Unix(300, 0).UTC()
+	records := []domain.UsageRecord{
+		rec("budget-anthropic", domain.ProviderAnthropic, "m", 100, 0, 100, 1),
+		rec("budget-openai", domain.ProviderOpenAI, "m", 100, 0, 100, 2),
+	}
+	ledger := newFakeLedger(records)
+	charge := &fakeCharge{}
+	service, err := NewAutoChargeService(
+		&fakeIdentity{token: "jwt"},
+		&fakeBalance{
+			balance: ports.BillingBalance{
+				Currency:     "RUB",
+				BalanceCents: 1000,
+			},
+		},
+		charge,
+		ledger,
+		testClock{t: now},
+		AutoChargeConfig{
+			ThresholdCents:     1,
+			MinimumChargeCents: 1,
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewAutoChargeService: %v", err)
+	}
+
+	result, err := service.processNewBatches(
+		t.Context(),
+		AutoChargeInput{
+			UserID:               "u",
+			BillingSubjectUserID: "billing",
+			Currency:             "RUB",
+		},
+		1,
+	)
+	if err != nil {
+		t.Fatalf("processNewBatches: %v", err)
+	}
+	if len(result.ProcessedBatchIDs) != 1 {
+		t.Fatalf(
+			"processed batches=%v, want exactly one",
+			result.ProcessedBatchIDs,
+		)
+	}
+	if ledger.prepareCalls != 1 {
+		t.Fatalf("prepare calls=%d, want 1", ledger.prepareCalls)
+	}
+	if len(charge.requests) != 1 {
+		t.Fatalf("charge requests=%d, want 1", len(charge.requests))
+	}
+}
+
+func TestBuildChargePlanClaimsOnlyAllocatedRecords(t *testing.T) {
+	now := time.Unix(400, 0).UTC()
+	records := []domain.UsageRecord{
+		rec("allocated", domain.ProviderOpenAI, "m", 100, 0, 100, 1),
+		rec("unallocated", domain.ProviderOpenAI, "m", 100, 0, 100, 2),
+	}
+
+	plan, err := BuildChargePlan("billing", records, 100, now)
+	if err != nil {
+		t.Fatalf("BuildChargePlan: %v", err)
+	}
+	if len(plan.Allocations) != 1 ||
+		len(plan.ExpectedRecords) != 1 {
+		t.Fatalf(
+			"allocations=%d expected=%d, want 1/1",
+			len(plan.Allocations),
+			len(plan.ExpectedRecords),
+		)
+	}
+	if plan.Allocations[0].LocalRequestID !=
+		"llmreq_allocated" ||
+		plan.ExpectedRecords[0].LocalRequestID !=
+			"llmreq_allocated" {
+		t.Fatalf(
+			"allocation=%+v expected=%+v",
+			plan.Allocations,
+			plan.ExpectedRecords,
+		)
+	}
+}
