@@ -24,10 +24,11 @@ INSERT INTO tokenio_admin_audit_log (
     entity_id,
     before_state,
     after_state,
+    reason,
     request_id,
     created_at
 )
-VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9)
+VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8, $9, $10)
 `
 
 const adminAuditColumns = `
@@ -38,6 +39,7 @@ const adminAuditColumns = `
     entity_id,
     before_state,
     after_state,
+    reason,
     request_id,
     created_at
 `
@@ -94,11 +96,28 @@ func validateAuditContext(audit domain.AuditContext) error {
 		audit.AfterState == nil {
 		return ports.ErrStoreContractViolation
 	}
+	if auditReasonRequired(audit.Action) &&
+		strings.TrimSpace(audit.Reason) == "" {
+		return ports.ErrStoreContractViolation
+	}
 	if auditStateContainsSecret(audit.BeforeState) ||
 		auditStateContainsSecret(audit.AfterState) {
 		return ports.ErrStoreContractViolation
 	}
 	return nil
+}
+
+func auditReasonRequired(action domain.AuditAction) bool {
+	switch action {
+	case domain.AuditActionResellerBalanceAdjust,
+		domain.AuditActionResellerBalanceSet,
+		domain.AuditActionUsageResolveBillable,
+		domain.AuditActionUsageResolveFailed,
+		domain.AuditActionUsageResolveCharged:
+		return true
+	default:
+		return false
+	}
 }
 
 func insertAdminAudit(
@@ -129,6 +148,7 @@ func insertAdminAudit(
 		audit.EntityID,
 		beforeBody,
 		afterBody,
+		nullIfEmpty(audit.Reason),
 		audit.RequestID,
 		audit.CreatedAt,
 	); err != nil {
@@ -367,6 +387,7 @@ func scanAdminAuditEntry(row rowScanner) (domain.AdminAuditEntry, error) {
 		&value.EntityID,
 		&beforeRaw,
 		&afterRaw,
+		&value.Reason,
 		&value.RequestID,
 		&value.CreatedAt,
 	); err != nil {
@@ -422,6 +443,7 @@ func sameAuditEntry(
 		left.EntityID == right.EntityID &&
 		auditStateEqual(left.BeforeState, right.BeforeState) &&
 		auditStateEqual(left.AfterState, right.AfterState) &&
+		left.Reason == right.Reason &&
 		left.RequestID == right.RequestID &&
 		left.CreatedAt.UTC().Equal(right.CreatedAt.UTC())
 }

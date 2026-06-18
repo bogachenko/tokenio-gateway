@@ -351,3 +351,45 @@ func TestManualResolutionRequiresReason(t *testing.T) {
 		t.Fatalf("err=%v", err)
 	}
 }
+
+func TestRequiredManualReasonsArePersistedInAuditContext(t *testing.T) {
+	now := time.Unix(1, 0).UTC()
+	reseller := domain.Reseller{
+		ID: "r1", Name: "r", ProviderType: domain.ProviderOpenAI,
+		BaseURL: "https://example", APIKeyEnv: "ENV", Enabled: true,
+		BalanceCents: 100, CreatedAt: now, UpdatedAt: now,
+	}
+	resellers := &fakeResellers{reseller: &reseller}
+	service := newServiceForTest(t, &fakeUsers{}, &fakeKeys{}, resellers, &fakeRoutes{}, &fakeLedger{}, &fakeSecrets{}, &fakeGenerator{})
+	const balanceReason = "manual reconciliation"
+	if _, err := service.SetResellerBalance(context.Background(), command(), "r1", 200, balanceReason); err != nil {
+		t.Fatal(err)
+	}
+	resellers.mu.Lock()
+	balanceAudit := resellers.audit
+	resellers.mu.Unlock()
+	if balanceAudit.Reason != balanceReason {
+		t.Fatalf("balance audit reason=%q", balanceAudit.Reason)
+	}
+
+	current := domain.UsageRecord{
+		LocalRequestID: "llmreq_1", UserID: "usr_1",
+		ProviderType: domain.ProviderOpenAI, ClientModel: "model-a",
+		BillingModel: "openai:model-a", Currency: "RUB",
+		UsageCompleteness: "failed", Status: domain.UsageStatusPricingFailed,
+		FailureReason: "pricing_failed", CreatedAt: now, UpdatedAt: now,
+		FailedAt: &now,
+	}
+	ledgerStore := &fakeLedger{record: &current}
+	service = newServiceForTest(t, &fakeUsers{}, &fakeKeys{}, &fakeResellers{}, &fakeRoutes{}, ledgerStore, &fakeSecrets{}, &fakeGenerator{})
+	const usageReason = "manual write-off"
+	if _, err := service.ResolveUsageFailed(context.Background(), command(), ResolveFailedInput{LocalRequestID: "llmreq_1", Reason: usageReason}); err != nil {
+		t.Fatal(err)
+	}
+	ledgerStore.mu.Lock()
+	usageAudit := ledgerStore.audit
+	ledgerStore.mu.Unlock()
+	if usageAudit.Reason != usageReason {
+		t.Fatalf("usage audit reason=%q", usageAudit.Reason)
+	}
+}

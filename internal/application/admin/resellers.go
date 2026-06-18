@@ -262,7 +262,7 @@ func (s *Service) AdjustResellerBalance(ctx context.Context, command CommandCont
 	if err != nil {
 		return ResellerBalance{}, err
 	}
-	audit := auditContext(command, domain.AuditActionResellerBalanceAdjust, "reseller", id, resellerState(*current), resellerState(next), at)
+	audit := auditContextWithReason(command, domain.AuditActionResellerBalanceAdjust, "reseller", id, resellerState(*current), resellerState(next), reason, at)
 	if _, err := s.deps.Resellers.CompareAndSwapResellerWithAudit(ctx, *current, next, audit); err != nil {
 		return ResellerBalance{}, mapStoreError(err)
 	}
@@ -291,7 +291,7 @@ func (s *Service) SetResellerBalance(ctx context.Context, command CommandContext
 	if err != nil {
 		return ResellerBalance{}, err
 	}
-	audit := auditContext(command, domain.AuditActionResellerBalanceSet, "reseller", id, resellerState(*current), resellerState(next), at)
+	audit := auditContextWithReason(command, domain.AuditActionResellerBalanceSet, "reseller", id, resellerState(*current), resellerState(next), reason, at)
 	if _, err := s.deps.Resellers.CompareAndSwapResellerWithAudit(ctx, *current, next, audit); err != nil {
 		return ResellerBalance{}, mapStoreError(err)
 	}

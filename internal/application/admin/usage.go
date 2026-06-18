@@ -89,14 +89,14 @@ func (s *Service) loadPricingFailed(ctx context.Context, id string) (domain.Usag
 	return *current, nil
 }
 
-func (s *Service) persistPricingResolution(ctx context.Context, command CommandContext, current, next domain.UsageRecord, action domain.AuditAction) (domain.UsageRecord, error) {
+func (s *Service) persistPricingResolution(ctx context.Context, command CommandContext, current, next domain.UsageRecord, action domain.AuditAction, reason string) (domain.UsageRecord, error) {
 	if err := s.deps.UsagePolicy.ValidateTransition(current.Status, next.Status); err != nil {
 		return domain.UsageRecord{}, ErrStateConflict
 	}
 	if err := s.deps.UsagePolicy.ValidateRecord(next); err != nil {
 		return domain.UsageRecord{}, ErrInvalidRequest
 	}
-	audit := auditContext(command, action, "usage_record", current.LocalRequestID, usageState(current), usageState(next), next.UpdatedAt)
+	audit := auditContextWithReason(command, action, "usage_record", current.LocalRequestID, usageState(current), usageState(next), reason, next.UpdatedAt)
 	result, err := s.deps.Ledger.ResolvePricingFailedWithAudit(ctx, current, next, audit)
 	if err != nil {
 		return domain.UsageRecord{}, mapStoreError(err)
@@ -137,7 +137,7 @@ func (s *Service) ResolveUsageBillable(ctx context.Context, command CommandConte
 	next.ChargedAt = nil
 	next.FailedAt = nil
 	next.UpdatedAt = at
-	return s.persistPricingResolution(ctx, command, current, next, domain.AuditActionUsageResolveBillable)
+	return s.persistPricingResolution(ctx, command, current, next, domain.AuditActionUsageResolveBillable, input.Reason)
 }
 
 func (s *Service) ResolveUsageFailed(ctx context.Context, command CommandContext, input ResolveFailedInput) (domain.UsageRecord, error) {
@@ -163,7 +163,7 @@ func (s *Service) ResolveUsageFailed(ctx context.Context, command CommandContext
 	next.ChargedAt = nil
 	next.FailedAt = &at
 	next.UpdatedAt = at
-	return s.persistPricingResolution(ctx, command, current, next, domain.AuditActionUsageResolveFailed)
+	return s.persistPricingResolution(ctx, command, current, next, domain.AuditActionUsageResolveFailed, input.Reason)
 }
 
 func (s *Service) ResolveUsageCharged(ctx context.Context, command CommandContext, input ResolveChargedInput) (domain.UsageRecord, error) {
@@ -190,5 +190,5 @@ func (s *Service) ResolveUsageCharged(ctx context.Context, command CommandContex
 	next.ChargedAt = &at
 	next.FailedAt = nil
 	next.UpdatedAt = at
-	return s.persistPricingResolution(ctx, command, current, next, domain.AuditActionUsageResolveCharged)
+	return s.persistPricingResolution(ctx, command, current, next, domain.AuditActionUsageResolveCharged, input.Reason)
 }

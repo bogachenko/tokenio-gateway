@@ -86,6 +86,29 @@ func auditContext(c CommandContext, action domain.AuditAction, entityType, entit
 	}
 	return domain.AuditContext{ID: stableID("audit_", c.RequestID, string(action), entityType, entityID), AdminSubject: c.AdminSubject, Action: action, EntityType: entityType, EntityID: entityID, BeforeState: before, AfterState: after, RequestID: c.RequestID, CreatedAt: at.UTC()}
 }
+func auditContextWithReason(
+	c CommandContext,
+	action domain.AuditAction,
+	entityType string,
+	entityID string,
+	before domain.AuditState,
+	after domain.AuditState,
+	reason string,
+	at time.Time,
+) domain.AuditContext {
+	audit := auditContext(
+		c,
+		action,
+		entityType,
+		entityID,
+		before,
+		after,
+		at,
+	)
+	audit.Reason = reason
+	return audit
+}
+
 func mapStoreError(err error) error {
 	if err == nil {
 		return nil

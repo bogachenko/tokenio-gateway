@@ -39,6 +39,7 @@ type AuditContext struct {
 	EntityID     string
 	BeforeState  AuditState
 	AfterState   AuditState
+	Reason       string
 	RequestID    string
 	CreatedAt    time.Time
 }
@@ -51,6 +52,7 @@ type AdminAuditEntry struct {
 	EntityID     string      `json:"entity_id"`
 	BeforeState  AuditState  `json:"before_state"`
 	AfterState   AuditState  `json:"after_state"`
+	Reason       string      `json:"reason,omitempty"`
 	RequestID    string      `json:"request_id"`
 	CreatedAt    time.Time   `json:"created_at"`
 }
