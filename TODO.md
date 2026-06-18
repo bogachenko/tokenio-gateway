@@ -298,19 +298,19 @@
 
 ## 4.5. Billing tests
 
-* [ ] Crash до prepare.
-* [ ] Crash после prepare.
-* [ ] Crash после external Billing success.
-* [ ] Crash до local success reconciliation.
-* [ ] Несколько charge groups.
-* [ ] Partial charge.
-* [ ] Record без allocation.
-* [ ] Concurrent workers.
-* [ ] Failed batch retry.
-* [ ] Succeeded batch replay.
-* [ ] Restart без новых LLM requests.
-* [ ] Unknown Billing result.
-* [ ] Отсутствие duplicate charge.
+* [x] Crash до prepare.
+* [x] Crash после prepare.
+* [x] Crash после external Billing success.
+* [x] Crash до local success reconciliation.
+* [x] Несколько charge groups.
+* [x] Partial charge.
+* [x] Record без allocation.
+* [x] Concurrent workers.
+* [x] Failed batch retry.
+* [x] Succeeded batch replay.
+* [x] Restart без новых LLM requests.
+* [x] Unknown Billing result.
+* [x] Отсутствие duplicate charge.
 
 ## Критерий завершения
 
