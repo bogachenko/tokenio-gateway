@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 )
 
 type recoveryWorkerFake struct {
+	mu    sync.Mutex
 	calls []int
 	err   error
 }
@@ -19,11 +21,21 @@ func (f *recoveryWorkerFake) RunCycle(
 	_ context.Context,
 	limit int,
 ) (billingapp.RecoveryCycleResult, error) {
+	f.mu.Lock()
 	f.calls = append(f.calls, limit)
+	err := f.err
+	f.mu.Unlock()
+
 	return billingapp.RecoveryCycleResult{
 		DiscoveredBatchIDs: []string{"billchg_1"},
 		ProcessedBatchIDs:  []string{"billchg_1"},
-	}, f.err
+	}, err
+}
+
+func (f *recoveryWorkerFake) callsSnapshot() []int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]int(nil), f.calls...)
 }
 
 type recoveryObserverFake struct {
@@ -75,7 +87,7 @@ func TestWorkerRunsInitialCycleBeforeTickerAndContinuesAfterError(t *testing.T) 
 	}()
 
 	deadline := time.After(time.Second)
-	for len(recoverer.calls) < 1 {
+	for len(recoverer.callsSnapshot()) < 1 {
 		select {
 		case <-deadline:
 			t.Fatal("initial cycle was not run")
@@ -83,13 +95,14 @@ func TestWorkerRunsInitialCycleBeforeTickerAndContinuesAfterError(t *testing.T) 
 			time.Sleep(time.Millisecond)
 		}
 	}
-	if !reflect.DeepEqual(recoverer.calls, []int{17}) {
-		t.Fatalf("initial calls=%v", recoverer.calls)
+	initialCalls := recoverer.callsSnapshot()
+	if !reflect.DeepEqual(initialCalls, []int{17}) {
+		t.Fatalf("initial calls=%v", initialCalls)
 	}
 
 	ticker.channel <- time.Now()
 	deadline = time.After(time.Second)
-	for len(recoverer.calls) < 2 {
+	for len(recoverer.callsSnapshot()) < 2 {
 		select {
 		case <-deadline:
 			t.Fatal("ticker cycle was not run")

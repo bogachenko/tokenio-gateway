@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"errors"
-	"os"
 	"strconv"
 	"sync"
 	"testing"
@@ -176,20 +175,8 @@ func newUsageResellerReleaseFixture(
 ) usageResellerReleaseFixture {
 	t.Helper()
 
-	dsn := os.Getenv("TOKENIO_TEST_DATABASE_DSN")
-	if dsn == "" {
-		t.Skip("TOKENIO_TEST_DATABASE_DSN is not set")
-	}
-
 	ctx := t.Context()
-	db, err := Open(ctx, dsn)
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	t.Cleanup(db.Close)
-	if err := db.ApplyMigrations(ctx); err != nil {
-		t.Fatalf("ApplyMigrations: %v", err)
-	}
+	db := openIsolatedPostgresIntegrationDB(t)
 
 	ledger, err := NewUsageLedger(db)
 	if err != nil {
@@ -321,6 +308,8 @@ INSERT INTO tokenio_routes (
     endpoint_kind,
     client_model,
     provider_model,
+    default_max_output_tokens,
+    capabilities,
     created_at,
     updated_at
 )
@@ -332,6 +321,8 @@ VALUES (
     'chat',
     $3,
     $3,
+    1024,
+    '{"chat":true}'::jsonb,
     $4,
     $4
 )

@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"errors"
-	"os"
 	"strconv"
 	"sync"
 	"testing"
@@ -227,20 +226,8 @@ func newLLMRequestAtomicReservationFixture(
 ) llmRequestAtomicReservationFixture {
 	t.Helper()
 
-	dsn := os.Getenv("TOKENIO_TEST_DATABASE_DSN")
-	if dsn == "" {
-		t.Skip("TOKENIO_TEST_DATABASE_DSN is not set")
-	}
-
 	ctx := t.Context()
-	db, err := Open(ctx, dsn)
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	t.Cleanup(db.Close)
-	if err := db.ApplyMigrations(ctx); err != nil {
-		t.Fatalf("ApplyMigrations: %v", err)
-	}
+	db := openIsolatedPostgresIntegrationDB(t)
 
 	suffix := strconv.FormatInt(time.Now().UnixNano(), 10)
 	userID := "atomic-reservation-user-" + suffix
@@ -381,6 +368,8 @@ INSERT INTO tokenio_routes (
     client_model,
     provider_model,
     enabled,
+    default_max_output_tokens,
+    capabilities,
     created_at,
     updated_at
 )
@@ -393,6 +382,8 @@ VALUES (
     $3,
     $3,
     TRUE,
+    1024,
+    '{"chat":true}'::jsonb,
     $4,
     $4
 )

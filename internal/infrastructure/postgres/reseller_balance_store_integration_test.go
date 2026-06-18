@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"os"
 	"strconv"
 	"sync"
 	"testing"
@@ -13,20 +12,8 @@ import (
 )
 
 func TestResellerBalanceStoreReserveIntegration(t *testing.T) {
-	dsn := os.Getenv("TOKENIO_TEST_DATABASE_DSN")
-	if dsn == "" {
-		t.Skip("TOKENIO_TEST_DATABASE_DSN is not set")
-	}
-
 	ctx := t.Context()
-	db, err := Open(ctx, dsn)
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	t.Cleanup(db.Close)
-	if err := db.ApplyMigrations(ctx); err != nil {
-		t.Fatalf("ApplyMigrations: %v", err)
-	}
+	db := openIsolatedPostgresIntegrationDB(t)
 
 	store, err := NewResellerBalanceStore(db)
 	if err != nil {
@@ -127,20 +114,8 @@ WHERE id = $1
 }
 
 func TestResellerBalanceStoreConcurrentReserveIntegration(t *testing.T) {
-	dsn := os.Getenv("TOKENIO_TEST_DATABASE_DSN")
-	if dsn == "" {
-		t.Skip("TOKENIO_TEST_DATABASE_DSN is not set")
-	}
-
 	ctx := t.Context()
-	db, err := Open(ctx, dsn)
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	t.Cleanup(db.Close)
-	if err := db.ApplyMigrations(ctx); err != nil {
-		t.Fatalf("ApplyMigrations: %v", err)
-	}
+	db := openIsolatedPostgresIntegrationDB(t)
 
 	store, err := NewResellerBalanceStore(db)
 	if err != nil {

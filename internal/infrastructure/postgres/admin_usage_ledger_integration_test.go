@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"errors"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -13,20 +12,8 @@ import (
 )
 
 func TestAdminUsageLedgerIntegration(t *testing.T) {
-	dsn := os.Getenv("TOKENIO_TEST_DATABASE_DSN")
-	if dsn == "" {
-		t.Skip("TOKENIO_TEST_DATABASE_DSN is not set")
-	}
-
 	ctx := t.Context()
-	db, err := Open(ctx, dsn)
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	defer db.Close()
-	if err := db.ApplyMigrations(ctx); err != nil {
-		t.Fatalf("ApplyMigrations: %v", err)
-	}
+	db := openIsolatedPostgresIntegrationDB(t)
 
 	adminLedger, err := NewAdminUsageLedger(db)
 	if err != nil {
@@ -255,8 +242,11 @@ func TestAdminUsageLedgerIntegration(t *testing.T) {
 		ctx,
 		staleSnapshot,
 		staleAudit,
-	); !errors.Is(err, ports.ErrAdminStateConflict) {
-		t.Fatalf("stale attempt error = %v", err)
+	); !errors.Is(err, ports.ErrStoreContractViolation) {
+		t.Fatalf(
+			"stale attempt error = %v, want ErrStoreContractViolation",
+			err,
+		)
 	}
 
 	chargedAt := now.Add(6 * time.Second)

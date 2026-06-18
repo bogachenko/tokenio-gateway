@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"errors"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -118,20 +117,8 @@ func assertUsageRecordFailedTimestamps(
 }
 
 func TestUsageLedgerRecordLifecycleIntegration(t *testing.T) {
-	dsn := os.Getenv("TOKENIO_TEST_DATABASE_DSN")
-	if dsn == "" {
-		t.Skip("TOKENIO_TEST_DATABASE_DSN is not set")
-	}
-
 	ctx := t.Context()
-	db, err := Open(ctx, dsn)
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	defer db.Close()
-	if err := db.ApplyMigrations(ctx); err != nil {
-		t.Fatalf("ApplyMigrations: %v", err)
-	}
+	db := openIsolatedPostgresIntegrationDB(t)
 
 	ledger, err := NewUsageLedger(db)
 	if err != nil {
