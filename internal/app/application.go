@@ -37,6 +37,7 @@ type ApplicationGraph struct {
 	TelegramDeliveryEnabled      bool
 	TelegramDelivery             *telegramalert.DeliveryService
 	TelegramRecovery             *telegramalert.RecoveryService
+	TelegramBalanceScan          *telegramalert.BalanceScanService
 	TelegramStaleAttemptRecovery *telegramalert.StaleAttemptRecoveryService
 	Admin                        *adminapp.Service
 }
@@ -503,6 +504,20 @@ func NewApplicationGraph(
 		}
 	}
 
+	var telegramBalanceScan *telegramalert.BalanceScanService
+	if telegramInfrastructure.Enabled {
+		telegramBalanceScan, err = telegramalert.NewBalanceScanService(
+			repositories.AdminResellers,
+			telegramAlerts,
+		)
+		if err != nil {
+			return ApplicationGraph{}, fmt.Errorf(
+				"construct Telegram balance scan service: %w",
+				err,
+			)
+		}
+	}
+
 	adminService, err := adminapp.NewService(adminapp.Dependencies{
 		Users:          repositories.AdminUsers,
 		APIKeys:        repositories.AdminAPIKeys,
@@ -547,6 +562,7 @@ func NewApplicationGraph(
 		TelegramDeliveryEnabled:      telegramInfrastructure.Enabled,
 		TelegramDelivery:             telegramDelivery,
 		TelegramRecovery:             telegramRecovery,
+		TelegramBalanceScan:          telegramBalanceScan,
 		TelegramStaleAttemptRecovery: telegramStaleAttemptRecovery,
 		Admin:                        adminService,
 	}
@@ -595,6 +611,8 @@ func (g ApplicationGraph) Validate() error {
 		return fmt.Errorf("enabled Telegram delivery service is nil")
 	case g.TelegramDeliveryEnabled && g.TelegramRecovery == nil:
 		return fmt.Errorf("enabled Telegram recovery service is nil")
+	case g.TelegramDeliveryEnabled && g.TelegramBalanceScan == nil:
+		return fmt.Errorf("enabled Telegram balance scan service is nil")
 	case !g.TelegramDeliveryEnabled && g.TelegramDelivery != nil:
 		return fmt.Errorf("disabled Telegram delivery service is non-nil")
 	case !g.TelegramDeliveryEnabled && g.TelegramRecovery != nil:

@@ -7,6 +7,7 @@ import (
 
 	billingrecovery "github.com/bogachenko/tokenio-gateway/internal/worker/billingrecovery"
 	forwardingattemptrecovery "github.com/bogachenko/tokenio-gateway/internal/worker/forwardingattemptrecovery"
+	telegrambalancescan "github.com/bogachenko/tokenio-gateway/internal/worker/telegrambalancescan"
 	telegramdelivery "github.com/bogachenko/tokenio-gateway/internal/worker/telegramdelivery"
 	telegramfailedretry "github.com/bogachenko/tokenio-gateway/internal/worker/telegramfailedretry"
 )
@@ -22,6 +23,13 @@ type telegramDeliveryObserverStub struct{}
 
 func (telegramDeliveryObserverStub) ObserveTelegramDeliveryCycle(
 	telegramdelivery.Cycle,
+) {
+}
+
+type telegramBalanceScanObserverStub struct{}
+
+func (telegramBalanceScanObserverStub) ObserveTelegramBalanceScanCycle(
+	telegrambalancescan.Cycle,
 ) {
 }
 
@@ -72,6 +80,7 @@ func TestNewWorkerGraphWiresForwardingAttemptRecovery(
 		billingRecoveryObserverStub{},
 		telegramDeliveryObserverStub{},
 		telegramFailedRetryObserverStub{},
+		telegramBalanceScanObserverStub{},
 	)
 	if err != nil {
 		t.Fatalf("newWorkerGraphWithObservers: %v", err)
