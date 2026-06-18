@@ -282,12 +282,12 @@
 
 ## 4.3. Transaction boundaries
 
-* [ ] Prepare batch и allocations выполнять одной транзакцией.
-* [ ] External Billing вызывать только после commit.
-* [ ] Success reconciliation выполнять одной транзакцией.
-* [ ] Failure reconciliation выполнять одной транзакцией.
-* [ ] Использовать CAS/state predicates для concurrent workers.
-* [ ] Исключить двойное списание при crash/restart.
+* [x] Prepare batch и allocations выполнять одной транзакцией.
+* [x] External Billing вызывать только после commit.
+* [x] Success reconciliation выполнять одной транзакцией.
+* [x] Failure reconciliation выполнять одной транзакцией.
+* [x] Использовать CAS/state predicates для concurrent workers.
+* [x] Исключить двойное списание при crash/restart.
 
 ## 4.4. Request-triggered auto-charge
 
