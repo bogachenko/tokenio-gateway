@@ -2,6 +2,8 @@ package app
 
 import (
 	"fmt"
+	"log"
+	"strings"
 
 	adminapp "github.com/bogachenko/tokenio-gateway/internal/application/admin"
 	authenticateapp "github.com/bogachenko/tokenio-gateway/internal/application/authenticate"
@@ -28,6 +30,8 @@ type ApplicationGraph struct {
 	UsageResolver                *pricingapp.UsageResolver
 	LLMRequest                   *llmrequest.Service
 	ForwardingAttemptRecovery    *llmrequest.ForwardingAttemptRecovery
+	TelegramAlertsEnabled        bool
+	TelegramAlerts               *telegramalert.Service
 	TelegramStaleAttemptRecovery *telegramalert.StaleAttemptRecoveryService
 	Admin                        *adminapp.Service
 }
@@ -422,12 +426,44 @@ func NewApplicationGraph(
 		failedBatchRetry,
 	)
 
+	telegramAlertsEnabled := strings.TrimSpace(cfg.TelegramBotToken) != "" && strings.TrimSpace(cfg.TelegramChatID) != ""
+	var telegramAlerts *telegramalert.Service
+	adminResellers := repositories.AdminResellers
+	if telegramAlertsEnabled {
+		telegramAlerts, err = telegramalert.NewService(
+			repositories.AdminResellers,
+			repositories.TelegramAlerts,
+			primitives.Clock,
+			telegramalert.Config{
+				ThresholdCents: cfg.ResellerBalanceAlertCents,
+				DedupePeriod:   cfg.TelegramAlertDedupePeriod,
+			},
+		)
+		if err != nil {
+			return ApplicationGraph{}, fmt.Errorf(
+				"construct Telegram alert service: %w",
+				err,
+			)
+		}
+		adminResellers, err = newAdminResellerAlertRepository(
+			repositories.AdminResellers,
+			telegramAlerts,
+			log.Default(),
+		)
+		if err != nil {
+			return ApplicationGraph{}, fmt.Errorf(
+				"construct post-commit reseller alert repository: %w",
+				err,
+			)
+		}
+	}
+
 	adminService, err := adminapp.NewService(adminapp.Dependencies{
 		Users:          repositories.AdminUsers,
 		APIKeys:        repositories.AdminAPIKeys,
 		Provisionings:  repositories.AdminProvisioning,
 		RouteEvents:    repositories.RouteEvents,
-		Resellers:      repositories.AdminResellers,
+		Resellers:      adminResellers,
 		Routes:         repositories.AdminRoutes,
 		Prices:         repositories.AdminRoutePrices,
 		PriceValidator: adminRoutePriceValidator{},
@@ -460,6 +496,8 @@ func NewApplicationGraph(
 		UsageResolver:                pricingUsageResolver,
 		LLMRequest:                   llmRequestService,
 		ForwardingAttemptRecovery:    forwardingAttemptRecovery,
+		TelegramAlertsEnabled:        telegramAlertsEnabled,
+		TelegramAlerts:               telegramAlerts,
 		TelegramStaleAttemptRecovery: telegramStaleAttemptRecovery,
 		Admin:                        adminService,
 	}
@@ -498,6 +536,10 @@ func (g ApplicationGraph) Validate() error {
 		return fmt.Errorf(
 			"forwarding attempt recovery service is nil",
 		)
+	case g.TelegramAlertsEnabled && g.TelegramAlerts == nil:
+		return fmt.Errorf("enabled Telegram alert service is nil")
+	case !g.TelegramAlertsEnabled && g.TelegramAlerts != nil:
+		return fmt.Errorf("disabled Telegram alert service is non-nil")
 	case g.TelegramStaleAttemptRecovery == nil:
 		return fmt.Errorf(
 			"Telegram stale-attempt recovery service is nil",
