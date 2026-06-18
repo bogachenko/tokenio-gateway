@@ -536,6 +536,7 @@ func NewApplicationGraph(
 		Hasher:         security.APIKeyHasher,
 		Clock:          primitives.Clock,
 		BatchRetrier:   adminBatchRetrier,
+		TelegramAlerts: repositories.TelegramAlerts,
 	})
 	if err != nil {
 		return ApplicationGraph{}, fmt.Errorf(

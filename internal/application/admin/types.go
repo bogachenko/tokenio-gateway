@@ -221,6 +221,7 @@ type Dependencies struct {
 	Hasher         APIKeyHasher
 	Clock          ports.Clock
 	BatchRetrier   FailedChargeBatchRetrier
+	TelegramAlerts ports.TelegramAlertStore
 }
 
 type APIKeyHasher interface{ Hash(string) string }

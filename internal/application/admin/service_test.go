@@ -197,6 +197,20 @@ type fakeGenerator struct {
 
 func (f *fakeGenerator) GenerateAPIKey() (string, error) { return f.raw, f.err }
 
+type telegramAlertStoreFake struct {
+	ports.TelegramAlertStore
+	filter ports.TelegramAlertListFilter
+	page   ports.Page[domain.TelegramAlert]
+}
+
+func (f *telegramAlertStoreFake) ListTelegramAlerts(
+	_ context.Context,
+	filter ports.TelegramAlertListFilter,
+) (ports.Page[domain.TelegramAlert], error) {
+	f.filter = filter
+	return f.page, nil
+}
+
 type fakeRetrier struct{}
 
 func (*fakeRetrier) RetryFailedBatch(context.Context, string, domain.AuditContext) (domain.BillingChargeBatch, error) {
@@ -210,7 +224,7 @@ func newServiceForTest(t *testing.T, users *fakeUsers, keys *fakeKeys, resellers
 		t.Fatal(err)
 	}
 	service, err := NewService(Dependencies{Users: users, APIKeys: keys, RouteEvents: &routeEventStoreFake{},
-		Provisionings: &fakeAdminProvisioningRepository{}, Resellers: resellers, Routes: routes, Prices: &fakePrices{}, PriceValidator: &fakePriceValidator{}, UsagePolicy: &fakeUsagePolicy{}, Ledger: ledgerStore, Audit: &fakeAuditStore{}, Secrets: secrets, AdapterSupport: &fakeAdapterSupport{}, KeyGenerator: generator, Hasher: hasher, Clock: fixedClock{value: time.Unix(100, 0).UTC()}, BatchRetrier: &fakeRetrier{}})
+		Provisionings: &fakeAdminProvisioningRepository{}, Resellers: resellers, Routes: routes, Prices: &fakePrices{}, PriceValidator: &fakePriceValidator{}, UsagePolicy: &fakeUsagePolicy{}, Ledger: ledgerStore, Audit: &fakeAuditStore{}, Secrets: secrets, AdapterSupport: &fakeAdapterSupport{}, KeyGenerator: generator, Hasher: hasher, Clock: fixedClock{value: time.Unix(100, 0).UTC()}, BatchRetrier: &fakeRetrier{}, TelegramAlerts: &telegramAlertStoreFake{}})
 	if err != nil {
 		t.Fatal(err)
 	}
