@@ -339,15 +339,15 @@
 
 ## 5.2. Admin mutation invariants
 
-* [ ] Каждая mutation должна выполняться одной транзакцией.
-* [ ] Загружать current state до изменения.
-* [ ] Проверять expected state.
-* [ ] Сохранять точный `before_state`.
-* [ ] Сохранять точный `after_state`.
-* [ ] Сохранять обязательный reason.
-* [ ] Сохранять admin identity.
-* [ ] Не сохранять secrets в audit.
-* [ ] Не завершать mutation без audit event.
+* [x] Каждая mutation должна выполняться одной транзакцией.
+* [x] Загружать current state до изменения.
+* [x] Проверять expected state.
+* [x] Сохранять точный `before_state`.
+* [x] Сохранять точный `after_state`.
+* [x] Сохранять обязательный reason.
+* [x] Сохранять admin identity.
+* [x] Не сохранять secrets в audit.
+* [x] Не завершать mutation без audit event.
 
 ## 5.3. Provisioning contract
 
