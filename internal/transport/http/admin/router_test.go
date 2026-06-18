@@ -56,6 +56,10 @@ type testService struct {
 	listCalls           int
 	listErr             error
 	updateResellerInput application.UpdateResellerInput
+	retryCalls          int
+	retryCommand        application.CommandContext
+	retryBatchID        string
+	retryErr            error
 }
 
 func (f *testService) ListUsers(_ context.Context, input application.UserListInput) (application.ListResult[domain.User], error) {
@@ -70,6 +74,19 @@ func (f *testService) UpdateReseller(_ context.Context, _ application.CommandCon
 	defer f.mu.Unlock()
 	f.updateResellerInput = input
 	return application.ResellerView{ID: input.ID}, nil
+}
+
+func (f *testService) RetryFailedBillingChargeBatch(
+	_ context.Context,
+	command application.CommandContext,
+	batchID string,
+) (domain.BillingChargeBatch, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.retryCalls++
+	f.retryCommand = command
+	f.retryBatchID = batchID
+	return domain.BillingChargeBatch{ID: batchID}, f.retryErr
 }
 
 func TestAdminRequestIDIsCreatedBeforeAuthentication(t *testing.T) {
@@ -281,6 +298,98 @@ func TestPatchDistinguishesAbsentFromExplicitFalseAndZero(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAdminChargeBatchRetryDispatchesCommandContext(t *testing.T) {
+	t.Run("post dispatches once", func(t *testing.T) {
+		events := []string{}
+		service := &testService{}
+		router, err := NewRouter(
+			service,
+			&testAuthenticator{
+				events:  &events,
+				subject: "admin_token",
+			},
+			&testIDs{value: "admreq_retry_http"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		request := httptest.NewRequest(
+			http.MethodPost,
+			"/admin/v1/billing-charge-batches/batch_1/retry",
+			nil,
+		)
+		request.Header.Set("Authorization", "Bearer admin")
+		response := httptest.NewRecorder()
+
+		router.ServeHTTP(response, request)
+
+		if response.Code != http.StatusOK {
+			t.Fatalf(
+				"status=%d body=%s",
+				response.Code,
+				response.Body.String(),
+			)
+		}
+		if got := response.Header().Get(adminRequestIDHeader); got != "admreq_retry_http" {
+			t.Fatalf("request id header=%q", got)
+		}
+
+		service.mu.Lock()
+		defer service.mu.Unlock()
+		if service.retryCalls != 1 {
+			t.Fatalf("retry calls=%d, want 1", service.retryCalls)
+		}
+		if service.retryBatchID != "batch_1" {
+			t.Fatalf("retry batch id=%q", service.retryBatchID)
+		}
+		if service.retryCommand.RequestID != "admreq_retry_http" ||
+			service.retryCommand.AdminSubject != "admin_token" {
+			t.Fatalf("retry command=%+v", service.retryCommand)
+		}
+	})
+
+	t.Run("wrong method stops before service", func(t *testing.T) {
+		events := []string{}
+		service := &testService{}
+		router, err := NewRouter(
+			service,
+			&testAuthenticator{
+				events:  &events,
+				subject: "admin_token",
+			},
+			&testIDs{value: "admreq_retry_method"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		request := httptest.NewRequest(
+			http.MethodGet,
+			"/admin/v1/billing-charge-batches/batch_1/retry",
+			nil,
+		)
+		request.Header.Set("Authorization", "Bearer admin")
+		response := httptest.NewRecorder()
+
+		router.ServeHTTP(response, request)
+
+		if response.Code != http.StatusMethodNotAllowed {
+			t.Fatalf(
+				"status=%d body=%s",
+				response.Code,
+				response.Body.String(),
+			)
+		}
+
+		service.mu.Lock()
+		defer service.mu.Unlock()
+		if service.retryCalls != 0 {
+			t.Fatalf("retry calls=%d, want 0", service.retryCalls)
+		}
+	})
 }
 
 func TestAdminEndpointsAreNotRegisteredUnderPublicV1(t *testing.T) {
