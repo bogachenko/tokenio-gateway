@@ -60,6 +60,7 @@ type BillingChargeBatchListFilter struct {
 }
 
 type APIKeyProvisioningListFilter struct {
+	ProvisioningID         string
 	ExternalBillingUserID  string
 	UserID                 string
 	APIKeyID               string

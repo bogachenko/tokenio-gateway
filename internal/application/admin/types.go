@@ -207,6 +207,7 @@ type Dependencies struct {
 	Users          ports.AdminUserRepository
 	APIKeys        ports.AdminAPIKeyRepository
 	Provisionings  ports.AdminAPIKeyProvisioningRepository
+	RouteEvents    ports.RouteEventStore
 	Resellers      ports.ResellerRepository
 	Routes         ports.AdminRouteRepository
 	Prices         ports.AdminRoutePriceRepository

@@ -34,6 +34,8 @@ type Service interface {
 		context.Context,
 		application.APIKeyProvisioningListInput,
 	) (application.ListResult[application.APIKeyProvisioningView], error)
+	GetAPIKeyProvisioning(context.Context, string) (application.APIKeyProvisioningView, error)
+	ListRouteEvents(context.Context, application.RouteEventListInput) (application.ListResult[domain.RouteEvent], error)
 	CreateAPIKey(context.Context, application.CommandContext, application.CreateAPIKeyInput) (application.CreatedAPIKey, error)
 	RevokeAPIKey(context.Context, application.CommandContext, string) (application.APIKeyView, error)
 	ListResellers(context.Context, application.ResellerListInput) (application.ListResult[application.ResellerView], error)
@@ -120,6 +122,9 @@ func (h *Router) dispatch(w http.ResponseWriter, r *http.Request, command applic
 		case "api-key-provisionings":
 			h.handleAPIKeyProvisionings(w, r, command)
 			return
+		case "route-events":
+			h.handleRouteEvents(w, r, command)
+			return
 		case "billing-charge-batches":
 			h.handleBillingBatches(w, r, command)
 			return
@@ -147,6 +152,9 @@ func (h *Router) dispatch(w http.ResponseWriter, r *http.Request, command applic
 			return
 		case "billing-charge-batches":
 			h.handleBillingBatchPath(w, r, command, segments[1:])
+			return
+		case "api-key-provisionings":
+			h.handleAPIKeyProvisioningPath(w, r, command, segments[1:])
 			return
 		}
 	}

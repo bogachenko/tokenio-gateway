@@ -65,3 +65,34 @@ func (h *Router) handleAPIKeyProvisionings(
 	}
 	writeList(writer, result.Data, result.Pagination)
 }
+
+func (h *Router) handleAPIKeyProvisioningPath(
+	writer http.ResponseWriter,
+	request *http.Request,
+	command application.CommandContext,
+	parts []string,
+) {
+	if len(parts) != 1 {
+		writeError(
+			writer,
+			command.RequestID,
+			http.StatusNotFound,
+			domain.ErrorCodeNotFound,
+			"Endpoint not found",
+		)
+		return
+	}
+	if request.Method != http.MethodGet {
+		methodNotAllowed(writer, command.RequestID, http.MethodGet)
+		return
+	}
+	result, err := h.service.GetAPIKeyProvisioning(
+		request.Context(),
+		parts[0],
+	)
+	if err != nil {
+		writeApplicationError(writer, command.RequestID, err)
+		return
+	}
+	writeData(writer, result)
+}

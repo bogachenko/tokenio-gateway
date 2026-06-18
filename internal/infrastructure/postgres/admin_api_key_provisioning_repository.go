@@ -198,6 +198,7 @@ func validateAdminAPIKeyProvisioningFilter(
 	filter ports.APIKeyProvisioningListFilter,
 ) error {
 	for _, value := range []string{
+		filter.ProvisioningID,
 		filter.ExternalBillingUserID,
 		filter.UserID,
 		filter.APIKeyID,
@@ -243,8 +244,8 @@ func validateAdminAPIKeyProvisioningFilter(
 func buildAdminAPIKeyProvisioningFilter(
 	filter ports.APIKeyProvisioningListFilter,
 ) (string, []any) {
-	clauses := make([]string, 0, 7)
-	args := make([]any, 0, 7)
+	clauses := make([]string, 0, 8)
+	args := make([]any, 0, 8)
 
 	add := func(column string, value any) {
 		args = append(args, value)
@@ -258,6 +259,9 @@ func buildAdminAPIKeyProvisioningFilter(
 		)
 	}
 
+	if filter.ProvisioningID != "" {
+		add("p.id", filter.ProvisioningID)
+	}
 	if filter.ExternalBillingUserID != "" {
 		add(
 			"p.external_billing_user_id",

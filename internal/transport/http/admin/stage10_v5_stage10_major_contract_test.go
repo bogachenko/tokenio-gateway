@@ -64,6 +64,12 @@ func (*stage10V5RouterServiceFake) ListAPIKeyProvisionings(
 ) (application.ListResult[application.APIKeyProvisioningView], error) {
 	return application.ListResult[application.APIKeyProvisioningView]{}, nil
 }
+func (*stage10V5RouterServiceFake) GetAPIKeyProvisioning(context.Context, string) (application.APIKeyProvisioningView, error) {
+	return application.APIKeyProvisioningView{}, nil
+}
+func (*stage10V5RouterServiceFake) ListRouteEvents(context.Context, application.RouteEventListInput) (application.ListResult[domain.RouteEvent], error) {
+	return application.ListResult[domain.RouteEvent]{}, nil
+}
 func (*stage10V5RouterServiceFake) CreateAPIKey(context.Context, application.CommandContext, application.CreateAPIKeyInput) (application.CreatedAPIKey, error) {
 	return application.CreatedAPIKey{}, nil
 }

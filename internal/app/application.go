@@ -426,6 +426,7 @@ func NewApplicationGraph(
 		Users:          repositories.AdminUsers,
 		APIKeys:        repositories.AdminAPIKeys,
 		Provisionings:  repositories.AdminProvisioning,
+		RouteEvents:    repositories.RouteEvents,
 		Resellers:      repositories.AdminResellers,
 		Routes:         repositories.AdminRoutes,
 		Prices:         repositories.AdminRoutePrices,

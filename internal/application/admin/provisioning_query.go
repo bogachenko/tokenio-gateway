@@ -12,6 +12,7 @@ import (
 )
 
 type APIKeyProvisioningListInput struct {
+	ProvisioningID        string
 	ExternalBillingUserID string
 	UserID                string
 	APIKeyID              string
@@ -74,6 +75,7 @@ func (s *ProvisioningQueryService) ListAPIKeyProvisionings(
 			input.CreatedFrom,
 			input.CreatedTo,
 		) != nil ||
+		!validOptionalOpaque(input.ProvisioningID) ||
 		!validOptionalOpaque(
 			input.ExternalBillingUserID,
 		) ||
@@ -94,6 +96,7 @@ func (s *ProvisioningQueryService) ListAPIKeyProvisionings(
 		s.repository.ListAPIKeyProvisionings(
 			ctx,
 			ports.APIKeyProvisioningListFilter{
+				ProvisioningID:        input.ProvisioningID,
 				ExternalBillingUserID: input.ExternalBillingUserID,
 				UserID:                input.UserID,
 				APIKeyID:              input.APIKeyID,
@@ -270,4 +273,32 @@ func cloneAdminTime(value *time.Time) *time.Time {
 	}
 	copyValue := *value
 	return &copyValue
+}
+
+func (s *ProvisioningQueryService) GetAPIKeyProvisioning(
+	ctx context.Context,
+	provisioningID string,
+) (APIKeyProvisioningView, error) {
+	if ctx == nil || s == nil || s.repository == nil ||
+		isBlank(provisioningID) ||
+		provisioningID != strings.TrimSpace(provisioningID) {
+		return APIKeyProvisioningView{}, ErrInvalidRequest
+	}
+	result, err := s.ListAPIKeyProvisionings(
+		ctx,
+		APIKeyProvisioningListInput{
+			ProvisioningID: provisioningID,
+			Limit:          1,
+		},
+	)
+	if err != nil {
+		return APIKeyProvisioningView{}, err
+	}
+	if result.Pagination.Total == 0 || len(result.Data) == 0 {
+		return APIKeyProvisioningView{}, ErrNotFound
+	}
+	if result.Pagination.Total != 1 || len(result.Data) != 1 {
+		return APIKeyProvisioningView{}, ErrStoreUnavailable
+	}
+	return result.Data[0], nil
 }

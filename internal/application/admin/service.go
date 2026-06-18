@@ -28,7 +28,7 @@ type Service struct {
 }
 
 func NewService(deps Dependencies) (*Service, error) {
-	if deps.Users == nil || deps.APIKeys == nil || deps.Provisionings == nil || deps.Resellers == nil || deps.Routes == nil || deps.Prices == nil || deps.PriceValidator == nil || deps.UsagePolicy == nil || deps.Ledger == nil || deps.Audit == nil || deps.Secrets == nil || deps.AdapterSupport == nil || deps.KeyGenerator == nil || deps.Hasher == nil || deps.Clock == nil || deps.BatchRetrier == nil {
+	if deps.Users == nil || deps.APIKeys == nil || deps.Provisionings == nil || deps.RouteEvents == nil || deps.Resellers == nil || deps.Routes == nil || deps.Prices == nil || deps.PriceValidator == nil || deps.UsagePolicy == nil || deps.Ledger == nil || deps.Audit == nil || deps.Secrets == nil || deps.AdapterSupport == nil || deps.KeyGenerator == nil || deps.Hasher == nil || deps.Clock == nil || deps.BatchRetrier == nil {
 		return nil, fmt.Errorf("%w: dependency", ErrInternal)
 	}
 	provisioning, err := NewProvisioningQueryService(

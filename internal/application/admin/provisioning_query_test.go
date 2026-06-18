@@ -209,3 +209,29 @@ func TestNewProvisioningQueryServiceRejectsNilRepository(
 		)
 	}
 }
+
+func TestProvisioningQueryServiceGetsSafeViewByID(t *testing.T) {
+	record := validAdminProvisioningRecord()
+	repository := &fakeAdminProvisioningRepository{
+		page: ports.Page[ports.APIKeyProvisioningAdminRecord]{
+			Items: []ports.APIKeyProvisioningAdminRecord{record},
+			Total: 1,
+		},
+	}
+	service, err := NewProvisioningQueryService(repository)
+	if err != nil {
+		t.Fatal(err)
+	}
+	view, err := service.GetAPIKeyProvisioning(
+		context.Background(),
+		record.ID,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.ProvisioningID != record.ID ||
+		repository.filter.ProvisioningID != record.ID ||
+		repository.filter.Page.Limit != 1 {
+		t.Fatalf("view=%+v filter=%+v", view, repository.filter)
+	}
+}
