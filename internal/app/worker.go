@@ -10,6 +10,7 @@ import (
 	billingrecovery "github.com/bogachenko/tokenio-gateway/internal/worker/billingrecovery"
 	forwardingattemptrecovery "github.com/bogachenko/tokenio-gateway/internal/worker/forwardingattemptrecovery"
 	provisioningexpiration "github.com/bogachenko/tokenio-gateway/internal/worker/provisioningexpiration"
+	telegramstaleattemptrecovery "github.com/bogachenko/tokenio-gateway/internal/worker/telegramstaleattemptrecovery"
 )
 
 var ErrInvalidWorkerGraph = errors.New(
@@ -29,6 +30,9 @@ type WorkerGraph struct {
 
 	BillingRecoveryEnabled bool
 	BillingRecovery        WorkerRunner
+
+	TelegramStaleAttemptRecoveryEnabled bool
+	TelegramStaleAttemptRecovery        WorkerRunner
 }
 
 func NewWorkerGraph(
@@ -104,11 +108,34 @@ func newWorkerGraphWithObservers(
 		)
 	}
 
+	telegramRecoveryObserver, err :=
+		NewTelegramStaleAttemptRecoveryLogObserver(log.Default())
+	if err != nil {
+		return WorkerGraph{}, fmt.Errorf(
+			"construct Telegram stale-attempt recovery observer: %w",
+			err,
+		)
+	}
+	telegramRecoveryWorker, err := telegramstaleattemptrecovery.New(
+		applications.TelegramStaleAttemptRecovery,
+		telegramRecoveryObserver,
+		cfg.TelegramStaleAttemptRecoveryInterval,
+		cfg.TelegramStaleAttemptRecoveryBatchSize,
+	)
+	if err != nil {
+		return WorkerGraph{}, fmt.Errorf(
+			"construct Telegram stale-attempt recovery worker: %w",
+			err,
+		)
+	}
+
 	graph := WorkerGraph{
-		ForwardingAttemptRecoveryEnabled: true,
-		ForwardingAttemptRecovery:        recoveryWorker,
-		BillingRecoveryEnabled:           true,
-		BillingRecovery:                  billingWorker,
+		ForwardingAttemptRecoveryEnabled:    true,
+		ForwardingAttemptRecovery:           recoveryWorker,
+		BillingRecoveryEnabled:              true,
+		BillingRecovery:                     billingWorker,
+		TelegramStaleAttemptRecoveryEnabled: true,
+		TelegramStaleAttemptRecovery:        telegramRecoveryWorker,
 	}
 	if applications.ProvisioningEnabled {
 		provisioningWorker, err := provisioningexpiration.New(
@@ -168,6 +195,16 @@ func (g WorkerGraph) Validate() error {
 		return fmt.Errorf(
 			"disabled billing recovery worker is non-nil",
 		)
+	case g.TelegramStaleAttemptRecoveryEnabled &&
+		g.TelegramStaleAttemptRecovery == nil:
+		return fmt.Errorf(
+			"enabled Telegram stale-attempt recovery worker is nil",
+		)
+	case !g.TelegramStaleAttemptRecoveryEnabled &&
+		g.TelegramStaleAttemptRecovery != nil:
+		return fmt.Errorf(
+			"disabled Telegram stale-attempt recovery worker is non-nil",
+		)
 	default:
 		return nil
 	}
@@ -185,7 +222,7 @@ func (g WorkerGraph) Run(ctx context.Context) error {
 		)
 	}
 
-	runners := make([]WorkerRunner, 0, 3)
+	runners := make([]WorkerRunner, 0, 4)
 	if g.ProvisioningExpirationEnabled {
 		runners = append(
 			runners,
@@ -202,6 +239,12 @@ func (g WorkerGraph) Run(ctx context.Context) error {
 		runners = append(
 			runners,
 			g.BillingRecovery,
+		)
+	}
+	if g.TelegramStaleAttemptRecoveryEnabled {
+		runners = append(
+			runners,
+			g.TelegramStaleAttemptRecovery,
 		)
 	}
 	if len(runners) == 0 {
