@@ -262,10 +262,10 @@
 
 ## 4.2. Создание новых charge batches worker-ом
 
-* [ ] После recovery prepared batches загружать новые billable candidates.
-* [ ] Загружать partially charged records, у которых остался billable amount.
-* [ ] Не загружать records, уже полностью allocated в active batch.
-* [ ] Разбивать records по:
+* [x] После recovery prepared batches загружать новые billable candidates.
+* [x] Загружать partially charged records, у которых остался billable amount.
+* [x] Не загружать records, уже полностью allocated в active batch.
+* [x] Разбивать records по:
 
   ```text
   user
@@ -273,12 +273,12 @@
   client_model
   currency
   ```
-* [ ] Для каждой группы создавать отдельный immutable billing command.
-* [ ] Обрабатывать все группы за один recovery run в пределах operation budget.
-* [ ] Не завершать run после первой группы.
-* [ ] Claim применять только к records, реально включённым в allocations.
-* [ ] Records без allocation должны оставаться доступными.
-* [ ] После partial charge record должен снова стать доступным для остатка.
+* [x] Для каждой группы создавать отдельный immutable billing command.
+* [x] Обрабатывать все группы за один recovery run в пределах operation budget.
+* [x] Не завершать run после первой группы.
+* [x] Claim применять только к records, реально включённым в allocations.
+* [x] Records без allocation должны оставаться доступными.
+* [x] После partial charge record должен снова стать доступным для остатка.
 
 ## 4.3. Transaction boundaries
 
