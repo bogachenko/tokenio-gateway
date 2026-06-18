@@ -291,10 +291,10 @@
 
 ## 4.4. Request-triggered auto-charge
 
-* [ ] Сохранить request-triggered auto-charge как ускорение.
-* [ ] Не считать его единственным trigger.
-* [ ] Использовать тот же durable command pipeline, что и recovery worker.
-* [ ] Не иметь отдельной финансовой логики для request path.
+* [x] Сохранить request-triggered auto-charge как ускорение.
+* [x] Не считать его единственным trigger.
+* [x] Использовать тот же durable command pipeline, что и recovery worker.
+* [x] Не иметь отдельной финансовой логики для request path.
 
 ## 4.5. Billing tests
 
