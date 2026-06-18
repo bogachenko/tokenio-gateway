@@ -1136,3 +1136,62 @@ func TestServiceNormalizesOnlyClassifiedForwardingTimeout(
 		t.Fatalf("raw error = %v, want deadline", rawErr)
 	}
 }
+
+func TestServiceExecuteTreatsAutoChargeFailureAsBestEffortAcceleration(
+	t *testing.T,
+) {
+	var calls []string
+	dependencies := validDependencies(&calls)
+	dependencies.AutoCharger = autoChargerFunc(
+		func(
+			_ context.Context,
+			input AutoChargeInput,
+		) AutoChargeResult {
+			calls = append(calls, "autocharge")
+			if input.Principal.UserID != "user-1" ||
+				input.FinalUsageRecord.Status !=
+					domain.UsageStatusBillable ||
+				input.FinalUsageRecord.Currency != "RUB" {
+				t.Fatalf("auto-charge input=%+v", input)
+			}
+			return AutoChargeResult{
+				Status: AutoChargeStatusFailed,
+			}
+		},
+	)
+
+	service := mustService(t, dependencies)
+	result, err := service.Execute(
+		context.Background(),
+		validInput(),
+	)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if result.Response.StatusCode != 200 ||
+		string(result.Response.Body) != `{"ok":true}` {
+		t.Fatalf("successful upstream response changed: %+v", result.Response)
+	}
+	if result.FinalUsageRecord.Status !=
+		domain.UsageStatusBillable {
+		t.Fatalf("final usage=%+v", result.FinalUsageRecord)
+	}
+	if result.AutoCharge.Status != AutoChargeStatusFailed {
+		t.Fatalf("auto-charge result=%+v", result.AutoCharge)
+	}
+
+	wantCalls := []string{
+		"authenticate",
+		"parse",
+		"capabilities",
+		"route",
+		"admission",
+		"forwarding",
+		"usage",
+		"finalize",
+		"autocharge",
+	}
+	if !reflect.DeepEqual(calls, wantCalls) {
+		t.Fatalf("calls=%#v, want %#v", calls, wantCalls)
+	}
+}
