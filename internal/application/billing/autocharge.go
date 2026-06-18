@@ -107,6 +107,30 @@ func (s *AutoChargeService) Run(ctx context.Context, input AutoChargeInput) (Aut
 		}
 	}
 
+	return s.runNewChargeBatches(ctx, input, result, 0)
+}
+
+func (s *AutoChargeService) processNewBatches(
+	ctx context.Context,
+	input AutoChargeInput,
+	maxOperations int,
+) (AutoChargeResult, error) {
+	if maxOperations < 1 {
+		return AutoChargeResult{}, fmt.Errorf(
+			"%w: new charge batch budget",
+			ErrInvalidBillingInput,
+		)
+	}
+	return s.runNewChargeBatches(ctx, input, AutoChargeResult{}, maxOperations)
+}
+
+func (s *AutoChargeService) runNewChargeBatches(
+	ctx context.Context,
+	input AutoChargeInput,
+	result AutoChargeResult,
+	maxOperations int,
+) (AutoChargeResult, error) {
+	currency := normalizedCurrency(input.Currency)
 	candidates, err := s.ledger.LoadChargeCandidates(ctx, input.UserID, currency)
 	if err != nil {
 		return result, ErrBillingStoreUnavailable
@@ -138,13 +162,23 @@ func (s *AutoChargeService) Run(ctx context.Context, input AutoChargeInput) (Aut
 	if err := validateBillingBalance(remote); err != nil {
 		return result, err
 	}
+
 	remainingRemote := remote.BalanceCents
+	operations := 0
 	for groupIndex, group := range groups {
+		if maxOperations > 0 && operations >= maxOperations {
+			break
+		}
 		amount := min64(group.pending, remainingRemote)
 		if amount <= 0 || amount < s.config.MinimumChargeCents {
 			continue
 		}
-		plan, err := BuildChargePlan(input.BillingSubjectUserID, group.records, amount, s.clock.Now().UTC())
+		plan, err := BuildChargePlan(
+			input.BillingSubjectUserID,
+			group.records,
+			amount,
+			s.clock.Now().UTC(),
+		)
 		if err != nil {
 			return result, ErrBillingStoreContractViolation
 		}
@@ -152,6 +186,8 @@ func (s *AutoChargeService) Run(ctx context.Context, input AutoChargeInput) (Aut
 		if err != nil {
 			return result, ErrBillingStoreUnavailable
 		}
+		operations++
+
 		processed, err := s.processPreparedBatch(ctx, input, prepared)
 		var mergeErr error
 		result, mergeErr = mergeProcessedResult(result, processed)
@@ -161,7 +197,10 @@ func (s *AutoChargeService) Run(ctx context.Context, input AutoChargeInput) (Aut
 		if err != nil {
 			return result, err
 		}
-		if groupIndex+1 < len(groups) {
+
+		moreGroups := groupIndex+1 < len(groups)
+		budgetRemains := maxOperations == 0 || operations < maxOperations
+		if moreGroups && budgetRemains {
 			remainingRemote, err = s.resolveRemainingRemoteBalance(
 				ctx,
 				token,

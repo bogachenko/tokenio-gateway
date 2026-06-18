@@ -66,6 +66,30 @@ ORDER BY created_at ASC, id ASC
 LIMIT $1
 `
 
+const listChargeableBillingSubjectsSQL = `
+SELECT usage.user_id, users.external_billing_user_id, usage.currency,
+       MIN(usage.created_at) AS oldest_chargeable_at
+FROM tokenio_usage_records AS usage
+JOIN tokenio_users AS users ON users.id = usage.user_id
+WHERE usage.remaining_amount_cents > 0
+  AND ((usage.status = 'billable' AND usage.billing_charge_request_id IS NULL)
+       OR (usage.status = 'partially_charged' AND EXISTS (
+            SELECT 1 FROM tokenio_billing_charge_batches AS historical_batch
+            WHERE historical_batch.id = usage.billing_charge_request_id
+              AND historical_batch.billing_status = 'succeeded')))
+  AND NOT EXISTS (
+        SELECT 1
+        FROM tokenio_billing_charge_allocations AS active_allocation
+        JOIN tokenio_billing_charge_batches AS active_batch
+          ON active_batch.id = active_allocation.batch_id
+        WHERE active_allocation.local_request_id = usage.local_request_id
+          AND active_batch.billing_status IN ('pending', 'failed'))
+GROUP BY usage.user_id, users.external_billing_user_id, usage.currency
+ORDER BY oldest_chargeable_at ASC, usage.user_id ASC,
+         users.external_billing_user_id ASC, usage.currency ASC
+LIMIT $1
+`
+
 func loadBillingChargeSnapshot(
 	ctx context.Context,
 	db DBTX,
@@ -226,6 +250,43 @@ func (r *UsageLedger) ListOpenChargeBatchesForRecovery(
 	)
 	if err != nil {
 		return nil, err
+	}
+	return result, nil
+}
+
+func (r *UsageLedger) ListChargeableBillingSubjects(
+	ctx context.Context,
+	limit int,
+) ([]ports.BillingChargeSubject, error) {
+	if ctx == nil || limit < 1 {
+		return nil, ports.ErrStoreContractViolation
+	}
+	rows, err := r.db.Query(ctx, listChargeableBillingSubjectsSQL, limit)
+	if err != nil {
+		return nil, normalizeRegistryReadError(err)
+	}
+	defer rows.Close()
+
+	result := make([]ports.BillingChargeSubject, 0, limit)
+	seen := make(map[string]struct{}, limit)
+	for rows.Next() {
+		var subject ports.BillingChargeSubject
+		if err := rows.Scan(&subject.UserID, &subject.BillingSubjectUserID, &subject.Currency, &subject.OldestChargeableAt); err != nil {
+			return nil, normalizeRegistryReadError(err)
+		}
+		key := subject.UserID + "\x00" + subject.BillingSubjectUserID + "\x00" + subject.Currency
+		if _, exists := seen[key]; exists {
+			return nil, ports.ErrStoreContractViolation
+		}
+		seen[key] = struct{}{}
+		subject.OldestChargeableAt = subject.OldestChargeableAt.UTC()
+		result = append(result, subject)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, normalizeRegistryReadError(err)
+	}
+	if len(result) > limit {
+		return nil, ports.ErrStoreContractViolation
 	}
 	return result, nil
 }

@@ -356,6 +356,13 @@ type BillingChargeBatchSnapshot struct {
 	ExpectedRecords []domain.UsageRecord
 }
 
+type BillingChargeSubject struct {
+	UserID               string
+	BillingSubjectUserID string
+	Currency             string
+	OldestChargeableAt   time.Time
+}
+
 type UsageChargeBatchPlan struct {
 	Batch           domain.BillingChargeBatch
 	Allocations     []domain.BillingChargeAllocation
@@ -378,6 +385,11 @@ type BillingRecoveryStore interface {
 		ctx context.Context,
 		limit int,
 	) ([]BillingChargeBatchSnapshot, error)
+
+	ListChargeableBillingSubjects(
+		ctx context.Context,
+		limit int,
+	) ([]BillingChargeSubject, error)
 }
 
 type UsageLedger interface {
