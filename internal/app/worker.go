@@ -11,6 +11,7 @@ import (
 	forwardingattemptrecovery "github.com/bogachenko/tokenio-gateway/internal/worker/forwardingattemptrecovery"
 	provisioningexpiration "github.com/bogachenko/tokenio-gateway/internal/worker/provisioningexpiration"
 	telegramdelivery "github.com/bogachenko/tokenio-gateway/internal/worker/telegramdelivery"
+	telegramfailedretry "github.com/bogachenko/tokenio-gateway/internal/worker/telegramfailedretry"
 	telegramstaleattemptrecovery "github.com/bogachenko/tokenio-gateway/internal/worker/telegramstaleattemptrecovery"
 )
 
@@ -34,6 +35,9 @@ type WorkerGraph struct {
 
 	TelegramDeliveryEnabled bool
 	TelegramDelivery        WorkerRunner
+
+	TelegramFailedRetryEnabled bool
+	TelegramFailedRetry        WorkerRunner
 
 	TelegramStaleAttemptRecoveryEnabled bool
 	TelegramStaleAttemptRecovery        WorkerRunner
@@ -72,6 +76,15 @@ func NewWorkerGraph(
 			err,
 		)
 	}
+	telegramFailedRetryObserver, err := NewTelegramFailedRetryLogObserver(
+		log.Default(),
+	)
+	if err != nil {
+		return WorkerGraph{}, fmt.Errorf(
+			"construct Telegram failed-retry observer: %w",
+			err,
+		)
+	}
 	return newWorkerGraphWithObservers(
 		cfg,
 		applications,
@@ -79,6 +92,7 @@ func NewWorkerGraph(
 		recoveryObserver,
 		billingObserver,
 		telegramDeliveryObserver,
+		telegramFailedRetryObserver,
 	)
 }
 
@@ -89,6 +103,7 @@ func newWorkerGraphWithObservers(
 	recoveryObserver forwardingattemptrecovery.Observer,
 	billingObserver billingrecovery.Observer,
 	telegramDeliveryObserver telegramdelivery.Observer,
+	telegramFailedRetryObserver telegramfailedretry.Observer,
 ) (WorkerGraph, error) {
 	if err := applications.Validate(); err != nil {
 		return WorkerGraph{}, fmt.Errorf(
@@ -140,6 +155,22 @@ func newWorkerGraphWithObservers(
 		}
 	}
 
+	var telegramFailedRetryWorker WorkerRunner
+	if applications.TelegramDeliveryEnabled {
+		telegramFailedRetryWorker, err = telegramfailedretry.New(
+			applications.TelegramRecovery,
+			telegramFailedRetryObserver,
+			cfg.TelegramFailedRetryInterval,
+			cfg.TelegramFailedRetryBatchSize,
+		)
+		if err != nil {
+			return WorkerGraph{}, fmt.Errorf(
+				"construct Telegram failed-retry worker: %w",
+				err,
+			)
+		}
+	}
+
 	telegramRecoveryObserver, err :=
 		NewTelegramStaleAttemptRecoveryLogObserver(log.Default())
 	if err != nil {
@@ -172,6 +203,8 @@ func newWorkerGraphWithObservers(
 	if applications.TelegramDeliveryEnabled {
 		graph.TelegramDeliveryEnabled = true
 		graph.TelegramDelivery = telegramDeliveryWorker
+		graph.TelegramFailedRetryEnabled = true
+		graph.TelegramFailedRetry = telegramFailedRetryWorker
 	}
 
 	if applications.ProvisioningEnabled {
@@ -242,6 +275,16 @@ func (g WorkerGraph) Validate() error {
 		return fmt.Errorf(
 			"disabled Telegram delivery worker is non-nil",
 		)
+	case g.TelegramFailedRetryEnabled &&
+		g.TelegramFailedRetry == nil:
+		return fmt.Errorf(
+			"enabled Telegram failed-retry worker is nil",
+		)
+	case !g.TelegramFailedRetryEnabled &&
+		g.TelegramFailedRetry != nil:
+		return fmt.Errorf(
+			"disabled Telegram failed-retry worker is non-nil",
+		)
 	case g.TelegramStaleAttemptRecoveryEnabled &&
 		g.TelegramStaleAttemptRecovery == nil:
 		return fmt.Errorf(
@@ -269,7 +312,7 @@ func (g WorkerGraph) Run(ctx context.Context) error {
 		)
 	}
 
-	runners := make([]WorkerRunner, 0, 5)
+	runners := make([]WorkerRunner, 0, 6)
 	if g.ProvisioningExpirationEnabled {
 		runners = append(
 			runners,
@@ -292,6 +335,12 @@ func (g WorkerGraph) Run(ctx context.Context) error {
 		runners = append(
 			runners,
 			g.TelegramDelivery,
+		)
+	}
+	if g.TelegramFailedRetryEnabled {
+		runners = append(
+			runners,
+			g.TelegramFailedRetry,
 		)
 	}
 	if g.TelegramStaleAttemptRecoveryEnabled {

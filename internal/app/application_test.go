@@ -55,6 +55,8 @@ func validApplicationGraphInputs(
 		TelegramStaleAttemptRecoveryBatchSize:  100,
 		TelegramDeliveryInterval:               time.Minute,
 		TelegramDeliveryBatchSize:              100,
+		TelegramFailedRetryInterval:            time.Minute,
+		TelegramFailedRetryBatchSize:           100,
 		CostCurrency:                           "RUB",
 		AutoChargeThresholdCents:               1000,
 		MinChargeAmountCents:                   100,
