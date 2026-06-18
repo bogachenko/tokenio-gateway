@@ -18,6 +18,7 @@ type Runtime struct {
 	Provisioning ProvisioningInfrastructureGraph
 	Billing      BillingInfrastructureGraph
 	Forwarding   ForwardingInfrastructureGraph
+	Telegram     TelegramInfrastructureGraph
 	Repositories RepositoryGraph
 	Applications ApplicationGraph
 	Workers      WorkerGraph
@@ -63,6 +64,12 @@ func NewRuntime(
 
 	forwardingInfrastructure, err :=
 		NewForwardingInfrastructureGraph()
+	if err != nil {
+		return nil, err
+	}
+
+	telegramInfrastructure, err :=
+		NewTelegramInfrastructureGraph(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -153,6 +160,7 @@ func NewRuntime(
 		Provisioning: provisioningInfrastructure,
 		Billing:      billingInfrastructure,
 		Forwarding:   forwardingInfrastructure,
+		Telegram:     telegramInfrastructure,
 		Repositories: repositories,
 		Applications: applications,
 		Workers:      workers,
