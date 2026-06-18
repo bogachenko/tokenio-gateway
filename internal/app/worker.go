@@ -10,6 +10,7 @@ import (
 	billingrecovery "github.com/bogachenko/tokenio-gateway/internal/worker/billingrecovery"
 	forwardingattemptrecovery "github.com/bogachenko/tokenio-gateway/internal/worker/forwardingattemptrecovery"
 	provisioningexpiration "github.com/bogachenko/tokenio-gateway/internal/worker/provisioningexpiration"
+	telegramdelivery "github.com/bogachenko/tokenio-gateway/internal/worker/telegramdelivery"
 	telegramstaleattemptrecovery "github.com/bogachenko/tokenio-gateway/internal/worker/telegramstaleattemptrecovery"
 )
 
@@ -30,6 +31,9 @@ type WorkerGraph struct {
 
 	BillingRecoveryEnabled bool
 	BillingRecovery        WorkerRunner
+
+	TelegramDeliveryEnabled bool
+	TelegramDelivery        WorkerRunner
 
 	TelegramStaleAttemptRecoveryEnabled bool
 	TelegramStaleAttemptRecovery        WorkerRunner
@@ -59,12 +63,22 @@ func NewWorkerGraph(
 			err,
 		)
 	}
+	telegramDeliveryObserver, err := NewTelegramDeliveryLogObserver(
+		log.Default(),
+	)
+	if err != nil {
+		return WorkerGraph{}, fmt.Errorf(
+			"construct Telegram delivery observer: %w",
+			err,
+		)
+	}
 	return newWorkerGraphWithObservers(
 		cfg,
 		applications,
 		provisioningObserver,
 		recoveryObserver,
 		billingObserver,
+		telegramDeliveryObserver,
 	)
 }
 
@@ -74,6 +88,7 @@ func newWorkerGraphWithObservers(
 	provisioningObserver provisioningexpiration.Observer,
 	recoveryObserver forwardingattemptrecovery.Observer,
 	billingObserver billingrecovery.Observer,
+	telegramDeliveryObserver telegramdelivery.Observer,
 ) (WorkerGraph, error) {
 	if err := applications.Validate(); err != nil {
 		return WorkerGraph{}, fmt.Errorf(
@@ -108,6 +123,23 @@ func newWorkerGraphWithObservers(
 		)
 	}
 
+	var telegramDeliveryWorker WorkerRunner
+	if applications.TelegramDeliveryEnabled {
+		telegramDeliveryWorker, err = telegramdelivery.New(
+			applications.TelegramAlertStore,
+			applications.TelegramDelivery,
+			telegramDeliveryObserver,
+			cfg.TelegramDeliveryInterval,
+			cfg.TelegramDeliveryBatchSize,
+		)
+		if err != nil {
+			return WorkerGraph{}, fmt.Errorf(
+				"construct Telegram delivery worker: %w",
+				err,
+			)
+		}
+	}
+
 	telegramRecoveryObserver, err :=
 		NewTelegramStaleAttemptRecoveryLogObserver(log.Default())
 	if err != nil {
@@ -137,6 +169,11 @@ func newWorkerGraphWithObservers(
 		TelegramStaleAttemptRecoveryEnabled: true,
 		TelegramStaleAttemptRecovery:        telegramRecoveryWorker,
 	}
+	if applications.TelegramDeliveryEnabled {
+		graph.TelegramDeliveryEnabled = true
+		graph.TelegramDelivery = telegramDeliveryWorker
+	}
+
 	if applications.ProvisioningEnabled {
 		provisioningWorker, err := provisioningexpiration.New(
 			applications.Provisioning,
@@ -195,6 +232,16 @@ func (g WorkerGraph) Validate() error {
 		return fmt.Errorf(
 			"disabled billing recovery worker is non-nil",
 		)
+	case g.TelegramDeliveryEnabled &&
+		g.TelegramDelivery == nil:
+		return fmt.Errorf(
+			"enabled Telegram delivery worker is nil",
+		)
+	case !g.TelegramDeliveryEnabled &&
+		g.TelegramDelivery != nil:
+		return fmt.Errorf(
+			"disabled Telegram delivery worker is non-nil",
+		)
 	case g.TelegramStaleAttemptRecoveryEnabled &&
 		g.TelegramStaleAttemptRecovery == nil:
 		return fmt.Errorf(
@@ -222,7 +269,7 @@ func (g WorkerGraph) Run(ctx context.Context) error {
 		)
 	}
 
-	runners := make([]WorkerRunner, 0, 4)
+	runners := make([]WorkerRunner, 0, 5)
 	if g.ProvisioningExpirationEnabled {
 		runners = append(
 			runners,
@@ -239,6 +286,12 @@ func (g WorkerGraph) Run(ctx context.Context) error {
 		runners = append(
 			runners,
 			g.BillingRecovery,
+		)
+	}
+	if g.TelegramDeliveryEnabled {
+		runners = append(
+			runners,
+			g.TelegramDelivery,
 		)
 	}
 	if g.TelegramStaleAttemptRecoveryEnabled {

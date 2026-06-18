@@ -16,6 +16,7 @@ import (
 	telegramalert "github.com/bogachenko/tokenio-gateway/internal/application/telegramalert"
 	"github.com/bogachenko/tokenio-gateway/internal/config"
 	requestmetaopenaicompat "github.com/bogachenko/tokenio-gateway/internal/infrastructure/requestmeta/openaicompat"
+	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
 
 type ApplicationGraph struct {
@@ -32,6 +33,7 @@ type ApplicationGraph struct {
 	ForwardingAttemptRecovery    *llmrequest.ForwardingAttemptRecovery
 	TelegramAlertsEnabled        bool
 	TelegramAlerts               *telegramalert.Service
+	TelegramAlertStore           ports.TelegramAlertStore
 	TelegramDeliveryEnabled      bool
 	TelegramDelivery             *telegramalert.DeliveryService
 	TelegramRecovery             *telegramalert.RecoveryService
@@ -541,6 +543,7 @@ func NewApplicationGraph(
 		ForwardingAttemptRecovery:    forwardingAttemptRecovery,
 		TelegramAlertsEnabled:        telegramAlertsEnabled,
 		TelegramAlerts:               telegramAlerts,
+		TelegramAlertStore:           repositories.TelegramAlerts,
 		TelegramDeliveryEnabled:      telegramInfrastructure.Enabled,
 		TelegramDelivery:             telegramDelivery,
 		TelegramRecovery:             telegramRecovery,
@@ -586,6 +589,8 @@ func (g ApplicationGraph) Validate() error {
 		return fmt.Errorf("enabled Telegram alert service is nil")
 	case !g.TelegramAlertsEnabled && g.TelegramAlerts != nil:
 		return fmt.Errorf("disabled Telegram alert service is non-nil")
+	case g.TelegramDeliveryEnabled && g.TelegramAlertStore == nil:
+		return fmt.Errorf("enabled Telegram alert store is nil")
 	case g.TelegramDeliveryEnabled && g.TelegramDelivery == nil:
 		return fmt.Errorf("enabled Telegram delivery service is nil")
 	case g.TelegramDeliveryEnabled && g.TelegramRecovery == nil:

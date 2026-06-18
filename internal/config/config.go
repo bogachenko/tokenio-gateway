@@ -43,6 +43,8 @@ type Config struct {
 	TelegramStaleAttemptRecoveryStaleAfter time.Duration
 	TelegramStaleAttemptRecoveryInterval   time.Duration
 	TelegramStaleAttemptRecoveryBatchSize  int
+	TelegramDeliveryInterval               time.Duration
+	TelegramDeliveryBatchSize              int
 
 	CostCurrency                 string
 	AutoChargeThresholdCents     int64
@@ -143,6 +145,14 @@ func Load() (Config, error) {
 		),
 		TelegramStaleAttemptRecoveryBatchSize: l.int(
 			"TOKENIO_TELEGRAM_STALE_ATTEMPT_RECOVERY_BATCH_SIZE",
+			100,
+		),
+		TelegramDeliveryInterval: l.duration(
+			"TOKENIO_TELEGRAM_DELIVERY_INTERVAL",
+			time.Minute,
+		),
+		TelegramDeliveryBatchSize: l.int(
+			"TOKENIO_TELEGRAM_DELIVERY_BATCH_SIZE",
 			100,
 		),
 
@@ -354,6 +364,16 @@ func validate(cfg Config) error {
 	if cfg.TelegramStaleAttemptRecoveryBatchSize < 1 {
 		return fmt.Errorf(
 			"TOKENIO_TELEGRAM_STALE_ATTEMPT_RECOVERY_BATCH_SIZE must be >= 1",
+		)
+	}
+	if cfg.TelegramDeliveryInterval <= 0 {
+		return fmt.Errorf(
+			"TOKENIO_TELEGRAM_DELIVERY_INTERVAL must be positive",
+		)
+	}
+	if cfg.TelegramDeliveryBatchSize < 1 {
+		return fmt.Errorf(
+			"TOKENIO_TELEGRAM_DELIVERY_BATCH_SIZE must be >= 1",
 		)
 	}
 	if keyLength := len(cfg.APIKeyProvisioningEncryptionKey); keyLength != 0 && keyLength != 32 {
