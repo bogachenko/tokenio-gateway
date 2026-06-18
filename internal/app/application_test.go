@@ -239,6 +239,7 @@ func TestNewApplicationGraphWiresExistingPorts(t *testing.T) {
 		provisioningInfrastructure,
 		billingInfrastructure,
 		forwardingInfrastructure,
+		TelegramInfrastructureGraph{},
 		repositories,
 	)
 	if err != nil {
@@ -297,6 +298,7 @@ func TestNewApplicationGraphRejectsInvalidAutoChargeConfig(
 		provisioningInfrastructure,
 		billingInfrastructure,
 		forwardingInfrastructure,
+		TelegramInfrastructureGraph{},
 		repositories,
 	)
 	if err == nil {
@@ -339,6 +341,7 @@ func TestNewApplicationGraphAllowsProvisioningDisabled(
 		provisioningInfrastructure,
 		billingInfrastructure,
 		forwardingInfrastructure,
+		TelegramInfrastructureGraph{},
 		repositories,
 	)
 	if err != nil {
@@ -372,6 +375,7 @@ func TestNewApplicationGraphRejectsInvalidProvisioningTTL(
 		provisioningInfrastructure,
 		billingInfrastructure,
 		forwardingInfrastructure,
+		TelegramInfrastructureGraph{},
 		repositories,
 	)
 	if err == nil {
@@ -410,6 +414,7 @@ func TestNewApplicationGraphRejectsInvalidRoutingPolicyConfig(
 		provisioningInfrastructure,
 		billingInfrastructure,
 		forwardingInfrastructure,
+		TelegramInfrastructureGraph{},
 		repositories,
 	)
 	if err == nil {

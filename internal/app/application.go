@@ -32,6 +32,9 @@ type ApplicationGraph struct {
 	ForwardingAttemptRecovery    *llmrequest.ForwardingAttemptRecovery
 	TelegramAlertsEnabled        bool
 	TelegramAlerts               *telegramalert.Service
+	TelegramDeliveryEnabled      bool
+	TelegramDelivery             *telegramalert.DeliveryService
+	TelegramRecovery             *telegramalert.RecoveryService
 	TelegramStaleAttemptRecovery *telegramalert.StaleAttemptRecoveryService
 	Admin                        *adminapp.Service
 }
@@ -43,6 +46,7 @@ func NewApplicationGraph(
 	provisioningInfrastructure ProvisioningInfrastructureGraph,
 	billingInfrastructure BillingInfrastructureGraph,
 	forwardingInfrastructure ForwardingInfrastructureGraph,
+	telegramInfrastructure TelegramInfrastructureGraph,
 	repositories RepositoryGraph,
 ) (ApplicationGraph, error) {
 	if err := primitives.Validate(); err != nil {
@@ -72,6 +76,12 @@ func NewApplicationGraph(
 	if err := forwardingInfrastructure.Validate(); err != nil {
 		return ApplicationGraph{}, fmt.Errorf(
 			"validate forwarding infrastructure graph: %w",
+			err,
+		)
+	}
+	if err := telegramInfrastructure.Validate(); err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"validate Telegram infrastructure graph: %w",
 			err,
 		)
 	}
@@ -429,6 +439,12 @@ func NewApplicationGraph(
 	telegramAlertsEnabled := strings.TrimSpace(cfg.TelegramBotToken) != "" && strings.TrimSpace(cfg.TelegramChatID) != ""
 	var telegramAlerts *telegramalert.Service
 	adminResellers := repositories.AdminResellers
+	if telegramInfrastructure.Enabled != telegramAlertsEnabled {
+		return ApplicationGraph{}, fmt.Errorf(
+			"Telegram infrastructure and alert configuration disagree",
+		)
+	}
+
 	if telegramAlertsEnabled {
 		telegramAlerts, err = telegramalert.NewService(
 			repositories.AdminResellers,
@@ -453,6 +469,33 @@ func NewApplicationGraph(
 		if err != nil {
 			return ApplicationGraph{}, fmt.Errorf(
 				"construct post-commit reseller alert repository: %w",
+				err,
+			)
+		}
+	}
+
+	var telegramDelivery *telegramalert.DeliveryService
+	var telegramRecovery *telegramalert.RecoveryService
+	if telegramInfrastructure.Enabled {
+		telegramDelivery, err = telegramalert.NewDeliveryService(
+			repositories.TelegramAlerts,
+			repositories.TelegramDeliveryAttempts,
+			telegramInfrastructure.Sender,
+			primitives.Clock,
+		)
+		if err != nil {
+			return ApplicationGraph{}, fmt.Errorf(
+				"construct Telegram delivery service: %w",
+				err,
+			)
+		}
+		telegramRecovery, err = telegramalert.NewRecoveryService(
+			repositories.TelegramAlerts,
+			telegramDelivery,
+		)
+		if err != nil {
+			return ApplicationGraph{}, fmt.Errorf(
+				"construct Telegram alert recovery service: %w",
 				err,
 			)
 		}
@@ -498,6 +541,9 @@ func NewApplicationGraph(
 		ForwardingAttemptRecovery:    forwardingAttemptRecovery,
 		TelegramAlertsEnabled:        telegramAlertsEnabled,
 		TelegramAlerts:               telegramAlerts,
+		TelegramDeliveryEnabled:      telegramInfrastructure.Enabled,
+		TelegramDelivery:             telegramDelivery,
+		TelegramRecovery:             telegramRecovery,
 		TelegramStaleAttemptRecovery: telegramStaleAttemptRecovery,
 		Admin:                        adminService,
 	}
@@ -540,6 +586,14 @@ func (g ApplicationGraph) Validate() error {
 		return fmt.Errorf("enabled Telegram alert service is nil")
 	case !g.TelegramAlertsEnabled && g.TelegramAlerts != nil:
 		return fmt.Errorf("disabled Telegram alert service is non-nil")
+	case g.TelegramDeliveryEnabled && g.TelegramDelivery == nil:
+		return fmt.Errorf("enabled Telegram delivery service is nil")
+	case g.TelegramDeliveryEnabled && g.TelegramRecovery == nil:
+		return fmt.Errorf("enabled Telegram recovery service is nil")
+	case !g.TelegramDeliveryEnabled && g.TelegramDelivery != nil:
+		return fmt.Errorf("disabled Telegram delivery service is non-nil")
+	case !g.TelegramDeliveryEnabled && g.TelegramRecovery != nil:
+		return fmt.Errorf("disabled Telegram recovery service is non-nil")
 	case g.TelegramStaleAttemptRecovery == nil:
 		return fmt.Errorf(
 			"Telegram stale-attempt recovery service is nil",

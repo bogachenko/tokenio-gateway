@@ -1,11 +1,32 @@
 package app
 
 import (
+	"net/http"
 	"testing"
-	"time"
+
+	"github.com/bogachenko/tokenio-gateway/internal/config"
 )
 
-func TestApplicationGraphWiresTelegramBalanceAlertsOnlyWhenConfigured(
+type noNetworkRoundTripper func(*http.Request) (*http.Response, error)
+
+func (f noNetworkRoundTripper) RoundTrip(
+	request *http.Request,
+) (*http.Response, error) {
+	return f(request)
+}
+
+func testTelegramInfrastructure(
+	cfg config.Config,
+) (TelegramInfrastructureGraph, error) {
+	return newTelegramInfrastructureGraph(
+		cfg,
+		noNetworkRoundTripper(func(*http.Request) (*http.Response, error) {
+			panic("unexpected Telegram HTTP call during graph construction")
+		}),
+	)
+}
+
+func TestApplicationGraphWiresTelegramDeliveryServicesOnlyWhenConfigured(
 	t *testing.T,
 ) {
 	t.Run("disabled", func(t *testing.T) {
@@ -30,8 +51,10 @@ func TestApplicationGraphWiresTelegramBalanceAlertsOnlyWhenConfigured(
 		if err != nil {
 			t.Fatal(err)
 		}
-		if graph.TelegramAlertsEnabled || graph.TelegramAlerts != nil {
-			t.Fatalf("disabled Telegram alerts = %+v", graph.TelegramAlerts)
+		if graph.TelegramDeliveryEnabled ||
+			graph.TelegramDelivery != nil ||
+			graph.TelegramRecovery != nil {
+			t.Fatalf("disabled Telegram delivery graph = %+v", graph)
 		}
 	})
 
@@ -45,10 +68,11 @@ func TestApplicationGraphWiresTelegramBalanceAlertsOnlyWhenConfigured(
 			repositories := validApplicationGraphInputs(t)
 		cfg.TelegramBotToken = "bot-token"
 		cfg.TelegramChatID = "chat-id"
-		cfg.TelegramAlertDedupePeriod = time.Hour
+		cfg.TelegramAlertDedupePeriod = telegramHTTPTimeout
+
 		telegramInfrastructure, err := testTelegramInfrastructure(cfg)
 		if err != nil {
-			t.Fatal(err)
+			t.Fatalf("newTelegramInfrastructureGraph: %v", err)
 		}
 
 		graph, err := NewApplicationGraph(
@@ -64,8 +88,10 @@ func TestApplicationGraphWiresTelegramBalanceAlertsOnlyWhenConfigured(
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !graph.TelegramAlertsEnabled || graph.TelegramAlerts == nil {
-			t.Fatal("enabled Telegram alert service is not wired")
+		if !graph.TelegramDeliveryEnabled ||
+			graph.TelegramDelivery == nil ||
+			graph.TelegramRecovery == nil {
+			t.Fatalf("enabled Telegram delivery graph = %+v", graph)
 		}
 	})
 }

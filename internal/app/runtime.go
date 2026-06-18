@@ -125,6 +125,7 @@ func NewRuntime(
 		provisioningInfrastructure,
 		billingInfrastructure,
 		forwardingInfrastructure,
+		telegramInfrastructure,
 		repositories,
 	)
 	if err != nil {
