@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -308,6 +309,260 @@ WHERE id = $1
 		firstUserID,
 		firstKeyID,
 	)
+}
+
+func TestAPIKeyProvisioningRejectsDisabledExistingUserIntegration(
+	t *testing.T,
+) {
+	ctx := t.Context()
+	db := openIsolatedPostgresIntegrationDB(t)
+
+	store, err := NewAPIKeyProvisioningStore(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	suffix := strconv.FormatInt(time.Now().UnixNano(), 10)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	externalID := "billing-disabled-" + suffix
+	userID := "provisioning-disabled-user-" + suffix
+	keyID := "provisioning-disabled-key-" + suffix
+	provisioningID := "provisioning-disabled-" + suffix
+	disabledAt := now.Add(-time.Minute)
+
+	t.Cleanup(func() {
+		_, _ = db.Exec(
+			context.Background(),
+			"DELETE FROM tokenio_api_key_provisionings WHERE external_billing_user_id = $1",
+			externalID,
+		)
+		_, _ = db.Exec(
+			context.Background(),
+			"DELETE FROM tokenio_api_keys WHERE user_id = $1",
+			userID,
+		)
+		_, _ = db.Exec(
+			context.Background(),
+			"DELETE FROM tokenio_users WHERE id = $1",
+			userID,
+		)
+	})
+
+	if _, err := db.Exec(
+		ctx,
+		`
+INSERT INTO tokenio_users (
+    id,
+    external_billing_user_id,
+    email,
+    name,
+    enabled,
+    created_at,
+    updated_at,
+    disabled_at
+)
+VALUES ($1, $2, '', '', false, $3, $3, $4)
+`,
+		userID,
+		externalID,
+		now.Add(-time.Hour),
+		disabledAt,
+	); err != nil {
+		t.Fatalf("insert disabled user: %v", err)
+	}
+
+	request := provisioningRequestForTest(
+		externalID,
+		userID,
+		keyID,
+		provisioningID,
+		"idem-disabled-"+suffix,
+		now,
+	)
+
+	factoryCalls := 0
+	factory := provisioningMaterialFactoryFunc(
+		func(
+			_ context.Context,
+			request ports.APIKeyProvisioningMaterialRequest,
+		) (ports.APIKeyProvisioningMaterial, error) {
+			factoryCalls++
+			return ports.APIKeyProvisioningMaterial{
+				APIKey: domain.APIKeyRecord{
+					ID:        request.APIKeyID,
+					UserID:    request.User.ID,
+					Name:      request.KeyName,
+					KeyHash:   "hash-" + request.APIKeyID,
+					KeyPrefix: "sk_live_abcd...",
+					Enabled:   true,
+					CreatedAt: request.CreatedAt,
+					UpdatedAt: request.CreatedAt,
+				},
+				EncryptedRawKey:      []byte("ciphertext"),
+				EncryptionNonce:      []byte("nonce"),
+				EncryptionKeyVersion: "v1",
+			}, nil
+		},
+	)
+
+	if _, err := store.ProvisionAPIKey(
+		ctx,
+		request,
+		factory,
+	); !errors.Is(err, ports.ErrProvisioningUserDisabled) {
+		t.Fatalf("disabled user error=%v", err)
+	}
+	if factoryCalls != 0 {
+		t.Fatalf("material factory calls=%d, want 0", factoryCalls)
+	}
+
+	for table, predicate := range map[string]string{
+		"tokenio_api_keys":              "user_id = $1",
+		"tokenio_api_key_provisionings": "user_id = $1",
+	} {
+		var count int
+		query := "SELECT COUNT(*) FROM " + table + " WHERE " + predicate
+		if err := db.QueryRow(ctx, query, userID).Scan(&count); err != nil {
+			t.Fatalf("count %s: %v", table, err)
+		}
+		if count != 0 {
+			t.Fatalf("%s rows=%d, want 0", table, count)
+		}
+	}
+}
+
+func TestAPIKeyProvisioningConcurrentSameInputCreatesOneKeyIntegration(
+	t *testing.T,
+) {
+	ctx := t.Context()
+	db := openIsolatedPostgresIntegrationDB(t)
+
+	store, err := NewAPIKeyProvisioningStore(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	suffix := strconv.FormatInt(time.Now().UnixNano(), 10)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	externalID := "billing-concurrent-" + suffix
+	userID := "provisioning-concurrent-user-" + suffix
+	keyID := "provisioning-concurrent-key-" + suffix
+	provisioningID := "provisioning-concurrent-" + suffix
+
+	t.Cleanup(func() {
+		_, _ = db.Exec(
+			context.Background(),
+			"DELETE FROM tokenio_api_key_provisionings WHERE external_billing_user_id = $1",
+			externalID,
+		)
+		_, _ = db.Exec(
+			context.Background(),
+			"DELETE FROM tokenio_api_keys WHERE user_id = $1",
+			userID,
+		)
+		_, _ = db.Exec(
+			context.Background(),
+			"DELETE FROM tokenio_users WHERE id = $1",
+			userID,
+		)
+	})
+
+	request := provisioningRequestForTest(
+		externalID,
+		userID,
+		keyID,
+		provisioningID,
+		"idem-concurrent-"+suffix,
+		now,
+	)
+
+	var factoryMu sync.Mutex
+	factoryCalls := 0
+	factory := provisioningMaterialFactoryFunc(
+		func(
+			_ context.Context,
+			request ports.APIKeyProvisioningMaterialRequest,
+		) (ports.APIKeyProvisioningMaterial, error) {
+			factoryMu.Lock()
+			factoryCalls++
+			factoryMu.Unlock()
+			return ports.APIKeyProvisioningMaterial{
+				APIKey: domain.APIKeyRecord{
+					ID:        request.APIKeyID,
+					UserID:    request.User.ID,
+					Name:      request.KeyName,
+					KeyHash:   "hash-" + request.APIKeyID,
+					KeyPrefix: "sk_live_abcd...",
+					Enabled:   true,
+					CreatedAt: request.CreatedAt,
+					UpdatedAt: request.CreatedAt,
+				},
+				EncryptedRawKey:      []byte("ciphertext-" + request.APIKeyID),
+				EncryptionNonce:      []byte("nonce-" + request.APIKeyID),
+				EncryptionKeyVersion: "v1",
+			}, nil
+		},
+	)
+
+	type callResult struct {
+		value ports.APIKeyProvisioningResult
+		err   error
+	}
+	start := make(chan struct{})
+	results := make(chan callResult, 2)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	for range 2 {
+		go func() {
+			defer wg.Done()
+			<-start
+			value, err := store.ProvisionAPIKey(ctx, request, factory)
+			results <- callResult{value: value, err: err}
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+
+	outcomes := map[ports.APIKeyProvisioningOutcome]int{}
+	for result := range results {
+		if result.err != nil {
+			t.Fatalf("concurrent provision error=%v", result.err)
+		}
+		outcomes[result.value.Outcome]++
+		if result.value.APIKey.ID != keyID ||
+			result.value.Provisioning.ID != provisioningID {
+			t.Fatalf("concurrent result=%+v", result.value)
+		}
+	}
+	if outcomes[ports.APIKeyProvisioningOutcomeCreated] != 1 ||
+		outcomes[ports.APIKeyProvisioningOutcomeReplayedPending] != 1 {
+		t.Fatalf("outcomes=%v", outcomes)
+	}
+
+	factoryMu.Lock()
+	calls := factoryCalls
+	factoryMu.Unlock()
+	if calls != 1 {
+		t.Fatalf("material factory calls=%d, want 1", calls)
+	}
+
+	identities := map[string]string{
+		"tokenio_users":                 userID,
+		"tokenio_api_keys":              keyID,
+		"tokenio_api_key_provisionings": provisioningID,
+	}
+	for table, identity := range identities {
+		var count int
+		query := "SELECT COUNT(*) FROM " + table + " WHERE id = $1"
+		if err := db.QueryRow(ctx, query, identity).Scan(&count); err != nil {
+			t.Fatalf("count %s: %v", table, err)
+		}
+		if count != 1 {
+			t.Fatalf("%s rows=%d, want 1", table, count)
+		}
+	}
 }
 
 func assertProvisioningParentDeleteProtection(

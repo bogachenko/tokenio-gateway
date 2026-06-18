@@ -151,7 +151,7 @@ func (s *APIKeyProvisioningStore) ProvisionAPIKey(
 	err := InTx(
 		ctx,
 		s.db,
-		pgx.TxOptions{IsoLevel: pgx.Serializable},
+		pgx.TxOptions{IsoLevel: pgx.ReadCommitted},
 		func(tx pgx.Tx) error {
 			if err := lockProvisioningScopes(
 				ctx,
