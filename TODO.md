@@ -293,7 +293,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add integration missing usage scenario covering successful fake provider responses without usage fields.
 * [x] Malformed usage.
 * [x] Add integration malformed usage scenario covering successful fake provider responses with invalid usage field shapes.
-* [ ] Partial Billing charge.
+* [x] Partial Billing charge.
+* [x] Add integration partial Billing charge scenario with deterministic partial charge response and request recording.
 * [ ] Duplicate Billing request.
 * [ ] Unknown Billing result.
 * [ ] Telegram temporary failure.

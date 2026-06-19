@@ -127,4 +127,9 @@ that intentionally omit provider usage fields.
 
 `integration/fake_malformed_usage_test.go` verifies deterministic successful
 responses where provider usage fields are present but malformed.
+## Fake Billing partial charge scenario
+
+`integration/fake_billing_partial_charge_test.go` verifies that the fake Billing
+service can deterministically return a partial charge response while recording the
+charge request body.
 
