@@ -123,6 +123,71 @@ func TestStaleAttemptRecoveryCompletesWithoutSending(t *testing.T) {
 	}
 }
 
+func TestStaleAttemptRecoveryAfterRestartCompletesOnlyStaleStartedAttempts(t *testing.T) {
+	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
+	stale := staleStartedAttempt(
+		"attempt-after-restart",
+		"alert-after-restart",
+		3,
+		now.Add(-15*time.Minute),
+	)
+	fresh := staleStartedAttempt(
+		"attempt-fresh",
+		"alert-fresh",
+		1,
+		now.Add(-30*time.Second),
+	)
+
+	store := &staleAttemptStoreFake{
+		started:            []domain.TelegramDeliveryAttempt{stale},
+		completeErrByID:    map[string]error{},
+		completeResultByID: map[string]domain.TelegramDeliveryAttempt{},
+	}
+	service := mustStaleAttemptRecovery(
+		t,
+		store,
+		staleAttemptClock{now: now},
+		5*time.Minute,
+	)
+
+	result, err := service.Recover(context.Background(), 100)
+	if err != nil {
+		t.Fatalf("Recover: %v", err)
+	}
+	if result.Loaded != 1 ||
+		result.Completed != 1 ||
+		result.Conflicts != 0 ||
+		result.Uncertain != 0 ||
+		len(result.Items) != 1 {
+		t.Fatalf("result = %#v", result)
+	}
+	if !store.cutoff.Equal(now.Add(-5 * time.Minute)) {
+		t.Fatalf("cutoff = %s", store.cutoff)
+	}
+	if len(store.completeCalls) != 1 {
+		t.Fatalf("complete calls = %#v", store.completeCalls)
+	}
+
+	completed := store.completeCalls[0]
+	if completed.ID != stale.ID ||
+		completed.AlertID != stale.AlertID ||
+		completed.AttemptNumber != stale.AttemptNumber ||
+		completed.Status != domain.TelegramDeliveryAttemptStatusFailed ||
+		completed.AttemptState !=
+			domain.TelegramDeliveryAttemptStateSentNoResponse ||
+		completed.FailureCode !=
+			StaleDeliveryAttemptFailureProcessInterrupted ||
+		completed.TelegramMessageID != "" ||
+		completed.CompletedAt == nil ||
+		!completed.CompletedAt.Equal(now) {
+		t.Fatalf("completed = %#v", completed)
+	}
+
+	if validateStaleTelegramDeliveryAttempt(fresh, store.cutoff) == nil {
+		t.Fatalf("fresh started attempt was stale: %#v", fresh)
+	}
+}
+
 func TestStaleAttemptRecoveryContinuesAfterPerItemFailures(t *testing.T) {
 	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
 	conflict := staleStartedAttempt(
