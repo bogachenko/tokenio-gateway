@@ -52,4 +52,9 @@ responses and request recording.
 The reusable fake Gemini upstream lives in `integration/fakes/gemini`. It supports
 deterministic defaults for `GET /v1beta/models`, `generateContent`, `embedContent`
 and `batchEmbedContents`, plus programmable responses and request recording.
+## Fake Ollama upstream
+
+The reusable fake Ollama upstream lives in `integration/fakes/ollama`. It supports
+deterministic defaults for `GET /api/tags`, `POST /api/chat`, `POST /api/generate`
+and `POST /api/embeddings`, plus programmable responses and request recording.
 
