@@ -273,7 +273,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 
 * [x] Success.
 * [x] Add integration success scenario covering default happy-path responses for all fake dependencies.
-* [ ] Invalid request.
+* [x] Invalid request.
+* [x] Add integration invalid request scenario covering deterministic 400 responses for all fake dependencies.
 * [ ] Authentication failure.
 * [ ] Rate limit.
 * [ ] Quota exhausted.

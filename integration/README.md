@@ -86,4 +86,8 @@ known external service markers.
 
 `integration/fake_success_test.go` verifies that every checked-in fake dependency has
 a deterministic successful default response.
+## Fake service invalid request scenario
+
+`integration/fake_invalid_request_test.go` verifies that every checked-in fake
+dependency can deterministically return an invalid request response.
 
