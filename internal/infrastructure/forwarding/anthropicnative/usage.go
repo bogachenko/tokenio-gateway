@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
 
 var (
@@ -69,4 +70,11 @@ func parseTokenCount(raw json.RawMessage) (int64, error) {
 		return 0, fmt.Errorf("%w: token count must be a non-negative integer", ErrInvalidUsage)
 	}
 	return count, nil
+}
+
+func (usage Usage) ForwardUsage() *ports.ForwardUsage {
+	return &ports.ForwardUsage{
+		InputTokens:  usage.InputTokens,
+		OutputTokens: usage.OutputTokens,
+	}
 }

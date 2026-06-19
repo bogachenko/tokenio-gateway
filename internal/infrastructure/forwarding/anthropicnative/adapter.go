@@ -195,10 +195,24 @@ func handleResponse(resp *http.Response, limit int64) (ports.ForwardResponse, er
 		)
 	}
 	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
+		usage, usageErr := ExtractUsage(body)
+		if usageErr != nil && !errors.Is(usageErr, ErrUsageNotFound) {
+			return ports.ForwardResponse{}, forwarding.NewFailure(
+				forwarding.FailureKindMalformedResponse,
+				resp.StatusCode,
+				forwarding.AttemptStateResponseReceived,
+				false,
+				usageErr,
+			)
+		}
 		return ports.ForwardResponse{
 			StatusCode: resp.StatusCode,
 			Headers:    cloneHeaders(resp.Header),
 			Body:       body,
+			Usage: &ports.ForwardUsage{
+				InputTokens:  usage.InputTokens,
+				OutputTokens: usage.OutputTokens,
+			},
 		}, nil
 	}
 	classification := classifyFailure(resp.StatusCode, resp.Header, body)

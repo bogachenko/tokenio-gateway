@@ -105,7 +105,7 @@ Native support must be implemented as parallel vertical slices. Do not convert n
 * [x] Implement Anthropic forwarding adapter.
 * [x] Implement Anthropic usage extraction.
 * [x] Implement Anthropic failure classifier.
-* [ ] Return upstream success body byte-for-byte.
+* [x] Return upstream success body byte-for-byte.
 * [ ] Add transport-to-ledger acceptance tests.
 
 ### 2.3. Gemini native

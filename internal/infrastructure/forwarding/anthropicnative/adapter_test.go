@@ -95,7 +95,7 @@ func TestForwardPreservesBodyAndStripsTokenioCredentials(t *testing.T) {
 		return &http.Response{
 			StatusCode: http.StatusOK,
 			Header:     http.Header{"Content-Type": {"application/json"}},
-			Body:       io.NopCloser(strings.NewReader(`{"id":"msg_1"}`)),
+			Body:       io.NopCloser(strings.NewReader(`{"id":"msg_1","usage":{"input_tokens":11,"output_tokens":7}}`)),
 		}, nil
 	}))
 	req := baseForwardRequest()
@@ -135,14 +135,14 @@ func TestForwardPreservesBodyAndStripsTokenioCredentials(t *testing.T) {
 	if seenHeader.Get("anthropic-version") != "2023-06-01" {
 		t.Fatalf("ordinary native header lost: %#v", seenHeader)
 	}
-	if response.StatusCode != http.StatusOK || string(response.Body) != `{"id":"msg_1"}` {
+	if response.StatusCode != http.StatusOK || string(response.Body) != `{"id":"msg_1","usage":{"input_tokens":11,"output_tokens":7}}` {
 		t.Fatalf("response = %#v", response)
 	}
 }
 
 func TestForwardRejectsCrossFamilyRouteSelection(t *testing.T) {
 	adapter := newTestAdapter(t, roundTripFunc(func(*http.Request) (*http.Response, error) {
-		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("{}"))}, nil
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"usage":{"input_tokens":1,"output_tokens":2}}`))}, nil
 	}))
 	tests := []struct {
 		name   string
@@ -177,7 +177,7 @@ func TestProviderModelRewriteOnlyChangesTopLevelModel(t *testing.T) {
 		if err != nil {
 			t.Fatalf("read body: %v", err)
 		}
-		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("{}"))}, nil
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"usage":{"input_tokens":1,"output_tokens":2}}`))}, nil
 	}))
 	req := baseForwardRequest()
 	req.Route.ProviderModel = "claude-provider"
@@ -265,7 +265,7 @@ func TestForwardClassifiesAnthropicFailures(t *testing.T) {
 
 func TestConfigAndURLValidation(t *testing.T) {
 	validTransport := roundTripFunc(func(*http.Request) (*http.Response, error) {
-		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("{}"))}, nil
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"usage":{"input_tokens":1,"output_tokens":2}}`))}, nil
 	})
 	valid := Config{Reseller: baseReseller(), ResellerAPIKey: resellerSecret, Transport: validTransport, MaxResponseBodyBytes: 1}
 	tests := []func(*Config){
@@ -293,7 +293,7 @@ func TestInputHeadersAreNotMutated(t *testing.T) {
 	input := map[string][]string{"x-api-key": {tokenioSecret}, "anthropic-version": {"2023-06-01"}}
 	original := cloneHeaders(input)
 	adapter := newTestAdapter(t, roundTripFunc(func(*http.Request) (*http.Response, error) {
-		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("{}"))}, nil
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{"usage":{"input_tokens":1,"output_tokens":2}}`))}, nil
 	}))
 	req := baseForwardRequest()
 	req.Headers = input
@@ -303,5 +303,41 @@ func TestInputHeadersAreNotMutated(t *testing.T) {
 	}
 	if !reflect.DeepEqual(input, original) {
 		t.Fatalf("headers mutated: %#v", input)
+	}
+}
+
+func TestForwardAttachesNativeUsageWithoutChangingResponseBody(t *testing.T) {
+	responseBody := `{"id":"msg_1","usage":{"input_tokens":12,"output_tokens":7}}`
+	adapter := newTestAdapter(t, roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": {"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(responseBody)),
+		}, nil
+	}))
+
+	response, err := adapter.Forward(context.Background(), baseForwardRequest())
+	if err != nil {
+		t.Fatalf("Forward: %v", err)
+	}
+	if string(response.Body) != responseBody {
+		t.Fatalf("body changed: %s", response.Body)
+	}
+	if response.Usage.InputTokens != 12 || response.Usage.OutputTokens != 7 {
+		t.Fatalf("usage = %#v", response.Usage)
+	}
+}
+
+func TestForwardRejectsInvalidNativeUsageOnSuccessfulResponse(t *testing.T) {
+	adapter := newTestAdapter(t, roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(`{"usage":{"input_tokens":"12","output_tokens":7}}`)),
+		}, nil
+	}))
+
+	_, err := adapter.Forward(context.Background(), baseForwardRequest())
+	if err == nil {
+		t.Fatal("expected error")
 	}
 }

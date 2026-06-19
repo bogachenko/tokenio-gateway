@@ -249,10 +249,16 @@ type ForwardRequest struct {
 	Body    []byte
 }
 
+type ForwardUsage struct {
+	InputTokens  int64
+	OutputTokens int64
+}
+
 type ForwardResponse struct {
 	StatusCode int
 	Headers    map[string][]string
 	Body       []byte
+	Usage      *ForwardUsage
 }
 
 type ForwardingAdapter interface {
