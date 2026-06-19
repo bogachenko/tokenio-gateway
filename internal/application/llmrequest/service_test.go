@@ -633,6 +633,223 @@ func TestServiceExecuteRejectsInvalidRoutePlan(t *testing.T) {
 	}
 }
 
+func TestServiceExecuteFinalizesGeminiForwardingUsage(t *testing.T) {
+	var calls []string
+	dependencies := validDependencies(&calls)
+	payload := []byte(`{"contents":[{"parts":[{"text":"hello"}]}]}`)
+
+	dependencies.RequestParser = parseFunc(
+		func(
+			_ context.Context,
+			input ParseInput,
+		) (ParsedRequest, error) {
+			calls = append(calls, "parse")
+			if input.APIFamily != domain.APIFamilyGeminiNative ||
+				input.EndpointKind != domain.EndpointChat ||
+				input.PathModel != "gemini-client" ||
+				!bytes.Equal(input.Payload, payload) {
+				return ParsedRequest{}, errors.New("unexpected Gemini parse input")
+			}
+			return ParsedRequest{ClientModel: "gemini-client"}, nil
+		},
+	)
+	dependencies.CapabilityDetector = detectFunc(
+		func(
+			_ context.Context,
+			input CapabilityInput,
+		) (domain.CapabilitySet, error) {
+			calls = append(calls, "capabilities")
+			if input.APIFamily != domain.APIFamilyGeminiNative ||
+				input.EndpointKind != domain.EndpointChat ||
+				input.ClientModel != "gemini-client" ||
+				input.PathModel != "gemini-client" ||
+				!bytes.Equal(input.Payload, payload) {
+				return domain.CapabilitySet{}, errors.New("unexpected Gemini capability input")
+			}
+			return domain.CapabilitySet{Chat: true}, nil
+		},
+	)
+	dependencies.RoutePlanner = planFunc(
+		func(
+			_ context.Context,
+			input RoutePlanInput,
+		) (RoutePlan, error) {
+			calls = append(calls, "route")
+			if input.APIFamily != domain.APIFamilyGeminiNative ||
+				input.EndpointKind != domain.EndpointChat ||
+				input.ClientModel != "gemini-client" ||
+				!input.RequestedCapabilities.Chat ||
+				!bytes.Equal(input.Payload, payload) {
+				return RoutePlan{}, errors.New("unexpected Gemini route input")
+			}
+			return RoutePlan{
+				Route: domain.Route{
+					ID:                 "route-gemini",
+					ResellerID:         "reseller-gemini",
+					ProviderType:       domain.ProviderGemini,
+					APIFamily:          domain.APIFamilyGeminiNative,
+					EndpointKind:       domain.EndpointChat,
+					ClientModel:        "gemini-client",
+					ProviderModel:      "gemini-provider",
+					ModelRewritePolicy: domain.ModelRewritePolicyProviderModel,
+					Enabled:            true,
+				},
+				Reseller: domain.Reseller{
+					ID:           "reseller-gemini",
+					ProviderType: domain.ProviderGemini,
+					Enabled:      true,
+				},
+				Price: domain.RoutePrice{
+					RouteID:  "route-gemini",
+					Currency: "RUB",
+					Enabled:  true,
+				},
+				BillingModel: "gemini:gemini-provider",
+				EstimatedUsage: domain.TokenUsage{
+					InputTokens:  12,
+					OutputTokens: 7,
+				},
+				EstimatedClientAmountCents: 34,
+				EstimatedUpstreamCostCents: 21,
+				Currency:                   "RUB",
+				Confidence:                 "conservative",
+			}, nil
+		},
+	)
+	dependencies.BillingAdmitter = admitFunc(
+		func(
+			_ context.Context,
+			input BillingAdmissionInput,
+		) (BillingAdmissionResult, error) {
+			calls = append(calls, "admission")
+			if input.RequiredReserveCents != 34 || input.Currency != "RUB" {
+				return BillingAdmissionResult{}, errors.New("unexpected Gemini admission input")
+			}
+			return validAdmission(input), nil
+		},
+	)
+	dependencies.Forwarding = forwardingStageFunc(
+		func(
+			_ context.Context,
+			prepared PreparedRequest,
+			admission BillingAdmissionResult,
+		) (ForwardedRequest, error) {
+			calls = append(calls, "forwarding")
+			if prepared.APIFamily != domain.APIFamilyGeminiNative ||
+				prepared.EndpointKind != domain.EndpointChat ||
+				prepared.ClientModel != "gemini-client" ||
+				prepared.Plan.Route.ProviderModel != "gemini-provider" ||
+				!admission.Allowed {
+				return ForwardedRequest{}, errors.New("unexpected Gemini forwarding input")
+			}
+			reservation := validReservation(reservationInput(prepared))
+			return ForwardedRequest{
+				Reserved: ReservedRequest{
+					Prepared:    prepared,
+					Admission:   admission,
+					Reservation: reservation,
+				},
+				Response: ports.ForwardResponse{
+					StatusCode: 200,
+					Body:       []byte(`{"candidates":[{"content":{"parts":[{"text":"ok"}]}}],"usageMetadata":{"promptTokenCount":23,"candidatesTokenCount":11,"totalTokenCount":34}}`),
+					Usage: &ports.ForwardUsage{
+						InputTokens:  23,
+						OutputTokens: 11,
+					},
+				},
+			}, nil
+		},
+	)
+	dependencies.UsageResolver = usageResolverFunc(
+		func(
+			_ context.Context,
+			input UsageResolutionInput,
+		) (UsageResolutionResult, error) {
+			calls = append(calls, "usage")
+			if input.Response.Usage == nil ||
+				input.Response.Usage.InputTokens != 23 ||
+				input.Response.Usage.OutputTokens != 11 ||
+				input.Reserved.Prepared.Plan.Route.APIFamily != domain.APIFamilyGeminiNative {
+				return UsageResolutionResult{}, errors.New("Gemini forwarding usage was not propagated")
+			}
+			return UsageResolutionResult{
+				Usage: domain.TokenUsage{
+					InputTokens:  23,
+					OutputTokens: 11,
+				},
+				Completeness:      "detailed",
+				UpstreamCostCents: 25,
+				ClientAmountCents: 41,
+				Currency:          "RUB",
+			}, nil
+		},
+	)
+	dependencies.Finalizer = finalizerFunc{
+		commit: func(
+			_ context.Context,
+			input FinalizationInput,
+		) (FinalizationResult, error) {
+			calls = append(calls, "finalize")
+			if input.ResolvedUsage.Usage.InputTokens != 23 ||
+				input.ResolvedUsage.Usage.OutputTokens != 11 ||
+				input.ResolvedUsage.ClientAmountCents != 41 ||
+				input.Reserved.Prepared.Plan.Route.APIFamily != domain.APIFamilyGeminiNative {
+				return FinalizationResult{}, errors.New("unexpected Gemini finalization input")
+			}
+			return FinalizationResult{
+				Usage: domain.UsageRecord{
+					LocalRequestID: input.Reserved.Prepared.LocalRequestID,
+					UserID:         input.Reserved.Prepared.Principal.UserID,
+					Currency:       "RUB",
+					Status:         domain.UsageStatusBillable,
+				},
+			}, nil
+		},
+		pricingFailed: func(
+			context.Context,
+			PricingFailureInput,
+		) (FinalizationResult, error) {
+			return FinalizationResult{}, errors.New("Gemini pricing failure path must not run")
+		},
+	}
+
+	service := mustService(t, dependencies)
+	result, err := service.Execute(
+		context.Background(),
+		Input{
+			LocalRequestID: "llmreq_test",
+			RawAPIKey:      "sk_test",
+			APIFamily:      domain.APIFamilyGeminiNative,
+			EndpointKind:   domain.EndpointChat,
+			PathModel:      "gemini-client",
+			Payload:        payload,
+		},
+	)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if result.ResolvedUsage.Usage.InputTokens != 23 ||
+		result.ResolvedUsage.Usage.OutputTokens != 11 ||
+		result.FinalUsageRecord.Status != domain.UsageStatusBillable ||
+		result.AutoCharge.Status != AutoChargeStatusDeferred {
+		t.Fatalf("result=%+v", result)
+	}
+	wantCalls := []string{
+		"authenticate",
+		"parse",
+		"capabilities",
+		"route",
+		"admission",
+		"forwarding",
+		"usage",
+		"finalize",
+		"autocharge",
+	}
+	if !reflect.DeepEqual(calls, wantCalls) {
+		t.Fatalf("calls = %#v, want %#v", calls, wantCalls)
+	}
+}
+
 func validDependencies(
 	calls *[]string,
 ) Dependencies {

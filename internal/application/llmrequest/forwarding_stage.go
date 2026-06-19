@@ -811,14 +811,15 @@ func equalForwardingAttemptTimes(
 	}
 }
 
-func cloneForwardResponse(
-	value ports.ForwardResponse,
-) ports.ForwardResponse {
-	return ports.ForwardResponse{
-		StatusCode: value.StatusCode,
-		Headers:    cloneForwardHeaders(value.Headers),
-		Body:       cloneBytes(value.Body),
+func cloneForwardResponse(value ports.ForwardResponse) ports.ForwardResponse {
+	result := value
+	result.Body = cloneBytes(value.Body)
+	result.Headers = cloneHeaders(value.Headers)
+	if value.Usage != nil {
+		usage := *value.Usage
+		result.Usage = &usage
 	}
+	return result
 }
 
 func cloneForwardHeaders(
@@ -933,4 +934,15 @@ func boundedExponentialBackoff(
 		delay = time.Nanosecond
 	}
 	return delay, nil
+}
+
+func cloneHeaders(value map[string][]string) map[string][]string {
+	if value == nil {
+		return nil
+	}
+	result := make(map[string][]string, len(value))
+	for key, values := range value {
+		result[key] = append([]string(nil), values...)
+	}
+	return result
 }

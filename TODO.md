@@ -129,7 +129,7 @@ Native support must be implemented as parallel vertical slices. Do not convert n
 * [x] Implement Gemini usage extraction.
 * [x] Implement Gemini failure classifier.
 * [x] Return upstream success body byte-for-byte.
-* [ ] Add transport-to-ledger acceptance tests.
+* [x] Add transport-to-ledger acceptance tests.
 
 ### 2.4. Ollama native
 
