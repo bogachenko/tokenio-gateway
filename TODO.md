@@ -127,7 +127,7 @@ Native support must be implemented as parallel vertical slices. Do not convert n
 * [x] Implement Gemini forwarding adapter.
 * [x] Wire Gemini forwarding factory into application forwarding registry.
 * [x] Implement Gemini usage extraction.
-* [ ] Implement Gemini failure classifier.
+* [x] Implement Gemini failure classifier.
 * [x] Return upstream success body byte-for-byte.
 * [ ] Add transport-to-ledger acceptance tests.
 

@@ -2,11 +2,14 @@ package gemininative
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/bogachenko/tokenio-gateway/internal/application/forwarding"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
@@ -233,6 +236,102 @@ func TestAdapterAttachesGeminiUsageMetadata(t *testing.T) {
 		response.Usage.InputTokens != 11 ||
 		response.Usage.OutputTokens != 3 {
 		t.Fatalf("usage=%+v", response.Usage)
+	}
+}
+
+func TestAdapterClassifiesGeminiFailures(t *testing.T) {
+	tests := []struct {
+		name           string
+		statusCode     int
+		headers        http.Header
+		body           string
+		wantKind       forwarding.FailureKind
+		wantRetry      bool
+		wantRetryAfter time.Duration
+	}{
+		{
+			name:       "rate limited",
+			statusCode: http.StatusTooManyRequests,
+			headers: http.Header{
+				"Retry-After": {"7"},
+			},
+			body:           `{"error":{"status":"RESOURCE_EXHAUSTED"}}`,
+			wantKind:       forwarding.FailureKindRateLimited,
+			wantRetry:      true,
+			wantRetryAfter: 7 * time.Second,
+		},
+		{
+			name:       "auth error",
+			statusCode: http.StatusForbidden,
+			body:       `{"error":{"status":"PERMISSION_DENIED"}}`,
+			wantKind:   forwarding.FailureKindAuthError,
+		},
+		{
+			name:       "quota exceeded",
+			statusCode: http.StatusPaymentRequired,
+			body:       `{"error":{"status":"RESOURCE_EXHAUSTED","message":"quota exceeded"}}`,
+			wantKind:   forwarding.FailureKindQuotaExceeded,
+		},
+		{
+			name:       "provider 5xx",
+			statusCode: http.StatusBadGateway,
+			body:       `{"error":{"status":"UNAVAILABLE"}}`,
+			wantKind:   forwarding.FailureKindProvider5XX,
+			wantRetry:  true,
+		},
+		{
+			name:       "request error",
+			statusCode: http.StatusBadRequest,
+			body:       `{"error":{"status":"INVALID_ARGUMENT"}}`,
+			wantKind:   forwarding.FailureKindRequestError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			adapter, err := NewAdapter(Config{
+				Reseller: domain.Reseller{
+					ID:           "reseller-gemini",
+					ProviderType: domain.ProviderGemini,
+					BaseURL:      "https://gemini.example",
+				},
+				ResellerAPIKey:       "sk_provider_secret",
+				MaxResponseBodyBytes: 1024,
+				Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+					return &http.Response{
+						StatusCode: test.statusCode,
+						Header:     test.headers,
+						Body:       io.NopCloser(strings.NewReader(test.body)),
+					}, nil
+				}),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = adapter.Forward(context.Background(), ports.ForwardRequest{
+				Route:  geminiRoute(domain.EndpointChat, "gemini-client", "gemini-client", domain.ModelRewritePolicyNone),
+				Method: http.MethodPost,
+				Path:   "/v1beta/models/gemini-client:generateContent",
+				Body:   []byte(`{"contents":[]}`),
+			})
+			var failure *forwarding.Failure
+			if !errors.As(err, &failure) {
+				t.Fatalf("error=%v, want forwarding failure", err)
+			}
+			if failure.Kind != test.wantKind ||
+				failure.StatusCode != test.statusCode ||
+				failure.AttemptState != forwarding.AttemptStateResponseReceived ||
+				failure.RouteRetryCandidate != test.wantRetry {
+				t.Fatalf("failure=%+v", failure)
+			}
+			if test.wantRetryAfter > 0 {
+				if !failure.FailureRetryAfterPresent() ||
+					failure.FailureRetryAfterDelay() != test.wantRetryAfter {
+					t.Fatalf("retry-after=%v present=%t", failure.FailureRetryAfterDelay(), failure.FailureRetryAfterPresent())
+				}
+			}
+		})
 	}
 }
 
