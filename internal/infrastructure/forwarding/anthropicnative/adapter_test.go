@@ -9,7 +9,9 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/bogachenko/tokenio-gateway/internal/application/forwarding"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
@@ -192,6 +194,72 @@ func TestProviderModelRewriteOnlyChangesTopLevelModel(t *testing.T) {
 	if !strings.Contains(string(seenBody), `"model":"claude-provider"`) ||
 		!strings.Contains(string(seenBody), `"nested":{"model":"claude-client"}`) {
 		t.Fatalf("rewrite body = %s", seenBody)
+	}
+}
+
+func TestForwardClassifiesAnthropicFailures(t *testing.T) {
+	tests := []struct {
+		name      string
+		status    int
+		body      string
+		headers   http.Header
+		wantKind  forwarding.FailureKind
+		wantRetry bool
+	}{
+		{
+			name:      "rate limited",
+			status:    http.StatusTooManyRequests,
+			body:      `{"type":"error","error":{"type":"rate_limit_error"}}`,
+			headers:   http.Header{"Retry-After": {"7"}},
+			wantKind:  forwarding.FailureKindRateLimited,
+			wantRetry: true,
+		},
+		{
+			name:     "authentication",
+			status:   http.StatusUnauthorized,
+			body:     `{"type":"error","error":{"type":"authentication_error"}}`,
+			wantKind: forwarding.FailureKindAuthError,
+		},
+		{
+			name:     "invalid request",
+			status:   http.StatusBadRequest,
+			body:     `{"type":"error","error":{"type":"invalid_request_error"}}`,
+			wantKind: forwarding.FailureKindRequestError,
+		},
+		{
+			name:      "overloaded",
+			status:    http.StatusServiceUnavailable,
+			body:      `{"type":"error","error":{"type":"overloaded_error"}}`,
+			wantKind:  forwarding.FailureKindProvider5XX,
+			wantRetry: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			adapter := newTestAdapter(t, roundTripFunc(func(*http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: test.status,
+					Header:     test.headers,
+					Body:       io.NopCloser(strings.NewReader(test.body)),
+				}, nil
+			}))
+
+			_, err := adapter.Forward(context.Background(), baseForwardRequest())
+			var failure *forwarding.Failure
+			if !errors.As(err, &failure) {
+				t.Fatalf("failure = %#v err=%v", failure, err)
+			}
+			if failure.Kind != test.wantKind ||
+				failure.StatusCode != test.status ||
+				failure.AttemptState != forwarding.AttemptStateResponseReceived ||
+				failure.RouteRetryCandidate != test.wantRetry {
+				t.Fatalf("failure = %#v", failure)
+			}
+			if test.status == http.StatusTooManyRequests &&
+				failure.FailureRetryAfterDelay() != 7*time.Second {
+				t.Fatalf("retry after = %s", failure.FailureRetryAfterDelay())
+			}
+		})
 	}
 }
 
