@@ -101,8 +101,8 @@ Native support must be implemented as parallel vertical slices. Do not convert n
 * [x] Implement `POST /v1/messages`.
 * [x] Accept Tokenio key only through `x-api-key`.
 * [x] Extract model from native request.
-* [ ] Preserve body byte-for-byte except allowed model identifier rewrite.
-* [ ] Implement Anthropic forwarding adapter.
+* [x] Preserve body byte-for-byte except allowed model identifier rewrite.
+* [x] Implement Anthropic forwarding adapter.
 * [ ] Implement Anthropic usage extraction.
 * [ ] Implement Anthropic failure classifier.
 * [ ] Return upstream success body byte-for-byte.
@@ -142,7 +142,7 @@ Native support must be implemented as parallel vertical slices. Do not convert n
 
 * [ ] Accept Tokenio key through `Authorization: Bearer`.
 * [ ] Extract model from native request.
-* [ ] Preserve body byte-for-byte except allowed model identifier rewrite.
+* [x] Preserve body byte-for-byte except allowed model identifier rewrite.
 * [ ] Implement Ollama forwarding adapter.
 * [ ] Implement Ollama usage extraction or conservative usage estimation.
 * [ ] Implement Ollama failure classifier.
