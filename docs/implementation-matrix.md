@@ -66,5 +66,6 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Security audit verifies query-string credentials are rejected before authentication for model catalog and LLM credential extraction.
 - [x] Security audit verifies hop-by-hop upstream response headers are stripped before client response pass-through.
 - [x] Security audit verifies inbound Tokenio authorization/API-key headers stop before forwarding stage.
+- [x] Security audit verifies admin auth accepts only the configured admin token and rejects public API keys before admin service dispatch.
 - [x] Billing JWT identity tokens carry fixed issuer/audience claims, enforce configured TTL as `exp-iat`, and reject missing signing key, TTL or clock configuration.
 - [x] Startup validation fails before runtime construction when `TOKENIO_API_KEY_HASH_SECRET` is empty or whitespace-only.

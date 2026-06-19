@@ -230,7 +230,8 @@ For every key in `docs/spec/090-configuration.ru.md` verify:
 * [x] Add automated response-pass-through evidence that hop-by-hop upstream headers including `Connection`, `Keep-Alive`, `Proxy-*`, `TE`, `Trailer`, `Transfer-Encoding` and `Upgrade` are not copied to clients.
 * [x] Inbound Tokenio auth headers are removed before forwarding.
 * [x] Add automated contract audit that forwarding receives `PreparedRequest`, and `PreparedRequest` cannot carry inbound authorization/API-key headers or raw public API key material.
-* [ ] Admin auth is separate from public auth.
+* [x] Admin auth is separate from public auth.
+* [x] Add automated tests that public `sk_...` API keys do not authorize admin endpoints and never reach admin application service handlers.
 * [ ] Provisioning auth is separate from public/admin auth.
 
 ### Verification command
