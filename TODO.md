@@ -103,7 +103,7 @@ Native support must be implemented as parallel vertical slices. Do not convert n
 * [x] Extract model from native request.
 * [x] Preserve body byte-for-byte except allowed model identifier rewrite.
 * [x] Implement Anthropic forwarding adapter.
-* [ ] Implement Anthropic usage extraction.
+* [x] Implement Anthropic usage extraction.
 * [x] Implement Anthropic failure classifier.
 * [ ] Return upstream success body byte-for-byte.
 * [ ] Add transport-to-ledger acceptance tests.
