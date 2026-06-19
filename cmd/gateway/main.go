@@ -1,13 +1,11 @@
 package main
 
 import (
-	"log"
+	"os"
 
 	"github.com/bogachenko/tokenio-gateway/internal/app"
 )
 
 func main() {
-	if err := app.Run(); err != nil {
-		log.Fatalf("gateway error: %v", err)
-	}
+	os.Exit(app.GatewayMain())
 }

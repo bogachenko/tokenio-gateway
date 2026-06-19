@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -18,10 +17,8 @@ func main() {
 	)
 	defer stop()
 
-	if err := app.RunMigrations(
+	os.Exit(app.MigrateMain(
 		ctx,
 		os.Getenv("TOKENIO_DATABASE_DSN"),
-	); err != nil {
-		log.Fatalf("migration error: %v", err)
-	}
+	))
 }

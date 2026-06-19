@@ -34,10 +34,6 @@ func TestStructuredLoggingRedactionCurrentStateIsAudited(t *testing.T) {
 
 func currentStdlibLoggingSitesPendingStructuredLogger() []string {
 	return []string{
-		"cmd/gateway/main.go:11",
-		"cmd/migrate/main.go:25",
-		"internal/app/app.go:70",
-		"internal/app/app.go:87",
 		"internal/app/application.go:470",
 	}
 }

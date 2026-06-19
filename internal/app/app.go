@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -65,9 +64,14 @@ func RunWithConfig(
 	ctx context.Context,
 	cfg config.Config,
 ) error {
+	loggingGraph, err := NewLoggingGraph(cfg, os.Stderr)
+	if err != nil {
+		return err
+	}
+
 	observer, err :=
 		NewProvisioningExpirationLogObserver(
-			log.Default(),
+			loggingGraph.StdLogger,
 		)
 	if err != nil {
 		return err
@@ -84,8 +88,9 @@ func RunWithConfig(
 	defer runtime.Close()
 
 	server := NewServer(cfg, runtime.Handler)
-	log.Printf(
-		"tokenio-gateway listening on %s",
+	loggingGraph.Logger.Info(
+		"tokenio-gateway listening",
+		"addr",
 		cfg.GatewayAddr,
 	)
 	return serveRuntime(

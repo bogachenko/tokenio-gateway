@@ -182,6 +182,7 @@ For every key in `docs/spec/090-configuration.ru.md` verify:
 * [x] Audit current stdlib logging sites in `cmd/*` and `internal/app/*` and keep `LogLevel`/`LogFormat`/`LogBodies` scoped to structured logger implementation.
 * [x] Add central structured logger.
 * [x] Wire log level and log format from config.
+* [x] Route gateway and migration process startup errors through the central logger/redactor.
 * [x] Wire worker observer factories through the central logging graph stdlib bridge.
 * [ ] Add correlation fields where available:
 
