@@ -2,3 +2,4 @@ __pycache__/
 patch.diff
 *.py
 *.txt
+.env.docker

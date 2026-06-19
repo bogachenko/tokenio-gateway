@@ -70,3 +70,5 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Security audit verifies provisioning auth is based on `X-Service-Token` and is separate from public/admin `Authorization` bearer credentials.
 - [x] Billing JWT identity tokens carry fixed issuer/audience claims, enforce configured TTL as `exp-iat`, and reject missing signing key, TTL or clock configuration.
 - [x] Startup validation fails before runtime construction when `TOKENIO_API_KEY_HASH_SECRET` is empty or whitespace-only.
+
+- [x] Integration environment provides one Docker Compose stack for Postgres and the app.
