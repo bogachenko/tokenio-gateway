@@ -529,6 +529,34 @@ must be >= 1
 The value limits one recovery cycle. It does not change stable batch identity or
 financial grouping semantics.
 
+## 7.6. Forwarding attempt recovery worker
+
+```text
+TOKENIO_FORWARDING_ATTEMPT_RECOVERY_STALE_AFTER
+TOKENIO_FORWARDING_ATTEMPT_RECOVERY_INTERVAL
+TOKENIO_FORWARDING_ATTEMPT_RECOVERY_BATCH_SIZE
+```
+
+Defaults:
+
+```text
+TOKENIO_FORWARDING_ATTEMPT_RECOVERY_STALE_AFTER=5m
+TOKENIO_FORWARDING_ATTEMPT_RECOVERY_INTERVAL=1m
+TOKENIO_FORWARDING_ATTEMPT_RECOVERY_BATCH_SIZE=100
+```
+
+Validation:
+
+```text
+stale after must be positive duration
+interval must be positive duration
+batch size must be >= 1
+```
+
+The recovery worker uses these values to find stale in-flight forwarding attempts
+after a process restart and to limit one recovery cycle. Stable attempt identity
+and finalization semantics remain stored in Postgres.
+
 ---
 
 # 8. Pricing estimation config
@@ -960,6 +988,45 @@ Validation:
 must be positive duration
 ```
 
+## 15.5. Telegram worker scheduling
+
+```text
+TOKENIO_TELEGRAM_STALE_ATTEMPT_RECOVERY_STALE_AFTER
+TOKENIO_TELEGRAM_STALE_ATTEMPT_RECOVERY_INTERVAL
+TOKENIO_TELEGRAM_STALE_ATTEMPT_RECOVERY_BATCH_SIZE
+TOKENIO_TELEGRAM_DELIVERY_INTERVAL
+TOKENIO_TELEGRAM_DELIVERY_BATCH_SIZE
+TOKENIO_TELEGRAM_FAILED_RETRY_INTERVAL
+TOKENIO_TELEGRAM_FAILED_RETRY_BATCH_SIZE
+TOKENIO_TELEGRAM_BALANCE_SCAN_INTERVAL
+TOKENIO_TELEGRAM_BALANCE_SCAN_BATCH_SIZE
+```
+
+Defaults:
+
+```text
+TOKENIO_TELEGRAM_STALE_ATTEMPT_RECOVERY_STALE_AFTER=5m
+TOKENIO_TELEGRAM_STALE_ATTEMPT_RECOVERY_INTERVAL=1m
+TOKENIO_TELEGRAM_STALE_ATTEMPT_RECOVERY_BATCH_SIZE=100
+TOKENIO_TELEGRAM_DELIVERY_INTERVAL=1m
+TOKENIO_TELEGRAM_DELIVERY_BATCH_SIZE=100
+TOKENIO_TELEGRAM_FAILED_RETRY_INTERVAL=1m
+TOKENIO_TELEGRAM_FAILED_RETRY_BATCH_SIZE=100
+TOKENIO_TELEGRAM_BALANCE_SCAN_INTERVAL=1m
+TOKENIO_TELEGRAM_BALANCE_SCAN_BATCH_SIZE=100
+```
+
+Validation:
+
+```text
+all intervals and stale-after durations must be positive
+all batch sizes must be >= 1
+```
+
+These values control only worker cadence and per-cycle batch size. They must not
+change Telegram alert state-machine semantics, committed reseller balance
+operations or retry idempotency.
+
 ---
 
 # 16. Reseller secret config
@@ -1131,6 +1198,27 @@ Default:
 ```text
 60s
 ```
+
+## 18.5. Shutdown timeout
+
+```text
+TOKENIO_HTTP_SHUTDOWN_TIMEOUT
+```
+
+Default:
+
+```text
+30s
+```
+
+Validation:
+
+```text
+must be positive duration
+```
+
+The value bounds graceful HTTP server shutdown. It must be consumed by the
+composition root and passed to runtime lifecycle code as typed configuration.
 
 ---
 
@@ -1352,6 +1440,9 @@ TOKENIO_MIN_CHARGE_AMOUNT_CENTS          default 100
 TOKENIO_MIN_REQUEST_BALANCE_CENTS        default 500
 TOKENIO_BILLING_RECOVERY_INTERVAL        default 1m
 TOKENIO_BILLING_RECOVERY_BATCH_SIZE      default 100
+TOKENIO_FORWARDING_ATTEMPT_RECOVERY_STALE_AFTER   default 5m
+TOKENIO_FORWARDING_ATTEMPT_RECOVERY_INTERVAL      default 1m
+TOKENIO_FORWARDING_ATTEMPT_RECOVERY_BATCH_SIZE    default 100
 TOKENIO_TOKEN_ESTIMATION_SAFETY_FACTOR   default 1.25
 TOKENIO_COST_ESTIMATION_SAFETY_FACTOR    default 1.10
 ```
@@ -1381,6 +1472,15 @@ TOKENIO_TELEGRAM_BOT_TOKEN               optional
 TOKENIO_TELEGRAM_CHAT_ID                 optional
 TOKENIO_RESELLER_BALANCE_ALERT_CENTS     default 10000
 TOKENIO_TELEGRAM_ALERT_DEDUPE_INTERVAL   default 1h
+TOKENIO_TELEGRAM_STALE_ATTEMPT_RECOVERY_STALE_AFTER default 5m
+TOKENIO_TELEGRAM_STALE_ATTEMPT_RECOVERY_INTERVAL    default 1m
+TOKENIO_TELEGRAM_STALE_ATTEMPT_RECOVERY_BATCH_SIZE  default 100
+TOKENIO_TELEGRAM_DELIVERY_INTERVAL       default 1m
+TOKENIO_TELEGRAM_DELIVERY_BATCH_SIZE     default 100
+TOKENIO_TELEGRAM_FAILED_RETRY_INTERVAL   default 1m
+TOKENIO_TELEGRAM_FAILED_RETRY_BATCH_SIZE default 100
+TOKENIO_TELEGRAM_BALANCE_SCAN_INTERVAL   default 1m
+TOKENIO_TELEGRAM_BALANCE_SCAN_BATCH_SIZE default 100
 ```
 
 ## 23.9. HTTP
@@ -1390,6 +1490,7 @@ TOKENIO_HTTP_READ_HEADER_TIMEOUT         default 10s
 TOKENIO_HTTP_READ_TIMEOUT                default 120s
 TOKENIO_HTTP_WRITE_TIMEOUT               default 120s
 TOKENIO_HTTP_IDLE_TIMEOUT                default 60s
+TOKENIO_HTTP_SHUTDOWN_TIMEOUT            default 30s
 ```
 
 ## 23.10. Logging
@@ -1444,6 +1545,26 @@ export TOKENIO_ROUTE_COOLDOWN_TIMEOUT='30s'
 export TOKENIO_ROUTE_COOLDOWN_AUTH_ERROR='24h'
 
 export TOKENIO_RESELLER_BALANCE_ALERT_CENTS='10000'
+export TOKENIO_TELEGRAM_ALERT_DEDUPE_INTERVAL='1h'
+export TOKENIO_TELEGRAM_DELIVERY_INTERVAL='1m'
+export TOKENIO_TELEGRAM_DELIVERY_BATCH_SIZE='100'
+export TOKENIO_TELEGRAM_FAILED_RETRY_INTERVAL='1m'
+export TOKENIO_TELEGRAM_FAILED_RETRY_BATCH_SIZE='100'
+export TOKENIO_TELEGRAM_BALANCE_SCAN_INTERVAL='1m'
+export TOKENIO_TELEGRAM_BALANCE_SCAN_BATCH_SIZE='100'
+export TOKENIO_TELEGRAM_STALE_ATTEMPT_RECOVERY_STALE_AFTER='5m'
+export TOKENIO_TELEGRAM_STALE_ATTEMPT_RECOVERY_INTERVAL='1m'
+export TOKENIO_TELEGRAM_STALE_ATTEMPT_RECOVERY_BATCH_SIZE='100'
+
+export TOKENIO_FORWARDING_ATTEMPT_RECOVERY_STALE_AFTER='5m'
+export TOKENIO_FORWARDING_ATTEMPT_RECOVERY_INTERVAL='1m'
+export TOKENIO_FORWARDING_ATTEMPT_RECOVERY_BATCH_SIZE='100'
+
+export TOKENIO_HTTP_READ_HEADER_TIMEOUT='10s'
+export TOKENIO_HTTP_READ_TIMEOUT='120s'
+export TOKENIO_HTTP_WRITE_TIMEOUT='120s'
+export TOKENIO_HTTP_IDLE_TIMEOUT='60s'
+export TOKENIO_HTTP_SHUTDOWN_TIMEOUT='30s'
 
 export TOKENIO_LOG_LEVEL='info'
 export TOKENIO_LOG_FORMAT='json'
@@ -1479,7 +1600,8 @@ Configuration layer считается реализованным, если:
 12. Cooldowns configurable.
 13. Upstream and billing timeouts configurable.
 14. Telegram config validates all-or-none token/chat id.
-15. Reseller API keys resolve only through api_key_env.
+15. Worker cadence, stale-attempt recovery and HTTP shutdown timeouts are documented and loaded as typed config.
+16. Reseller API keys resolve only through api_key_env.
 16. Secret values are never logged.
 17. Runtime config is immutable after startup.
 18. Mutable operational state lives in Postgres.

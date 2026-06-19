@@ -162,6 +162,7 @@ go test ./internal/transport/http/... ./internal/infrastructure/requestmeta/... 
 
 ### 3.1. Config consumption audit
 
+* [x] Reconcile implementation-only worker and HTTP shutdown env keys into `docs/spec/090-configuration.ru.md`.
 For every key in `docs/spec/090-configuration.ru.md` verify:
 
 * [x] Add automated audit that every documented `TOKENIO_*` key is consumed by `internal/config`.
