@@ -72,3 +72,4 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Startup validation fails before runtime construction when `TOKENIO_API_KEY_HASH_SECRET` is empty or whitespace-only.
 
 - [x] Integration environment provides one Docker Compose stack for Postgres and the app.
+- [x] Integration environment documents explicit Docker Compose migration execution before app startup.

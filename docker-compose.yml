@@ -18,6 +18,7 @@ services:
       retries: 20
     volumes:
       - tokenio-postgres-data:/var/lib/postgresql/data
+      - ./db:/migrations:ro
 
   app:
     build:
