@@ -38,3 +38,14 @@ database schema to have been applied explicitly before use.
 ```bash
 docker compose down -v
 ```
+## Smoke-test the documented environment
+
+Run the full documented startup path and wait for readiness:
+
+```bash
+./scripts/docker-compose-smoke.sh
+```
+
+The smoke script starts Postgres, applies migrations, starts the app, and waits
+for `/readyz` on `TOKENIO_HTTP_PORT` or `8080` by default.
+

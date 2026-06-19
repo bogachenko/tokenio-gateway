@@ -73,3 +73,5 @@ Interface, struct, repository method or constructor alone is not implementation 
 
 - [x] Integration environment provides one Docker Compose stack for Postgres and the app.
 - [x] Integration environment documents explicit Docker Compose migration execution before app startup.
+
+- [x] Integration environment includes a Docker Compose smoke script that starts the app with documented environment and checks `/readyz`.
