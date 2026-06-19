@@ -121,6 +121,7 @@ func TestRetryTelegramAlertMovesFailedAlertToPendingWithAudit(t *testing.T) {
 		context.Background(),
 		command(),
 		"tgalt_1",
+		"manual operator retry",
 	)
 	if err != nil {
 		t.Fatalf("RetryTelegramAlert: %v", err)
@@ -144,7 +145,8 @@ func TestRetryTelegramAlertMovesFailedAlertToPendingWithAudit(t *testing.T) {
 	if alerts.retryAudit.Action != domain.AuditActionTelegramAlertRetry ||
 		alerts.retryAudit.EntityType != "telegram_alert" ||
 		alerts.retryAudit.EntityID != "tgalt_1" ||
-		alerts.retryAudit.RequestID != command().RequestID {
+		alerts.retryAudit.RequestID != command().RequestID ||
+		alerts.retryAudit.Reason != "manual operator retry" {
 		t.Fatalf("audit = %#v", alerts.retryAudit)
 	}
 }
@@ -176,8 +178,32 @@ func TestRetryTelegramAlertRejectsNonFailedAlert(t *testing.T) {
 		context.Background(),
 		command(),
 		"tgalt_1",
+		"manual operator retry",
 	)
 	if !errors.Is(err, ErrStateConflict) {
 		t.Fatalf("error = %v, want ErrStateConflict", err)
+	}
+}
+
+func TestRetryTelegramAlertRejectsBlankReason(t *testing.T) {
+	service := newServiceForTest(
+		t,
+		&fakeUsers{},
+		&fakeKeys{},
+		&fakeResellers{},
+		&fakeRoutes{},
+		&fakeLedger{},
+		&fakeSecrets{},
+		&fakeGenerator{},
+	)
+
+	_, err := service.RetryTelegramAlert(
+		context.Background(),
+		command(),
+		"tgalt_1",
+		" ",
+	)
+	if !errors.Is(err, ErrInvalidRequest) {
+		t.Fatalf("error = %v, want ErrInvalidRequest", err)
 	}
 }

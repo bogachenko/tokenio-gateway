@@ -180,6 +180,7 @@ func (f *stage10V5RouterServiceFake) RetryTelegramAlert(
 	context.Context,
 	application.CommandContext,
 	string,
+	string,
 ) (application.TelegramAlertView, error) {
 	return application.TelegramAlertView{}, nil
 }

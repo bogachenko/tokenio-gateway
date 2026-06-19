@@ -111,6 +111,7 @@ func (s *Service) RetryTelegramAlert(
 	ctx context.Context,
 	command CommandContext,
 	alertID string,
+	reason string,
 ) (TelegramAlertView, error) {
 	if ctx == nil || s == nil || s.deps.TelegramAlerts == nil || s.deps.Clock == nil {
 		return TelegramAlertView{}, ErrInvalidRequest
@@ -121,7 +122,7 @@ func (s *Service) RetryTelegramAlert(
 	if err := validateCommand(command); err != nil {
 		return TelegramAlertView{}, err
 	}
-	if isBlank(alertID) {
+	if isBlank(alertID) || isBlank(reason) {
 		return TelegramAlertView{}, ErrInvalidRequest
 	}
 
@@ -149,13 +150,14 @@ func (s *Service) RetryTelegramAlert(
 		ctx,
 		*current,
 		next,
-		auditContext(
+		auditContextWithReason(
 			command,
 			domain.AuditActionTelegramAlertRetry,
 			"telegram_alert",
 			current.ID,
 			telegramAlertAdminState(*current),
 			telegramAlertAdminState(next),
+			reason,
 			now,
 		),
 	)

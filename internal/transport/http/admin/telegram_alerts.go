@@ -2,6 +2,7 @@ package adminhttp
 
 import (
 	"net/http"
+	"strings"
 
 	application "github.com/bogachenko/tokenio-gateway/internal/application/admin"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
@@ -66,7 +67,16 @@ func (h *Router) handleTelegramAlertPath(
 		methodNotAllowed(writer, command.RequestID, http.MethodPost)
 		return
 	}
-	result, err := h.service.RetryTelegramAlert(request.Context(), command, parts[0])
+	var dto reasonDTO
+	if !decodeJSON(writer, request, command.RequestID, &dto) {
+		return
+	}
+	dto.Reason = strings.TrimSpace(dto.Reason)
+	if dto.Reason == "" {
+		writeAdminValidationError(writer, command.RequestID)
+		return
+	}
+	result, err := h.service.RetryTelegramAlert(request.Context(), command, parts[0], dto.Reason)
 	if err != nil {
 		writeApplicationError(writer, command.RequestID, err)
 		return

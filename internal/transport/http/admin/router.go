@@ -37,7 +37,7 @@ type Service interface {
 	GetAPIKeyProvisioning(context.Context, string) (application.APIKeyProvisioningView, error)
 	ListRouteEvents(context.Context, application.RouteEventListInput) (application.ListResult[domain.RouteEvent], error)
 	ListTelegramAlerts(context.Context, application.TelegramAlertListInput) (application.ListResult[application.TelegramAlertView], error)
-	RetryTelegramAlert(context.Context, application.CommandContext, string) (application.TelegramAlertView, error)
+	RetryTelegramAlert(context.Context, application.CommandContext, string, string) (application.TelegramAlertView, error)
 	CreateAPIKey(context.Context, application.CommandContext, application.CreateAPIKeyInput) (application.CreatedAPIKey, error)
 	RevokeAPIKey(context.Context, application.CommandContext, string) (application.APIKeyView, error)
 	ListResellers(context.Context, application.ResellerListInput) (application.ListResult[application.ResellerView], error)
