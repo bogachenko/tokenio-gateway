@@ -123,8 +123,8 @@ Native support must be implemented as parallel vertical slices. Do not convert n
 * [x] Accept Tokenio key only through `x-goog-api-key`.
 * [x] Reject query-string `?key=` credentials.
 * [x] Extract model from path.
-* [ ] Preserve body byte-for-byte except allowed path model segment rewrite.
-* [ ] Implement Gemini forwarding adapter.
+* [x] Preserve body byte-for-byte except allowed path model segment rewrite.
+* [x] Implement Gemini forwarding adapter.
 * [ ] Implement Gemini usage extraction.
 * [ ] Implement Gemini failure classifier.
 * [ ] Return upstream success body byte-for-byte.
