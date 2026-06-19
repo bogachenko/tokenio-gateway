@@ -98,4 +98,8 @@ dependency can deterministically return an authentication failure response.
 
 `integration/fake_rate_limit_test.go` verifies that every checked-in fake dependency
 can deterministically return a rate-limit response with `Retry-After`.
+## Fake service quota exhausted scenario
+
+`integration/fake_quota_exhausted_test.go` verifies that every checked-in fake
+dependency can deterministically return a quota exhausted response.
 
