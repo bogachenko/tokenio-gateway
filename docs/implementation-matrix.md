@@ -81,3 +81,4 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] CI runs Go unit tests with `go test ./...` on pull requests and pushes to `main`.
 - [x] CI runs `go vet ./...` after unit tests.
 - [x] CI merge policy documents required branch protection check `Unit tests` for blocking failed checks.
+- [x] CI required local checks are documented and scripted with `scripts/check.sh`.

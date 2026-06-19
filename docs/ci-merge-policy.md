@@ -22,3 +22,13 @@ Repository admins should configure the `main` branch protection rule in GitHub:
 3. Select the required check named `Unit tests`.
 4. Require branches to be up to date before merging.
 5. Block force pushes.
+## Local pre-push check
+
+Run the same required local checks before pushing:
+
+```bash
+./scripts/check.sh
+```
+
+This script runs `go test ./...` and `go vet ./...`, matching the CI workflow.
+
