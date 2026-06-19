@@ -180,7 +180,7 @@ func ExtractCredential(
 	header http.Header,
 	query url.Values,
 ) (Credential, *CredentialFailure) {
-	if query.Get("key") != "" {
+	if queryCredentialPresent(query) {
 		return Credential{}, invalidCredential(
 			"query-string API keys are not allowed",
 		)
@@ -234,6 +234,29 @@ func expectedCarrier(family domain.APIFamily) (Carrier, bool) {
 	default:
 		return "", false
 	}
+}
+
+func queryCredentialPresent(query url.Values) bool {
+	for key, values := range query {
+		if len(values) == 0 {
+			continue
+		}
+		switch strings.ToLower(key) {
+		case "key",
+			"api_key",
+			"api-key",
+			"access_token",
+			"token",
+			"authorization",
+			"x-api-key",
+			"x-goog-api-key",
+			"openai_api_key",
+			"anthropic_api_key",
+			"google_api_key":
+			return true
+		}
+	}
+	return false
 }
 
 func readCarrier(

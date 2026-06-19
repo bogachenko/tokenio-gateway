@@ -232,6 +232,24 @@ func TestExtractCredentialRejectsConflictingOrUnsafeCarriers(t *testing.T) {
 			query:  url.Values{"key": {"sk_query"}},
 		},
 		{
+			name:   "openai rejects query api_key",
+			family: domain.APIFamilyOpenAICompatible,
+			header: http.Header{"Authorization": {"Bearer sk_ok"}},
+			query:  url.Values{"api_key": {"sk_query"}},
+		},
+		{
+			name:   "anthropic rejects query x api key",
+			family: domain.APIFamilyAnthropicNative,
+			header: http.Header{"x-api-key": {"sk_ok"}},
+			query:  url.Values{"x-api-key": {"sk_query"}},
+		},
+		{
+			name:   "ollama rejects query access token",
+			family: domain.APIFamilyOllamaNative,
+			header: http.Header{"Authorization": {"Bearer sk_ok"}},
+			query:  url.Values{"access_token": {"sk_query"}},
+		},
+		{
 			name:   "openai rejects x api key conflict",
 			family: domain.APIFamilyOpenAICompatible,
 			header: http.Header{

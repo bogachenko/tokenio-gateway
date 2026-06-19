@@ -266,6 +266,53 @@ func TestOllamaTagsEndpointAuthenticatesAndReturnsOllamaCatalog(t *testing.T) {
 	}
 }
 
+func TestModelsEndpointRejectsQueryStringCredentials(t *testing.T) {
+	for _, rawURL := range []string{
+		modelsPath + "?key=sk_query",
+		modelsPath + "?api_key=sk_query",
+		modelsPath + "?access_token=sk_query",
+		modelsPath + "?authorization=Bearer+sk_query",
+	} {
+		t.Run(rawURL, func(t *testing.T) {
+			authentication := successfulAuthentication()
+			models := &testModelCatalog{}
+			router, err := NewRouter(
+				authentication,
+				models,
+				&testRequestIDs{local: "llmreq_query_credential"},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			request := httptest.NewRequest(http.MethodGet, rawURL, nil)
+			request.Header.Set("Authorization", "Bearer sk_header")
+			response := httptest.NewRecorder()
+
+			router.ServeHTTP(response, request)
+
+			assertError(
+				t,
+				response,
+				http.StatusUnauthorized,
+				domain.ErrorCodeUnauthorized,
+				"query-string API keys are not allowed",
+				"llmreq_query_credential",
+			)
+			if authentication.calls != 0 || models.calls != 0 {
+				t.Fatalf(
+					"auth calls=%d models calls=%d",
+					authentication.calls,
+					models.calls,
+				)
+			}
+			if strings.Contains(response.Body.String(), "sk_") {
+				t.Fatalf("error leaked credential: %s", response.Body.String())
+			}
+		})
+	}
+}
+
 func TestModelsEndpointAuthorizationSyntax(
 	t *testing.T,
 ) {

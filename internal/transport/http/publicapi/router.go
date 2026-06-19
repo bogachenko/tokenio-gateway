@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 	"unicode/utf8"
 
@@ -93,6 +94,17 @@ func (h *Router) ServeHTTP(
 		return
 	}
 
+	if queryCredentialPresent(request.URL.Query()) {
+		writeError(
+			writer,
+			requestID,
+			http.StatusUnauthorized,
+			domain.ErrorCodeUnauthorized,
+			"query-string API keys are not allowed",
+		)
+		return
+	}
+
 	rawAPIKey, authFailure := parseAuthorization(
 		request.Header.Get("Authorization"),
 	)
@@ -159,6 +171,29 @@ func modelCatalogFamily(path string) domain.APIFamily {
 		return domain.APIFamilyOllamaNative
 	}
 	return domain.APIFamilyOpenAICompatible
+}
+
+func queryCredentialPresent(query url.Values) bool {
+	for key, values := range query {
+		if len(values) == 0 {
+			continue
+		}
+		switch strings.ToLower(key) {
+		case "key",
+			"api_key",
+			"api-key",
+			"access_token",
+			"token",
+			"authorization",
+			"x-api-key",
+			"x-goog-api-key",
+			"openai_api_key",
+			"anthropic_api_key",
+			"google_api_key":
+			return true
+		}
+	}
+	return false
 }
 
 type authorizationFailure struct {
