@@ -75,3 +75,4 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Integration environment documents explicit Docker Compose migration execution before app startup.
 
 - [x] Integration environment includes a Docker Compose smoke script that starts the app with documented environment and checks `/readyz`.
+- [x] Integration smoke path checks `/readyz` and verifies `/v1/models` is reachable and protected.
