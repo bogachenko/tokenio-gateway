@@ -164,15 +164,15 @@ go test ./internal/transport/http/... ./internal/infrastructure/requestmeta/... 
 
 For every key in `docs/spec/090-configuration.ru.md` verify:
 
-* [ ] env key exists;
-* [ ] parsing exists;
-* [ ] validation exists;
-* [ ] typed config field exists;
-* [ ] composition-root consumer exists;
-* [ ] behavioral test exists;
-* [ ] documentation is current.
-
-Remove unused config fields instead of keeping dead knobs.
+* [x] Add automated audit that every documented `TOKENIO_*` key is consumed by `internal/config`.
+* [x] Add automated audit that every consumed `TOKENIO_*` key is either documented or explicitly listed as pending spec reconciliation.
+* [ ] Reconcile implementation-only worker/shutdown env keys with `docs/spec/090-configuration.ru.md`.
+* [ ] Verify parsing exists for every documented key.
+* [ ] Verify validation exists for every documented key.
+* [ ] Verify typed config field exists for every documented key.
+* [ ] Verify composition-root consumer exists for every documented key.
+* [ ] Add behavioral tests for missing/invalid/default values where coverage is still absent.
+* [ ] Remove unused config fields instead of keeping dead knobs.
 
 ### 3.2. Structured logging and redaction
 
