@@ -103,3 +103,4 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Fake service connection reset scenario exists at `integration/fake_connection_reset_test.go`.
 - [x] Fake service headers-received body-failed scenario exists at `integration/fake_headers_body_failed_test.go`.
 - [x] Fake service missing usage scenario exists at `integration/fake_missing_usage_test.go`.
+- [x] Fake service malformed usage scenario exists at `integration/fake_malformed_usage_test.go`.

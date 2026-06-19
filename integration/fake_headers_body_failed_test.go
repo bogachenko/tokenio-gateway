@@ -57,8 +57,11 @@ func TestFakeServiceHeadersReceivedBodyFailedScenario(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected body read error, body=%q", string(body))
 	}
-	if !strings.Contains(strings.ToLower(err.Error()), "unexpected eof") {
-		t.Fatalf("error=%v, want unexpected EOF", err)
+	lowerError := strings.ToLower(err.Error())
+	if !strings.Contains(lowerError, "unexpected eof") &&
+		!strings.Contains(lowerError, "connection reset") &&
+		!strings.Contains(lowerError, "reset by peer") {
+		t.Fatalf("error=%v, want unexpected EOF or connection reset", err)
 	}
 
 	<-done

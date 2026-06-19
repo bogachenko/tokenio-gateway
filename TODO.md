@@ -291,7 +291,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add deterministic local scenario where HTTP headers are received but body read fails before declared `Content-Length`.
 * [x] Missing usage.
 * [x] Add integration missing usage scenario covering successful fake provider responses without usage fields.
-* [ ] Malformed usage.
+* [x] Malformed usage.
+* [x] Add integration malformed usage scenario covering successful fake provider responses with invalid usage field shapes.
 * [ ] Partial Billing charge.
 * [ ] Duplicate Billing request.
 * [ ] Unknown Billing result.

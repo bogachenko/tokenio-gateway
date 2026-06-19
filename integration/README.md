@@ -123,4 +123,8 @@ HTTP headers are received successfully, but the response body fails before the d
 
 `integration/fake_missing_usage_test.go` verifies deterministic successful responses
 that intentionally omit provider usage fields.
+## Fake service malformed usage scenario
+
+`integration/fake_malformed_usage_test.go` verifies deterministic successful
+responses where provider usage fields are present but malformed.
 
