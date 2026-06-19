@@ -101,3 +101,4 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Fake service provider 5xx scenario exists at `integration/fake_provider_5xx_test.go`.
 - [x] Fake service timeout scenario exists at `integration/fake_timeout_test.go`.
 - [x] Fake service connection reset scenario exists at `integration/fake_connection_reset_test.go`.
+- [x] Fake service headers-received body-failed scenario exists at `integration/fake_headers_body_failed_test.go`.

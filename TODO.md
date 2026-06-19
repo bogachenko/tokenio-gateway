@@ -287,7 +287,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add deterministic local timeout scenario using delayed `httptest.Server` and short client timeout.
 * [x] Connection reset.
 * [x] Add deterministic local connection reset scenario using a TCP listener that closes accepted connections.
-* [ ] Headers received, body failed.
+* [x] Headers received, body failed.
+* [x] Add deterministic local scenario where HTTP headers are received but body read fails before declared `Content-Length`.
 * [ ] Missing usage.
 * [ ] Malformed usage.
 * [ ] Partial Billing charge.
