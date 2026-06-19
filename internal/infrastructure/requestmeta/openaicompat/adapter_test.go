@@ -682,3 +682,151 @@ func TestAdapterDetectsGeminiNativeCapabilitiesFromEndpoint(t *testing.T) {
 		})
 	}
 }
+
+func TestAdapterParsesOllamaNativeModelFromBody(t *testing.T) {
+	adapter := NewAdapter()
+	tests := []struct {
+		name     string
+		endpoint domain.EndpointKind
+		payload  []byte
+		want     string
+	}{
+		{
+			name:     "chat",
+			endpoint: domain.EndpointChat,
+			payload: []byte(`{
+				"model":"llama3.2:latest",
+				"messages":[{"role":"user","content":"hello"}],
+				"stream":false
+			}`),
+			want: "llama3.2:latest",
+		},
+		{
+			name:     "generate",
+			endpoint: domain.EndpointChat,
+			payload: []byte(`{
+				"model":"qwen2.5-coder",
+				"prompt":"hello",
+				"stream":false
+			}`),
+			want: "qwen2.5-coder",
+		},
+		{
+			name:     "embeddings",
+			endpoint: domain.EndpointEmbeddings,
+			payload:  []byte(`{"model":"nomic-embed-text","prompt":"hello"}`),
+			want:     "nomic-embed-text",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			original := append([]byte(nil), test.payload...)
+			result, err := adapter.Parse(
+				context.Background(),
+				llmrequest.ParseInput{
+					APIFamily:    domain.APIFamilyOllamaNative,
+					EndpointKind: test.endpoint,
+					Payload:      test.payload,
+				},
+			)
+			if err != nil {
+				t.Fatalf("Parse: %v", err)
+			}
+			if result.ClientModel != test.want {
+				t.Fatalf("client model=%q want=%q", result.ClientModel, test.want)
+			}
+			if !bytes.Equal(test.payload, original) {
+				t.Fatal("payload mutated")
+			}
+		})
+	}
+}
+
+func TestAdapterDetectsOllamaNativeCapabilitiesFromEndpoint(t *testing.T) {
+	adapter := NewAdapter()
+	tests := []struct {
+		name     string
+		endpoint domain.EndpointKind
+		want     domain.CapabilitySet
+	}{
+		{
+			name:     "chat",
+			endpoint: domain.EndpointChat,
+			want:     domain.CapabilitySet{Chat: true},
+		},
+		{
+			name:     "embeddings",
+			endpoint: domain.EndpointEmbeddings,
+			want:     domain.CapabilitySet{Embeddings: true},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result, err := adapter.Detect(
+				context.Background(),
+				llmrequest.CapabilityInput{
+					APIFamily:    domain.APIFamilyOllamaNative,
+					EndpointKind: test.endpoint,
+					ClientModel:  "llama3.2",
+					Payload:      []byte(`{"model":"llama3.2","stream":false}`),
+				},
+			)
+			if err != nil {
+				t.Fatalf("Detect: %v", err)
+			}
+			if result != test.want {
+				t.Fatalf("capabilities=%+v want=%+v", result, test.want)
+			}
+		})
+	}
+}
+
+func TestAdapterRejectsInvalidOllamaNativeModelBody(t *testing.T) {
+	adapter := NewAdapter()
+	tests := []struct {
+		name    string
+		payload []byte
+		want    error
+	}{
+		{
+			name:    "missing model",
+			payload: []byte(`{"messages":[]}`),
+			want:    llmrequest.ErrModelRequired,
+		},
+		{
+			name:    "blank model",
+			payload: []byte(`{"model":" \t "}`),
+			want:    llmrequest.ErrModelRequired,
+		},
+		{
+			name:    "model wrong type",
+			payload: []byte(`{"model":123}`),
+			want:    llmrequest.ErrInvalidJSON,
+		},
+		{
+			name:    "streaming true",
+			payload: []byte(`{"model":"llama3.2","stream":true}`),
+			want:    llmrequest.ErrStreamingUnsupported,
+		},
+		{
+			name:    "trailing JSON",
+			payload: []byte(`{"model":"llama3.2"} {}`),
+			want:    llmrequest.ErrInvalidJSON,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := adapter.Parse(
+				context.Background(),
+				llmrequest.ParseInput{
+					APIFamily:    domain.APIFamilyOllamaNative,
+					EndpointKind: domain.EndpointChat,
+					Payload:      test.payload,
+				},
+			)
+			if !errors.Is(err, test.want) {
+				t.Fatalf("error=%v want=%v", err, test.want)
+			}
+		})
+	}
+}

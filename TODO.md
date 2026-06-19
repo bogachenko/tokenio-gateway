@@ -141,14 +141,14 @@ Native support must be implemented as parallel vertical slices. Do not convert n
   POST /api/embeddings
   ```
 
-* [ ] Implement public model listing transport:
+* [x] Implement public model listing transport:
 
   ```text
   GET  /api/tags
   ```
 
 * [x] Accept Tokenio key through `Authorization: Bearer`.
-* [ ] Extract model from native request.
+* [x] Extract model from native request.
 * [x] Preserve body byte-for-byte except allowed model identifier rewrite.
 * [ ] Implement Ollama forwarding adapter.
 * [ ] Implement Ollama usage extraction or conservative usage estimation.

@@ -1,7 +1,9 @@
 package openaicompat
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -35,6 +37,9 @@ func (a *Adapter) Parse(
 	}
 	if input.APIFamily == domain.APIFamilyGeminiNative {
 		return parseGeminiNative(input)
+	}
+	if input.APIFamily == domain.APIFamilyOllamaNative {
+		return parseOllamaNative(input)
 	}
 	inspection, err := inspect(
 		input.APIFamily,
@@ -77,6 +82,23 @@ func (a *Adapter) Detect(
 		}
 		return geminiNativeCapabilities(input.EndpointKind)
 	}
+	if input.APIFamily == domain.APIFamilyOllamaNative {
+		parsed, err := parseOllamaNative(llmrequest.ParseInput{
+			APIFamily:    input.APIFamily,
+			EndpointKind: input.EndpointKind,
+			Payload:      input.Payload,
+		})
+		if err != nil {
+			return domain.CapabilitySet{}, err
+		}
+		if parsed.ClientModel != input.ClientModel {
+			return domain.CapabilitySet{}, fmt.Errorf(
+				"%w: parsed Ollama body model mismatch",
+				llmrequest.ErrStageContractViolation,
+			)
+		}
+		return ollamaNativeCapabilities(input.EndpointKind)
+	}
 	inspection, err := inspect(
 		input.APIFamily,
 		input.EndpointKind,
@@ -109,6 +131,42 @@ func parseGeminiNative(input llmrequest.ParseInput) (llmrequest.ParsedRequest, e
 	}, nil
 }
 
+func parseOllamaNative(input llmrequest.ParseInput) (llmrequest.ParsedRequest, error) {
+	if _, err := ollamaNativeCapabilities(input.EndpointKind); err != nil {
+		return llmrequest.ParsedRequest{}, err
+	}
+	if len(input.Payload) == 0 {
+		return llmrequest.ParsedRequest{}, llmrequest.ErrInvalidJSON
+	}
+
+	var request struct {
+		Model  string `json:"model"`
+		Stream *bool  `json:"stream"`
+	}
+	decoder := json.NewDecoder(bytes.NewReader(input.Payload))
+	if err := decoder.Decode(&request); err != nil {
+		return llmrequest.ParsedRequest{}, fmt.Errorf(
+			"%w: invalid Ollama JSON body",
+			llmrequest.ErrInvalidJSON,
+		)
+	}
+	if decoder.Decode(&struct{}{}) == nil {
+		return llmrequest.ParsedRequest{}, fmt.Errorf(
+			"%w: trailing Ollama JSON value",
+			llmrequest.ErrInvalidJSON,
+		)
+	}
+	if strings.TrimSpace(request.Model) == "" {
+		return llmrequest.ParsedRequest{}, llmrequest.ErrModelRequired
+	}
+	if request.Stream != nil && *request.Stream {
+		return llmrequest.ParsedRequest{}, llmrequest.ErrStreamingUnsupported
+	}
+	return llmrequest.ParsedRequest{
+		ClientModel: request.Model,
+	}, nil
+}
+
 func geminiNativeCapabilities(endpoint domain.EndpointKind) (domain.CapabilitySet, error) {
 	switch endpoint {
 	case domain.EndpointChat:
@@ -118,6 +176,20 @@ func geminiNativeCapabilities(endpoint domain.EndpointKind) (domain.CapabilitySe
 	default:
 		return domain.CapabilitySet{}, fmt.Errorf(
 			"%w: unsupported Gemini native endpoint",
+			llmrequest.ErrInvalidInput,
+		)
+	}
+}
+
+func ollamaNativeCapabilities(endpoint domain.EndpointKind) (domain.CapabilitySet, error) {
+	switch endpoint {
+	case domain.EndpointChat:
+		return domain.CapabilitySet{Chat: true}, nil
+	case domain.EndpointEmbeddings:
+		return domain.CapabilitySet{Embeddings: true}, nil
+	default:
+		return domain.CapabilitySet{}, fmt.Errorf(
+			"%w: unsupported Ollama native endpoint",
 			llmrequest.ErrInvalidInput,
 		)
 	}
