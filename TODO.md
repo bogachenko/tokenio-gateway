@@ -125,9 +125,10 @@ Native support must be implemented as parallel vertical slices. Do not convert n
 * [x] Extract model from path.
 * [x] Preserve body byte-for-byte except allowed path model segment rewrite.
 * [x] Implement Gemini forwarding adapter.
+* [x] Wire Gemini forwarding factory into application forwarding registry.
 * [ ] Implement Gemini usage extraction.
 * [ ] Implement Gemini failure classifier.
-* [ ] Return upstream success body byte-for-byte.
+* [x] Return upstream success body byte-for-byte.
 * [ ] Add transport-to-ledger acceptance tests.
 
 ### 2.4. Ollama native
@@ -147,7 +148,7 @@ Native support must be implemented as parallel vertical slices. Do not convert n
 * [ ] Implement Ollama forwarding adapter.
 * [ ] Implement Ollama usage extraction or conservative usage estimation.
 * [ ] Implement Ollama failure classifier.
-* [ ] Return upstream success body byte-for-byte.
+* [x] Return upstream success body byte-for-byte.
 * [x] Add transport-to-ledger acceptance tests.
 
 ### Verification command

@@ -6,6 +6,7 @@ import (
 
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/infrastructure/forwarding/anthropicnative"
+	"github.com/bogachenko/tokenio-gateway/internal/infrastructure/forwarding/gemininative"
 	"github.com/bogachenko/tokenio-gateway/internal/infrastructure/forwarding/openaicompat"
 	"github.com/bogachenko/tokenio-gateway/internal/infrastructure/forwarding/registry"
 	"github.com/bogachenko/tokenio-gateway/internal/infrastructure/forwarding/rewritesupport"
@@ -82,6 +83,16 @@ func NewForwardingInfrastructureGraph() (ForwardingInfrastructureGraph, error) {
 				err,
 			)
 	}
+	geminiFactory, err := gemininative.NewFactory(
+		transport.Clone(),
+	)
+	if err != nil {
+		return ForwardingInfrastructureGraph{},
+			fmt.Errorf(
+				"construct gemini-native forwarding factory: %w",
+				err,
+			)
+	}
 
 	adapterRegistrations := openAICompatibleRegistrations(
 		openAICompatibleFactory,
@@ -94,6 +105,13 @@ func NewForwardingInfrastructureGraph() (ForwardingInfrastructureGraph, error) {
 				ProviderType: domain.ProviderAnthropic,
 			},
 			Factory: anthropicFactory,
+		},
+		registry.Registration{
+			Key: registry.Key{
+				APIFamily:    domain.APIFamilyGeminiNative,
+				ProviderType: domain.ProviderGemini,
+			},
+			Factory: geminiFactory,
 		},
 	)
 	adapterRegistry, err := registry.New(

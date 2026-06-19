@@ -60,6 +60,27 @@ func TestNewForwardingInfrastructureGraph(
 	) {
 		t.Fatal("Anthropic native embeddings adapter support is present")
 	}
+	if !graph.AdapterSupport.SupportsForwardingAdapter(
+		domain.APIFamilyGeminiNative,
+		domain.ProviderGemini,
+		domain.EndpointChat,
+	) {
+		t.Fatal("Gemini native chat adapter support is absent")
+	}
+	if !graph.AdapterSupport.SupportsForwardingAdapter(
+		domain.APIFamilyGeminiNative,
+		domain.ProviderGemini,
+		domain.EndpointEmbeddings,
+	) {
+		t.Fatal("Gemini native embeddings adapter support is absent")
+	}
+	if graph.AdapterSupport.SupportsForwardingAdapter(
+		domain.APIFamilyGeminiNative,
+		domain.ProviderGemini,
+		domain.EndpointImagesGeneration,
+	) {
+		t.Fatal("Gemini native images adapter support is present")
+	}
 }
 
 func TestForwardingInfrastructureGraphValidateRejectsMissingCapability(
@@ -108,7 +129,7 @@ func TestForwardingInfrastructureGraphWiresFactoryRegistry(
 	}
 }
 
-func TestForwardingInfrastructureGraphRejectsUnregisteredNativeFactory(
+func TestForwardingInfrastructureGraphRejectsUnregisteredOllamaNativeFactory(
 	t *testing.T,
 ) {
 	graph, err := NewForwardingInfrastructureGraph()
@@ -119,12 +140,12 @@ func TestForwardingInfrastructureGraphRejectsUnregisteredNativeFactory(
 		Route: domain.Route{
 			ID:           "route-1",
 			ResellerID:   "reseller-1",
-			ProviderType: domain.ProviderGemini,
-			APIFamily:    domain.APIFamilyGeminiNative,
+			ProviderType: domain.ProviderOllama,
+			APIFamily:    domain.APIFamilyOllamaNative,
 		},
 		Reseller: domain.Reseller{
 			ID:           "reseller-1",
-			ProviderType: domain.ProviderGemini,
+			ProviderType: domain.ProviderOllama,
 			BaseURL:      "https://provider.example",
 		},
 		ResellerAPIKey:       "secret",
@@ -168,5 +189,40 @@ func TestForwardingInfrastructureGraphWiresAnthropicNativeFactory(
 	}
 	if client == nil {
 		t.Fatal("Anthropic native client is nil")
+	}
+}
+
+func TestForwardingInfrastructureGraphWiresGeminiNativeFactory(
+	t *testing.T,
+) {
+	graph, err := NewForwardingInfrastructureGraph()
+	if err != nil {
+		t.Fatalf("NewForwardingInfrastructureGraph: %v", err)
+	}
+	input := ports.ForwardingAdapterFactoryInput{
+		Route: domain.Route{
+			ID:                 "route-gemini",
+			ResellerID:         "reseller-gemini",
+			ProviderType:       domain.ProviderGemini,
+			APIFamily:          domain.APIFamilyGeminiNative,
+			EndpointKind:       domain.EndpointChat,
+			ClientModel:        "gemini-client",
+			ProviderModel:      "gemini-client",
+			ModelRewritePolicy: domain.ModelRewritePolicyNone,
+		},
+		Reseller: domain.Reseller{
+			ID:           "reseller-gemini",
+			ProviderType: domain.ProviderGemini,
+			BaseURL:      "https://gemini.example",
+		},
+		ResellerAPIKey:       "rk_gemini_secret",
+		MaxResponseBodyBytes: 1024,
+	}
+	client, err := graph.AdapterFactory.Build(input)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if client == nil {
+		t.Fatal("Gemini native client is nil")
 	}
 }
