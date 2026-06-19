@@ -90,4 +90,8 @@ a deterministic successful default response.
 
 `integration/fake_invalid_request_test.go` verifies that every checked-in fake
 dependency can deterministically return an invalid request response.
+## Fake service authentication failure scenario
+
+`integration/fake_authentication_failure_test.go` verifies that every checked-in fake
+dependency can deterministically return an authentication failure response.
 

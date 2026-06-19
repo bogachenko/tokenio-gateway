@@ -95,3 +95,4 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Integration external-service audit exists at `integration/no_external_services_test.go`.
 - [x] Fake service success scenario exists at `integration/fake_success_test.go`.
 - [x] Fake service invalid request scenario exists at `integration/fake_invalid_request_test.go`.
+- [x] Fake service authentication failure scenario exists at `integration/fake_authentication_failure_test.go`.
