@@ -75,6 +75,21 @@ func TestTransportGraphPublishesCompletePublicLLMAPI(
 			method: http.MethodPost,
 			path:   "/v1/messages",
 		},
+		{
+			name:   "ollama chat",
+			method: http.MethodPost,
+			path:   "/api/chat",
+		},
+		{
+			name:   "ollama generate",
+			method: http.MethodPost,
+			path:   "/api/generate",
+		},
+		{
+			name:   "ollama embeddings",
+			method: http.MethodPost,
+			path:   "/api/embeddings",
+		},
 	}
 
 	for _, test := range tests {

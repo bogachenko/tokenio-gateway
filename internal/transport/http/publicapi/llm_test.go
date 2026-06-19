@@ -192,6 +192,64 @@ func TestLLMRouterDispatchesNormalizedInputAndPassesResponseThrough(
 	}
 }
 
+func TestLLMRouterDispatchesOllamaNativePaths(t *testing.T) {
+	tests := []struct {
+		path string
+		kind domain.EndpointKind
+	}{
+		{"/api/chat", domain.EndpointChat},
+		{"/api/generate", domain.EndpointChat},
+		{"/api/embeddings", domain.EndpointEmbeddings},
+	}
+
+	for _, test := range tests {
+		t.Run(test.path, func(t *testing.T) {
+			body := []byte(`{"model":"llama3.2","messages":[{"role":"user","content":"hi"}]}`)
+			requests := &testLLMRequests{
+				result: successfulLLMResult(
+					"llmreq_ollama_transport_1",
+					test.kind,
+					[]byte(`{"ollama":true}`),
+				),
+			}
+			router, err := NewLLMRouter(
+				requests,
+				&testRequestIDs{local: "llmreq_ollama_transport_1"},
+				1024,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			request := httptest.NewRequest(
+				http.MethodPost,
+				test.path,
+				strings.NewReader(string(body)),
+			)
+			request.Header.Set("Authorization", "Bearer sk_ollama")
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+
+			router.ServeHTTP(response, request)
+
+			if response.Code != http.StatusCreated {
+				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+			}
+			if response.Body.String() != `{"ollama":true}` {
+				t.Fatalf("body=%q", response.Body.String())
+			}
+			if requests.calls != 1 ||
+				requests.input.RawAPIKey != "sk_ollama" ||
+				requests.input.APIFamily != domain.APIFamilyOllamaNative ||
+				requests.input.EndpointKind != test.kind ||
+				requests.input.PathModel != "" ||
+				string(requests.input.Payload) != string(body) {
+				t.Fatalf("calls=%d input=%+v", requests.calls, requests.input)
+			}
+		})
+	}
+}
+
 func TestLLMRouterAcceptsMissingContentTypeAsJSON(t *testing.T) {
 	const body = `{"model":"client-model","opaque":{"x":1}}`
 	requests := &testLLMRequests{

@@ -63,7 +63,10 @@ func isPublicLLMPath(path string) bool {
 	case "/v1/chat/completions",
 		"/v1/embeddings",
 		"/v1/images/generations",
-		"/v1/messages":
+		"/v1/messages",
+		"/api/chat",
+		"/api/generate",
+		"/api/embeddings":
 		return true
 	default:
 		return strings.HasPrefix(path, "/v1beta/models/")

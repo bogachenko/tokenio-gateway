@@ -133,16 +133,21 @@ Native support must be implemented as parallel vertical slices. Do not convert n
 
 ### 2.4. Ollama native
 
-* [ ] Implement:
+* [x] Implement public transport dispatch for:
 
   ```text
   POST /api/chat
   POST /api/generate
   POST /api/embeddings
+  ```
+
+* [ ] Implement public model listing transport:
+
+  ```text
   GET  /api/tags
   ```
 
-* [ ] Accept Tokenio key through `Authorization: Bearer`.
+* [x] Accept Tokenio key through `Authorization: Bearer`.
 * [ ] Extract model from native request.
 * [x] Preserve body byte-for-byte except allowed model identifier rewrite.
 * [ ] Implement Ollama forwarding adapter.
