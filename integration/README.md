@@ -57,4 +57,9 @@ and `batchEmbedContents`, plus programmable responses and request recording.
 The reusable fake Ollama upstream lives in `integration/fakes/ollama`. It supports
 deterministic defaults for `GET /api/tags`, `POST /api/chat`, `POST /api/generate`
 and `POST /api/embeddings`, plus programmable responses and request recording.
+## Fake Telegram API
+
+The reusable fake Telegram API lives in `integration/fakes/telegram`. It supports
+`POST /bot<TOKEN>/sendMessage`, programmable responses and request recording.
+Use it instead of the real Telegram Bot API in integration scenarios.
 

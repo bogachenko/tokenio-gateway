@@ -262,7 +262,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add reusable fake Gemini upstream under `integration/fakes/gemini` for models, generateContent, embedContent and batchEmbedContents.
 * [x] Add fake Ollama upstream.
 * [x] Add reusable fake Ollama upstream under `integration/fakes/ollama` for tags, chat, generate and embeddings.
-* [ ] Add fake Telegram API.
+* [x] Add fake Telegram API.
+* [x] Add reusable fake Telegram API under `integration/fakes/telegram` for `sendMessage` responses and request recording.
 * [ ] Add commands for migrations and gateway lifecycle.
 * [ ] Do not use external production services in integration tests.
 
