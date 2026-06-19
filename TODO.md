@@ -264,7 +264,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add reusable fake Ollama upstream under `integration/fakes/ollama` for tags, chat, generate and embeddings.
 * [x] Add fake Telegram API.
 * [x] Add reusable fake Telegram API under `integration/fakes/telegram` for `sendMessage` responses and request recording.
-* [ ] Add commands for migrations and gateway lifecycle.
+* [x] Add commands for migrations and gateway lifecycle.
+* [x] Add `scripts/integration-lifecycle-smoke.sh` to run Postgres startup, migrations and gateway smoke through local Docker Compose.
 * [ ] Do not use external production services in integration tests.
 
 ### 4.2. Fake service scenarios

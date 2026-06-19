@@ -91,3 +91,4 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Integration fake Gemini upstream exists at `integration/fakes/gemini` with deterministic native endpoint defaults and programmable responses.
 - [x] Integration fake Ollama upstream exists at `integration/fakes/ollama` with deterministic native endpoint defaults and programmable responses.
 - [x] Integration fake Telegram API exists at `integration/fakes/telegram` with deterministic `sendMessage` default and programmable responses.
+- [x] Integration migrations and gateway lifecycle command exists at `scripts/integration-lifecycle-smoke.sh`.

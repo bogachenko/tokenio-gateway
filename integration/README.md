@@ -62,4 +62,14 @@ and `POST /api/embeddings`, plus programmable responses and request recording.
 The reusable fake Telegram API lives in `integration/fakes/telegram`. It supports
 `POST /bot<TOKEN>/sendMessage`, programmable responses and request recording.
 Use it instead of the real Telegram Bot API in integration scenarios.
+## Migrations and gateway lifecycle
+
+Run a local lifecycle smoke using the checked-in Docker Compose stack:
+
+```bash
+./scripts/integration-lifecycle-smoke.sh
+```
+
+The script starts Postgres, applies migrations, starts the gateway smoke path and
+then removes local integration state.
 
