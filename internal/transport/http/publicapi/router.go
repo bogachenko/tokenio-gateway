@@ -17,6 +17,7 @@ import (
 
 const (
 	modelsPath           = "/v1/models"
+	ollamaTagsPath       = "/api/tags"
 	localRequestIDHeader = "X-Local-Request-ID"
 	localRequestIDPrefix = "llmreq_"
 )
@@ -80,7 +81,8 @@ func (h *Router) ServeHTTP(
 		requestID,
 	)
 
-	if request.URL.Path != modelsPath {
+	if request.URL.Path != modelsPath &&
+		request.URL.Path != ollamaTagsPath {
 		writeError(
 			writer,
 			requestID,
@@ -134,7 +136,7 @@ func (h *Router) ServeHTTP(
 
 	catalog, err := h.models.List(
 		request.Context(),
-		domain.APIFamilyOpenAICompatible,
+		modelCatalogFamily(request.URL.Path),
 	)
 	if err != nil {
 		writeCatalogError(
@@ -150,6 +152,13 @@ func (h *Router) ServeHTTP(
 		http.StatusOK,
 		catalog,
 	)
+}
+
+func modelCatalogFamily(path string) domain.APIFamily {
+	if path == ollamaTagsPath {
+		return domain.APIFamilyOllamaNative
+	}
+	return domain.APIFamilyOpenAICompatible
 }
 
 type authorizationFailure struct {

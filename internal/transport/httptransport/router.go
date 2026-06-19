@@ -42,6 +42,8 @@ func (h *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		healthHandler(w, r)
 	case r.URL.Path == "/v1/models":
 		h.public.ServeHTTP(w, r)
+	case r.URL.Path == "/api/tags":
+		h.public.ServeHTTP(w, r)
 	case isPublicLLMPath(r.URL.Path):
 		h.llm.ServeHTTP(w, r)
 	case r.URL.Path == "/admin/v1" || strings.HasPrefix(r.URL.Path, "/admin/v1/"):

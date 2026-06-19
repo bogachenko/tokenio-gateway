@@ -76,6 +76,11 @@ func TestTransportGraphPublishesCompletePublicLLMAPI(
 			path:   "/v1/messages",
 		},
 		{
+			name:   "ollama tags",
+			method: http.MethodGet,
+			path:   "/api/tags",
+		},
+		{
 			name:   "ollama chat",
 			method: http.MethodPost,
 			path:   "/api/chat",

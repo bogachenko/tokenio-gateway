@@ -207,6 +207,65 @@ func TestModelsEndpointAuthenticatesAndReturnsSafeCatalog(
 	}
 }
 
+func TestOllamaTagsEndpointAuthenticatesAndReturnsOllamaCatalog(t *testing.T) {
+	authentication := successfulAuthentication()
+	models := &testModelCatalog{
+		result: modelcatalogapp.Catalog{
+			Object: "list",
+			Data: []modelcatalogapp.Model{
+				{
+					ID:      "llama3.1:8b",
+					Object:  "model",
+					OwnedBy: "tokenio",
+					Type:    "chat",
+					Active:  true,
+					Capabilities: domain.CapabilitySet{
+						Chat: true,
+					},
+				},
+			},
+		},
+	}
+	router, err := NewRouter(
+		authentication,
+		models,
+		&testRequestIDs{local: "llmreq_ollama_tags"},
+	)
+	if err != nil {
+		t.Fatalf("NewRouter: %v", err)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, ollamaTagsPath, nil)
+	request.Header.Set("Authorization", "Bearer sk_live_ollama")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	if authentication.calls != 1 ||
+		authentication.rawKey != "sk_live_ollama" ||
+		models.calls != 1 ||
+		models.family != domain.APIFamilyOllamaNative {
+		t.Fatalf(
+			"auth calls=%d raw=%q models calls=%d family=%q",
+			authentication.calls,
+			authentication.rawKey,
+			models.calls,
+			models.family,
+		)
+	}
+
+	var catalog modelcatalogapp.Catalog
+	if err := json.Unmarshal(response.Body.Bytes(), &catalog); err != nil {
+		t.Fatalf("decode catalog: %v", err)
+	}
+	if catalog.Object != "list" || len(catalog.Data) != 1 || catalog.Data[0].ID != "llama3.1:8b" {
+		t.Fatalf("catalog = %+v", catalog)
+	}
+}
+
 func TestModelsEndpointAuthorizationSyntax(
 	t *testing.T,
 ) {

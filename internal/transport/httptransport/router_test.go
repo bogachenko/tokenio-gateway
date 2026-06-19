@@ -121,6 +121,9 @@ func TestRouterDispatchesOnlyExactBoundaries(t *testing.T) {
 		wantProvisioning int
 	}{
 		{path: "/v1/models", wantStatus: http.StatusNoContent, wantPublicCalls: 1},
+		{path: "/api/tags", wantStatus: http.StatusNoContent, wantPublicCalls: 1},
+		{path: "/api/tags/", wantStatus: http.StatusNotFound},
+		{path: "/api/tagsevil", wantStatus: http.StatusNotFound},
 		{path: "/v1/models/", wantStatus: http.StatusNotFound},
 		{path: "/v1/modelsevil", wantStatus: http.StatusNotFound},
 		{path: "/v1/chat/completions", wantStatus: http.StatusNoContent, wantLLMCalls: 1},
