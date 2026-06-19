@@ -177,6 +177,94 @@ func TestAdapterForwardsOllamaGenerateAndEmbeddings(t *testing.T) {
 	}
 }
 
+func TestAdapterAttachesOllamaUsageMetadata(t *testing.T) {
+	adapter, err := NewAdapter(Config{
+		Reseller: domain.Reseller{
+			ID:           "reseller-ollama",
+			ProviderType: domain.ProviderOllama,
+			BaseURL:      "https://ollama.example",
+		},
+		ResellerAPIKey:       "sk_provider_secret",
+		MaxResponseBodyBytes: 1024,
+		Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": {"application/json"}},
+				Body: io.NopCloser(strings.NewReader(
+					`{"message":{"content":"ok"},"prompt_eval_count":17,"eval_count":5,"done":true}`,
+				)),
+			}, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	response, err := adapter.Forward(context.Background(), ports.ForwardRequest{
+		Route:  ollamaRoute(domain.EndpointChat, "llama-client", "llama-client", domain.ModelRewritePolicyNone),
+		Method: http.MethodPost,
+		Path:   "/api/chat",
+		Body:   []byte(`{"model":"llama-client","messages":[]}`),
+	})
+	if err != nil {
+		t.Fatalf("Forward: %v", err)
+	}
+	if response.Usage == nil ||
+		response.Usage.InputTokens != 17 ||
+		response.Usage.OutputTokens != 5 {
+		t.Fatalf("usage=%+v", response.Usage)
+	}
+}
+
+func TestAdapterAcceptsOllamaSuccessWithoutUsageMetadata(t *testing.T) {
+	adapter, err := NewAdapter(Config{
+		Reseller: domain.Reseller{
+			ID:           "reseller-ollama",
+			ProviderType: domain.ProviderOllama,
+			BaseURL:      "https://ollama.example",
+		},
+		ResellerAPIKey:       "sk_provider_secret",
+		MaxResponseBodyBytes: 1024,
+		Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": {"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"message":{"content":"ok"}}`)),
+			}, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	response, err := adapter.Forward(context.Background(), ports.ForwardRequest{
+		Route:  ollamaRoute(domain.EndpointChat, "llama-client", "llama-client", domain.ModelRewritePolicyNone),
+		Method: http.MethodPost,
+		Path:   "/api/chat",
+		Body:   []byte(`{"model":"llama-client","messages":[]}`),
+	})
+	if err != nil {
+		t.Fatalf("Forward: %v", err)
+	}
+	if response.Usage != nil {
+		t.Fatalf("usage=%+v", response.Usage)
+	}
+}
+
+func TestExtractUsageRejectsMalformedOllamaUsage(t *testing.T) {
+	tests := []string{
+		`{"prompt_eval_count":-1,"eval_count":5}`,
+		`{"prompt_eval_count":"17","eval_count":5}`,
+		`{"prompt_eval_count":17.5,"eval_count":5}`,
+		`{"prompt_eval_count":17,"eval_count":-5}`,
+	}
+	for _, payload := range tests {
+		if _, err := ExtractUsage([]byte(payload)); err == nil {
+			t.Fatalf("payload=%s unexpectedly succeeded", payload)
+		}
+	}
+}
+
 func TestAdapterRejectsUnsupportedOllamaRoute(t *testing.T) {
 	adapter, err := NewAdapter(Config{
 		Reseller: domain.Reseller{

@@ -33,6 +33,7 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Gemini native failure classifier evidence covers retry/auth/quota/5xx/request errors.
 - [x] Ollama native public transport dispatch covers chat/generate/embeddings and tags.
 - [x] Ollama native public chat/generate/embeddings dispatch evidence exists.
+- [x] Ollama native usage extraction attaches prompt/eval token counts to forward responses.
 - [x] Ollama native forwarding adapter and factory evidence covers chat/generate/embeddings dispatch and model rewrite.
 - [x] Ollama native model extraction evidence covers chat/generate/embeddings JSON bodies.
 - [x] Gemini native transport-to-ledger evidence finalizes forwarding usage as billable usage.

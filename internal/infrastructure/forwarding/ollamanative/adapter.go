@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
@@ -21,6 +22,7 @@ var (
 	ErrUnsupportedRoute         = errors.New("unsupported ollama native route")
 	ErrInvalidUpstreamURL       = errors.New("invalid ollama native upstream URL")
 	ErrUpstreamResponseTooLarge = errors.New("ollama native upstream response too large")
+	ErrUsageNotFound            = errors.New("ollama native usage metadata not found")
 )
 
 type Config struct {
@@ -196,6 +198,56 @@ func rewriteTopLevelModel(body []byte, clientModel string, providerModel string)
 	return rewritten, nil
 }
 
+func ExtractUsage(body []byte) (ports.ForwardUsage, error) {
+	var payload map[string]json.RawMessage
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payload); err != nil {
+		return ports.ForwardUsage{}, ErrInvalidForwardRequest
+	}
+	if decoder.More() {
+		return ports.ForwardUsage{}, ErrInvalidForwardRequest
+	}
+	inputTokens, inputPresent, err := optionalNonNegativeInt64(payload, "prompt_eval_count")
+	if err != nil {
+		return ports.ForwardUsage{}, err
+	}
+	outputTokens, outputPresent, err := optionalNonNegativeInt64(payload, "eval_count")
+	if err != nil {
+		return ports.ForwardUsage{}, err
+	}
+	if !inputPresent && !outputPresent {
+		return ports.ForwardUsage{}, ErrUsageNotFound
+	}
+	return ports.ForwardUsage{
+		InputTokens:  inputTokens,
+		OutputTokens: outputTokens,
+	}, nil
+}
+
+func optionalNonNegativeInt64(
+	payload map[string]json.RawMessage,
+	field string,
+) (int64, bool, error) {
+	raw, ok := payload[field]
+	if !ok || string(raw) == "null" {
+		return 0, false, nil
+	}
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || trimmed[0] == '"' {
+		return 0, false, ErrInvalidForwardRequest
+	}
+	var number json.Number
+	if err := json.Unmarshal(trimmed, &number); err != nil {
+		return 0, false, ErrInvalidForwardRequest
+	}
+	value, err := number.Int64()
+	if err != nil || value < 0 || number.String() != strconv.FormatInt(value, 10) {
+		return 0, false, ErrInvalidForwardRequest
+	}
+	return value, true, nil
+}
+
 func handleResponse(resp *http.Response, limit int64) (ports.ForwardResponse, error) {
 	if resp.Body == nil {
 		resp.Body = io.NopCloser(bytes.NewReader(nil))
@@ -208,11 +260,21 @@ func handleResponse(resp *http.Response, limit int64) (ports.ForwardResponse, er
 	if truncated {
 		return ports.ForwardResponse{}, ErrUpstreamResponseTooLarge
 	}
-	return ports.ForwardResponse{
+	response := ports.ForwardResponse{
 		StatusCode: resp.StatusCode,
 		Headers:    cloneHeaders(resp.Header),
 		Body:       body,
-	}, nil
+	}
+	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
+		usage, usageErr := ExtractUsage(body)
+		if usageErr != nil && !errors.Is(usageErr, ErrUsageNotFound) {
+			return ports.ForwardResponse{}, usageErr
+		}
+		if usageErr == nil {
+			response.Usage = &usage
+		}
+	}
+	return response, nil
 }
 
 func parseBaseURL(value string) (*url.URL, error) {
