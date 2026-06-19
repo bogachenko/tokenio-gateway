@@ -70,6 +70,11 @@ func TestTransportGraphPublishesCompletePublicLLMAPI(
 			method: http.MethodPost,
 			path:   "/v1/images/generations",
 		},
+		{
+			name:   "anthropic messages",
+			method: http.MethodPost,
+			path:   "/v1/messages",
+		},
 	}
 
 	for _, test := range tests {

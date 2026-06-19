@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
@@ -26,13 +27,20 @@ func (usageResolverExtractor) Extract(
 	}, nil
 }
 
-type failingUsageResolverExtractor struct{}
+type failingUsageResolverExtractor struct {
+	called *bool
+}
 
-func (failingUsageResolverExtractor) Extract(
+func (extractor failingUsageResolverExtractor) Extract(
 	context.Context,
 	ports.UsageExtractionRequest,
 ) (ports.UsageExtractionResult, error) {
-	return ports.UsageExtractionResult{}, errors.New("unexpected response extraction")
+	if extractor.called != nil {
+		*extractor.called = true
+	}
+	return ports.UsageExtractionResult{}, errors.New(
+		"extractor must not be called when forward usage is present",
+	)
 }
 
 type usageResolverEstimator struct{}
@@ -169,6 +177,79 @@ func TestLLMRequestUsageResolverUsesForwardingUsageBeforeResponseExtraction(t *t
 	}
 	if result.Usage.InputTokens != 12 ||
 		result.Usage.OutputTokens != 8 ||
+		result.Completeness != "detailed" ||
+		result.Estimated ||
+		result.UpstreamCostCents <= 0 ||
+		result.ClientAmountCents <= 0 ||
+		result.Currency != "RUB" {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestLLMRequestUsageResolverUsesForwardResponseUsageWithoutReparsingBody(t *testing.T) {
+	calculator, err := pricingapp.NewCalculator(1.25, 1.10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	extractorCalled := false
+	pricingResolver, err := pricingapp.NewUsageResolver(
+		failingUsageResolverExtractor{called: &extractorCalled},
+		usageResolverEstimator{},
+		calculator,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolver, err := NewLLMRequestUsageResolver(pricingResolver)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := resolver.Resolve(
+		context.Background(),
+		llmrequest.UsageResolutionInput{
+			Reserved: llmrequest.ReservedRequest{
+				Prepared: llmrequest.PreparedRequest{
+					RequestedCapabilities: domain.CapabilitySet{
+						Chat: true,
+					},
+					Payload: []byte(`{"model":"claude-3-5-sonnet","messages":[{"role":"user","content":"hi"}]}`),
+					Plan: llmrequest.RoutePlan{
+						Route: domain.Route{
+							ID:           "anthropic-route-1",
+							APIFamily:    domain.APIFamilyAnthropicNative,
+							EndpointKind: domain.EndpointChat,
+							ClientModel:  "claude-3-5-sonnet",
+						},
+						Price: domain.RoutePrice{
+							RouteID:                     "anthropic-route-1",
+							Currency:                    "RUB",
+							InputPricePer1MTokensCents:  1000000,
+							OutputPricePer1MTokensCents: 2000000,
+							MarkupCoefficient:           1,
+							Enabled:                     true,
+						},
+					},
+				},
+			},
+			Response: ports.ForwardResponse{
+				StatusCode: http.StatusOK,
+				Body:       []byte(`{"id":"msg_1","usage":{"input_tokens":"must-not-be-parsed"}}`),
+				Usage: &ports.ForwardUsage{
+					InputTokens:  12,
+					OutputTokens: 7,
+				},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if extractorCalled {
+		t.Fatal("response body extractor was called despite forward usage")
+	}
+	if result.Usage.InputTokens != 12 ||
+		result.Usage.OutputTokens != 7 ||
 		result.Completeness != "detailed" ||
 		result.Estimated ||
 		result.UpstreamCostCents <= 0 ||
