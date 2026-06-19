@@ -250,7 +250,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 
 * [x] Create `integration/`.
 * [x] Add `integration/README.md` and a build-tagged smoke test so `go test -tags=integration ./integration/...` is a valid baseline command.
-* [ ] Add reproducible PostgreSQL environment.
+* [x] Add reproducible PostgreSQL environment.
+* [x] Add reproducible integration Postgres scripts and a build-tagged pgx ping test guarded by `TOKENIO_INTEGRATION_DATABASE_DSN`.
 * [ ] Add fake Billing service.
 * [ ] Add fake OpenAI-compatible upstream.
 * [ ] Add fake Anthropic upstream.

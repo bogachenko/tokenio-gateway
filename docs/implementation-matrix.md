@@ -84,3 +84,4 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] CI required local checks are documented and scripted with `scripts/check.sh`.
 
 - [x] Integration test package exists with build tag `integration` and a baseline smoke test.
+- [x] Integration PostgreSQL dependency is reproducible through Docker Compose scripts and verified by `integration/postgres_test.go`.
