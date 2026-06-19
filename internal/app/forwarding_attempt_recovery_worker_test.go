@@ -65,7 +65,8 @@ func TestNewWorkerGraphWiresForwardingAttemptRecovery(
 		provisioningInfrastructure,
 		billingInfrastructure,
 		forwardingInfrastructure,
-		TelegramInfrastructureGraph{},
+		TelegramInfrastructureGraph{}, validLoggingGraph(t),
+
 		repositories,
 	)
 	if err != nil {

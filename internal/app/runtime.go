@@ -133,6 +133,7 @@ func NewRuntime(
 		billingInfrastructure,
 		forwardingInfrastructure,
 		telegramInfrastructure,
+		loggingGraph,
 		repositories,
 	)
 	if err != nil {

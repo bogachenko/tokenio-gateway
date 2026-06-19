@@ -45,7 +45,8 @@ func TestApplicationGraphWiresTelegramDeliveryServicesOnlyWhenConfigured(
 			provisioningInfrastructure,
 			billingInfrastructure,
 			forwardingInfrastructure,
-			TelegramInfrastructureGraph{},
+			TelegramInfrastructureGraph{}, validLoggingGraph(t),
+
 			repositories,
 		)
 		if err != nil {
@@ -82,7 +83,8 @@ func TestApplicationGraphWiresTelegramDeliveryServicesOnlyWhenConfigured(
 			provisioningInfrastructure,
 			billingInfrastructure,
 			forwardingInfrastructure,
-			telegramInfrastructure,
+			telegramInfrastructure, validLoggingGraph(t),
+
 			repositories,
 		)
 		if err != nil {

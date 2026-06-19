@@ -33,9 +33,7 @@ func TestStructuredLoggingRedactionCurrentStateIsAudited(t *testing.T) {
 }
 
 func currentStdlibLoggingSitesPendingStructuredLogger() []string {
-	return []string{
-		"internal/app/application.go:470",
-	}
+	return nil
 }
 
 func collectStdlibLoggingSites(t *testing.T) []string {

@@ -50,7 +50,8 @@ func TestNewWorkerGraphWiresProvisioningExpiration(
 		provisioningInfrastructure,
 		billingInfrastructure,
 		forwardingInfrastructure,
-		TelegramInfrastructureGraph{},
+		TelegramInfrastructureGraph{}, validLoggingGraph(t),
+
 		repositories,
 	)
 	if err != nil {
@@ -95,7 +96,8 @@ func TestNewWorkerGraphAllowsProvisioningDisabled(
 		provisioningInfrastructure,
 		billingInfrastructure,
 		forwardingInfrastructure,
-		TelegramInfrastructureGraph{},
+		TelegramInfrastructureGraph{}, validLoggingGraph(t),
+
 		repositories,
 	)
 	if err != nil {
@@ -147,7 +149,8 @@ func TestNewWorkerGraphRejectsInvalidWorkerConfig(
 		provisioningInfrastructure,
 		billingInfrastructure,
 		forwardingInfrastructure,
-		TelegramInfrastructureGraph{},
+		TelegramInfrastructureGraph{}, validLoggingGraph(t),
+
 		repositories,
 	)
 	if err != nil {

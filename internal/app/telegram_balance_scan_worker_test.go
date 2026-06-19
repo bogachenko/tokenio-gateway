@@ -24,7 +24,8 @@ func TestNewWorkerGraphWiresTelegramBalanceScanOnlyWhenConfigured(
 			provisioningInfrastructure,
 			billingInfrastructure,
 			forwardingInfrastructure,
-			TelegramInfrastructureGraph{},
+			TelegramInfrastructureGraph{}, validLoggingGraph(t),
+
 			repositories,
 		)
 		if err != nil {
@@ -70,7 +71,8 @@ func TestNewWorkerGraphWiresTelegramBalanceScanOnlyWhenConfigured(
 			provisioningInfrastructure,
 			billingInfrastructure,
 			forwardingInfrastructure,
-			telegramInfrastructure,
+			telegramInfrastructure, validLoggingGraph(t),
+
 			repositories,
 		)
 		if err != nil {

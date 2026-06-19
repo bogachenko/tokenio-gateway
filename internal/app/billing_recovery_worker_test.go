@@ -24,7 +24,8 @@ func TestNewWorkerGraphWiresBillingRecovery(t *testing.T) {
 		provisioningInfrastructure,
 		billingInfrastructure,
 		forwardingInfrastructure,
-		TelegramInfrastructureGraph{},
+		TelegramInfrastructureGraph{}, validLoggingGraph(t),
+
 		repositories,
 	)
 	if err != nil {

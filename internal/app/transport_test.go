@@ -31,7 +31,8 @@ func buildTransportGraph(
 		provisioningInfrastructure,
 		billingInfrastructure,
 		forwardingInfrastructure,
-		TelegramInfrastructureGraph{},
+		TelegramInfrastructureGraph{}, validLoggingGraph(t),
+
 		repositories,
 	)
 	if err != nil {
@@ -172,7 +173,8 @@ func TestNewTransportGraphRejectsCapabilityMismatch(t *testing.T) {
 		provisioningInfrastructure,
 		billingInfrastructure,
 		forwardingInfrastructure,
-		TelegramInfrastructureGraph{},
+		TelegramInfrastructureGraph{}, validLoggingGraph(t),
+
 		repositories,
 	)
 	if err != nil {

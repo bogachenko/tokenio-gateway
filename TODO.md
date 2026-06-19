@@ -169,11 +169,11 @@ For every key in `docs/spec/090-configuration.ru.md` verify:
 
 * [x] Add automated audit that every documented `TOKENIO_*` key is consumed by `internal/config`.
 * [x] Add automated audit that every consumed `TOKENIO_*` key is either documented or explicitly listed as pending spec reconciliation.
-* [ ] Reconcile implementation-only worker/shutdown env keys with `docs/spec/090-configuration.ru.md`.
-* [ ] Verify parsing exists for every documented key.
-* [ ] Verify validation exists for every documented key.
-* [ ] Verify typed config field exists for every documented key.
-* [ ] Verify composition-root consumer exists for every documented key.
+* [x] Reconcile implementation-only worker/shutdown env keys with `docs/spec/090-configuration.ru.md`.
+* [x] Verify parsing exists for every documented key.
+* [x] Verify validation exists for every documented key.
+* [x] Verify typed config field exists for every documented key.
+* [x] Verify composition-root consumer exists for every documented key.
 * [ ] Add behavioral tests for missing/invalid/default values where coverage is still absent.
 * [ ] Remove unused config fields instead of keeping dead knobs.
 
@@ -198,8 +198,8 @@ For every key in `docs/spec/090-configuration.ru.md` verify:
 
 * [x] Do not log request/response bodies by default.
 * [x] Fail startup when body logging is enabled in production.
-* [ ] Wire central logger/redactor into existing stdlib logging callsites.
-* [ ] Redact:
+* [x] Wire central logger/redactor into existing stdlib logging callsites.
+* [x] Redact:
 
   ```text
   Authorization

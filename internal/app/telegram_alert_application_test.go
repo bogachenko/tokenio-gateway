@@ -24,7 +24,8 @@ func TestApplicationGraphWiresTelegramBalanceAlertsOnlyWhenConfigured(
 			provisioningInfrastructure,
 			billingInfrastructure,
 			forwardingInfrastructure,
-			TelegramInfrastructureGraph{},
+			TelegramInfrastructureGraph{}, validLoggingGraph(t),
+
 			repositories,
 		)
 		if err != nil {
@@ -58,7 +59,8 @@ func TestApplicationGraphWiresTelegramBalanceAlertsOnlyWhenConfigured(
 			provisioningInfrastructure,
 			billingInfrastructure,
 			forwardingInfrastructure,
-			telegramInfrastructure,
+			telegramInfrastructure, validLoggingGraph(t),
+
 			repositories,
 		)
 		if err != nil {

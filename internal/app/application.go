@@ -2,7 +2,6 @@ package app
 
 import (
 	"fmt"
-	"log"
 	"strings"
 
 	adminapp "github.com/bogachenko/tokenio-gateway/internal/application/admin"
@@ -50,6 +49,7 @@ func NewApplicationGraph(
 	billingInfrastructure BillingInfrastructureGraph,
 	forwardingInfrastructure ForwardingInfrastructureGraph,
 	telegramInfrastructure TelegramInfrastructureGraph,
+	loggingGraph LoggingGraph,
 	repositories RepositoryGraph,
 ) (ApplicationGraph, error) {
 	if err := primitives.Validate(); err != nil {
@@ -85,6 +85,12 @@ func NewApplicationGraph(
 	if err := telegramInfrastructure.Validate(); err != nil {
 		return ApplicationGraph{}, fmt.Errorf(
 			"validate Telegram infrastructure graph: %w",
+			err,
+		)
+	}
+	if err := loggingGraph.Validate(); err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"validate logging graph: %w",
 			err,
 		)
 	}
@@ -467,7 +473,7 @@ func NewApplicationGraph(
 		adminResellers, err = newAdminResellerAlertRepository(
 			repositories.AdminResellers,
 			telegramAlerts,
-			log.Default(),
+			loggingGraph.StdLogger,
 		)
 		if err != nil {
 			return ApplicationGraph{}, fmt.Errorf(
