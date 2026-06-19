@@ -850,6 +850,222 @@ func TestServiceExecuteFinalizesGeminiForwardingUsage(t *testing.T) {
 	}
 }
 
+func TestServiceExecuteFinalizesOllamaForwardingUsage(t *testing.T) {
+	var calls []string
+	dependencies := validDependencies(&calls)
+	payload := []byte(`{"model":"llama-client","messages":[{"role":"user","content":"hello"}]}`)
+
+	dependencies.RequestParser = parseFunc(
+		func(
+			_ context.Context,
+			input ParseInput,
+		) (ParsedRequest, error) {
+			calls = append(calls, "parse")
+			if input.APIFamily != domain.APIFamilyOllamaNative ||
+				input.EndpointKind != domain.EndpointChat ||
+				input.PathModel != "" ||
+				!bytes.Equal(input.Payload, payload) {
+				return ParsedRequest{}, errors.New("unexpected Ollama parse input")
+			}
+			return ParsedRequest{ClientModel: "llama-client"}, nil
+		},
+	)
+	dependencies.CapabilityDetector = detectFunc(
+		func(
+			_ context.Context,
+			input CapabilityInput,
+		) (domain.CapabilitySet, error) {
+			calls = append(calls, "capabilities")
+			if input.APIFamily != domain.APIFamilyOllamaNative ||
+				input.EndpointKind != domain.EndpointChat ||
+				input.ClientModel != "llama-client" ||
+				input.PathModel != "" ||
+				!bytes.Equal(input.Payload, payload) {
+				return domain.CapabilitySet{}, errors.New("unexpected Ollama capability input")
+			}
+			return domain.CapabilitySet{Chat: true}, nil
+		},
+	)
+	dependencies.RoutePlanner = planFunc(
+		func(
+			_ context.Context,
+			input RoutePlanInput,
+		) (RoutePlan, error) {
+			calls = append(calls, "route")
+			if input.APIFamily != domain.APIFamilyOllamaNative ||
+				input.EndpointKind != domain.EndpointChat ||
+				input.ClientModel != "llama-client" ||
+				!input.RequestedCapabilities.Chat ||
+				!bytes.Equal(input.Payload, payload) {
+				return RoutePlan{}, errors.New("unexpected Ollama route input")
+			}
+			return RoutePlan{
+				Route: domain.Route{
+					ID:                 "route-ollama",
+					ResellerID:         "reseller-ollama",
+					ProviderType:       domain.ProviderOllama,
+					APIFamily:          domain.APIFamilyOllamaNative,
+					EndpointKind:       domain.EndpointChat,
+					ClientModel:        "llama-client",
+					ProviderModel:      "llama-provider",
+					ModelRewritePolicy: domain.ModelRewritePolicyProviderModel,
+					Enabled:            true,
+				},
+				Reseller: domain.Reseller{
+					ID:           "reseller-ollama",
+					ProviderType: domain.ProviderOllama,
+					Enabled:      true,
+				},
+				Price: domain.RoutePrice{
+					RouteID:  "route-ollama",
+					Currency: "RUB",
+					Enabled:  true,
+				},
+				BillingModel: "ollama:llama-provider",
+				EstimatedUsage: domain.TokenUsage{
+					InputTokens:  15,
+					OutputTokens: 8,
+				},
+				EstimatedClientAmountCents: 37,
+				EstimatedUpstreamCostCents: 19,
+				Currency:                   "RUB",
+				Confidence:                 "conservative",
+			}, nil
+		},
+	)
+	dependencies.BillingAdmitter = admitFunc(
+		func(
+			_ context.Context,
+			input BillingAdmissionInput,
+		) (BillingAdmissionResult, error) {
+			calls = append(calls, "admission")
+			if input.RequiredReserveCents != 37 || input.Currency != "RUB" {
+				return BillingAdmissionResult{}, errors.New("unexpected Ollama admission input")
+			}
+			return validAdmission(input), nil
+		},
+	)
+	dependencies.Forwarding = forwardingStageFunc(
+		func(
+			_ context.Context,
+			prepared PreparedRequest,
+			admission BillingAdmissionResult,
+		) (ForwardedRequest, error) {
+			calls = append(calls, "forwarding")
+			if prepared.APIFamily != domain.APIFamilyOllamaNative ||
+				prepared.EndpointKind != domain.EndpointChat ||
+				prepared.ClientModel != "llama-client" ||
+				prepared.Plan.Route.ProviderModel != "llama-provider" ||
+				!admission.Allowed {
+				return ForwardedRequest{}, errors.New("unexpected Ollama forwarding input")
+			}
+			reservation := validReservation(reservationInput(prepared))
+			return ForwardedRequest{
+				Reserved: ReservedRequest{
+					Prepared:    prepared,
+					Admission:   admission,
+					Reservation: reservation,
+				},
+				Response: ports.ForwardResponse{
+					StatusCode: 200,
+					Body:       []byte(`{"message":{"role":"assistant","content":"ok"},"done":true,"prompt_eval_count":29,"eval_count":13}`),
+					Usage: &ports.ForwardUsage{
+						InputTokens:  29,
+						OutputTokens: 13,
+					},
+				},
+			}, nil
+		},
+	)
+	dependencies.UsageResolver = usageResolverFunc(
+		func(
+			_ context.Context,
+			input UsageResolutionInput,
+		) (UsageResolutionResult, error) {
+			calls = append(calls, "usage")
+			if input.Response.Usage == nil ||
+				input.Response.Usage.InputTokens != 29 ||
+				input.Response.Usage.OutputTokens != 13 ||
+				input.Reserved.Prepared.Plan.Route.APIFamily != domain.APIFamilyOllamaNative {
+				return UsageResolutionResult{}, errors.New("Ollama forwarding usage was not propagated")
+			}
+			return UsageResolutionResult{
+				Usage: domain.TokenUsage{
+					InputTokens:  29,
+					OutputTokens: 13,
+				},
+				Completeness:      "detailed",
+				UpstreamCostCents: 31,
+				ClientAmountCents: 47,
+				Currency:          "RUB",
+			}, nil
+		},
+	)
+	dependencies.Finalizer = finalizerFunc{
+		commit: func(
+			_ context.Context,
+			input FinalizationInput,
+		) (FinalizationResult, error) {
+			calls = append(calls, "finalize")
+			if input.ResolvedUsage.Usage.InputTokens != 29 ||
+				input.ResolvedUsage.Usage.OutputTokens != 13 ||
+				input.ResolvedUsage.ClientAmountCents != 47 ||
+				input.Reserved.Prepared.Plan.Route.APIFamily != domain.APIFamilyOllamaNative {
+				return FinalizationResult{}, errors.New("unexpected Ollama finalization input")
+			}
+			return FinalizationResult{
+				Usage: domain.UsageRecord{
+					LocalRequestID: input.Reserved.Prepared.LocalRequestID,
+					UserID:         input.Reserved.Prepared.Principal.UserID,
+					Currency:       "RUB",
+					Status:         domain.UsageStatusBillable,
+				},
+			}, nil
+		},
+		pricingFailed: func(
+			context.Context,
+			PricingFailureInput,
+		) (FinalizationResult, error) {
+			return FinalizationResult{}, errors.New("Ollama pricing failure path must not run")
+		},
+	}
+
+	service := mustService(t, dependencies)
+	result, err := service.Execute(
+		context.Background(),
+		Input{
+			LocalRequestID: "llmreq_test",
+			RawAPIKey:      "sk_test",
+			APIFamily:      domain.APIFamilyOllamaNative,
+			EndpointKind:   domain.EndpointChat,
+			Payload:        payload,
+		},
+	)
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if result.ResolvedUsage.Usage.InputTokens != 29 ||
+		result.ResolvedUsage.Usage.OutputTokens != 13 ||
+		result.FinalUsageRecord.Status != domain.UsageStatusBillable ||
+		result.AutoCharge.Status != AutoChargeStatusDeferred {
+		t.Fatalf("result=%+v", result)
+	}
+	wantCalls := []string{
+		"authenticate",
+		"parse",
+		"capabilities",
+		"route",
+		"admission",
+		"forwarding",
+		"usage",
+		"finalize",
+		"autocharge",
+	}
+	if !reflect.DeepEqual(calls, wantCalls) {
+		t.Fatalf("calls = %#v, want %#v", calls, wantCalls)
+	}
+}
+
 func validDependencies(
 	calls *[]string,
 ) Dependencies {
