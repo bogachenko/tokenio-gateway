@@ -121,19 +121,23 @@ func (f *deliveryAttemptStoreFake) LoadStartedTelegramDeliveryAttemptsBefore(
 }
 
 type deliverySenderFake struct {
-	outcome MessageDeliveryOutcome
-	err     error
-	calls   int
-	message string
+	outcome           MessageDeliveryOutcome
+	telegramMessageID string
+	err               error
+	calls             int
+	message           string
 }
 
 func (f *deliverySenderFake) SendMessage(
 	_ context.Context,
 	message string,
-) (MessageDeliveryOutcome, error) {
+) (MessageDeliveryResult, error) {
 	f.calls++
 	f.message = message
-	return f.outcome, f.err
+	return MessageDeliveryResult{
+		Outcome:           f.outcome,
+		TelegramMessageID: f.telegramMessageID,
+	}, f.err
 }
 
 type sequenceClock struct {
@@ -157,7 +161,8 @@ func TestDeliveryPersistsAttemptBeforeSendAndTransitionsToSent(t *testing.T) {
 	alerts := &deliveryStoreFake{current: &alert}
 	attempts := &deliveryAttemptStoreFake{}
 	sender := &deliverySenderFake{
-		outcome: MessageDeliveryOutcomeResponseReceived,
+		outcome:           MessageDeliveryOutcomeResponseReceived,
+		telegramMessageID: "12345",
 	}
 	service := mustDeliveryService(
 		t,
@@ -199,6 +204,7 @@ func TestDeliveryPersistsAttemptBeforeSendAndTransitionsToSent(t *testing.T) {
 		domain.TelegramDeliveryAttemptStatusSucceeded ||
 		completed.AttemptState !=
 			domain.TelegramDeliveryAttemptStateResponseReceived ||
+		completed.TelegramMessageID != "12345" ||
 		completed.CompletedAt == nil ||
 		!completed.CompletedAt.Equal(completedAt) {
 		t.Fatalf("completed = %#v", completed)

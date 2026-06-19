@@ -131,7 +131,7 @@ func (s *DeliveryService) Deliver(
 		)
 	}
 
-	outcome, sendErr := s.sender.SendMessage(ctx, current.Message)
+	sendResult, sendErr := s.sender.SendMessage(ctx, current.Message)
 	completedAt := s.clock.Now()
 	if completedAt.IsZero() {
 		return DeliveryResult{}, ErrDeliveryStateUncertain
@@ -143,7 +143,7 @@ func (s *DeliveryService) Deliver(
 
 	terminal, terminalErr := terminalDeliveryAttempt(
 		persistedStarted,
-		outcome,
+		sendResult,
 		sendErr,
 		completedAt,
 	)
@@ -255,7 +255,7 @@ func nextDeliveryAttemptNumber(
 
 func terminalDeliveryAttempt(
 	started domain.TelegramDeliveryAttempt,
-	outcome MessageDeliveryOutcome,
+	result MessageDeliveryResult,
 	sendErr error,
 	completedAt time.Time,
 ) (domain.TelegramDeliveryAttempt, error) {
@@ -263,7 +263,7 @@ func terminalDeliveryAttempt(
 	terminal.CompletedAt = &completedAt
 
 	if sendErr == nil {
-		if outcome != MessageDeliveryOutcomeResponseReceived {
+		if result.Outcome != MessageDeliveryOutcomeResponseReceived {
 			return domain.TelegramDeliveryAttempt{},
 				ErrDeliveryStateUncertain
 		}
@@ -271,11 +271,12 @@ func terminalDeliveryAttempt(
 			domain.TelegramDeliveryAttemptStatusSucceeded
 		terminal.AttemptState =
 			domain.TelegramDeliveryAttemptStateResponseReceived
+		terminal.TelegramMessageID = strings.TrimSpace(result.TelegramMessageID)
 		return terminal, nil
 	}
 
 	terminal.Status = domain.TelegramDeliveryAttemptStatusFailed
-	switch outcome {
+	switch result.Outcome {
 	case MessageDeliveryOutcomeNotSent:
 		terminal.AttemptState =
 			domain.TelegramDeliveryAttemptStateNotSent
@@ -316,6 +317,8 @@ func sameStartedDeliveryAttempt(
 		right.AttemptState == "" &&
 		left.FailureCode == "" &&
 		right.FailureCode == "" &&
+		left.TelegramMessageID == "" &&
+		right.TelegramMessageID == "" &&
 		left.StartedAt.Equal(right.StartedAt) &&
 		left.CompletedAt == nil &&
 		right.CompletedAt == nil
@@ -331,6 +334,7 @@ func sameTerminalDeliveryAttempt(
 		left.Status == right.Status &&
 		left.AttemptState == right.AttemptState &&
 		left.FailureCode == right.FailureCode &&
+		left.TelegramMessageID == right.TelegramMessageID &&
 		left.StartedAt.Equal(right.StartedAt) &&
 		equalDeliveryTimes(left.CompletedAt, right.CompletedAt)
 }

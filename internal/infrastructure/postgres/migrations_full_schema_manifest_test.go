@@ -112,8 +112,8 @@ func allUpMigrations(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("glob migrations: %v", err)
 	}
-	if len(paths) != 9 {
-		t.Fatalf("up migration count=%d, want 9", len(paths))
+	if len(paths) != 10 {
+		t.Fatalf("up migration count=%d, want 10", len(paths))
 	}
 	sort.Strings(paths)
 

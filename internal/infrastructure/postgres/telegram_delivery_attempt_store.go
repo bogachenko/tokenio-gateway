@@ -19,6 +19,7 @@ const telegramDeliveryAttemptColumns = `
     status,
     attempt_state,
     failure_code,
+    telegram_message_id,
     started_at,
     completed_at
 `
@@ -36,7 +37,7 @@ const insertTelegramDeliveryAttemptSQL = `
 INSERT INTO tokenio_telegram_delivery_attempts (
 ` + telegramDeliveryAttemptColumns + `
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING
 ` + telegramDeliveryAttemptColumns
 
@@ -46,7 +47,8 @@ SET
     status = $3,
     attempt_state = $4,
     failure_code = $5,
-    completed_at = $6
+    telegram_message_id = $6,
+    completed_at = $7
 WHERE alert_id = $1
   AND attempt_number = $2
   AND status = 'started'
@@ -230,6 +232,7 @@ func (s *TelegramDeliveryAttemptStore) CompleteTelegramDeliveryAttempt(
 						attempt.AttemptState,
 					),
 					nullableString(attempt.FailureCode),
+					nullableString(attempt.TelegramMessageID),
 					attempt.CompletedAt,
 				),
 			)
@@ -404,6 +407,7 @@ func telegramDeliveryAttemptArgs(
 		string(attempt.Status),
 		nullableTelegramDeliveryAttemptState(attempt.AttemptState),
 		nullableString(attempt.FailureCode),
+		nullableString(attempt.TelegramMessageID),
 		attempt.StartedAt,
 		attempt.CompletedAt,
 	}
@@ -416,6 +420,7 @@ func scanTelegramDeliveryAttempt(
 	var status string
 	var attemptState pgtype.Text
 	var failureCode pgtype.Text
+	var telegramMessageID pgtype.Text
 	var completedAt pgtype.Timestamptz
 
 	err := row.Scan(
@@ -425,6 +430,7 @@ func scanTelegramDeliveryAttempt(
 		&status,
 		&attemptState,
 		&failureCode,
+		&telegramMessageID,
 		&attempt.StartedAt,
 		&completedAt,
 	)
@@ -439,6 +445,9 @@ func scanTelegramDeliveryAttempt(
 	}
 	if failureCode.Valid {
 		attempt.FailureCode = failureCode.String
+	}
+	if telegramMessageID.Valid {
+		attempt.TelegramMessageID = telegramMessageID.String
 	}
 	if completedAt.Valid {
 		value := completedAt.Time
@@ -473,6 +482,7 @@ func validateStartedTelegramDeliveryAttempt(
 		attempt.Status != domain.TelegramDeliveryAttemptStatusStarted ||
 		attempt.AttemptState != "" ||
 		strings.TrimSpace(attempt.FailureCode) != "" ||
+		strings.TrimSpace(attempt.TelegramMessageID) != "" ||
 		attempt.StartedAt.IsZero() ||
 		attempt.StartedAt.Location() != time.UTC ||
 		attempt.CompletedAt != nil {
@@ -503,7 +513,8 @@ func validateTerminalTelegramDeliveryAttempt(
 		}
 	case domain.TelegramDeliveryAttemptStatusFailed:
 		if !validTelegramDeliveryAttemptState(attempt.AttemptState) ||
-			strings.TrimSpace(attempt.FailureCode) == "" {
+			strings.TrimSpace(attempt.FailureCode) == "" ||
+			strings.TrimSpace(attempt.TelegramMessageID) != "" {
 			return ports.ErrStoreContractViolation
 		}
 	default:
@@ -551,6 +562,7 @@ func telegramDeliveryAttemptsEqual(
 		left.Status == right.Status &&
 		left.AttemptState == right.AttemptState &&
 		left.FailureCode == right.FailureCode &&
+		left.TelegramMessageID == right.TelegramMessageID &&
 		equalTimePointers(left.CompletedAt, right.CompletedAt)
 }
 
@@ -559,6 +571,7 @@ func canonicalTelegramDeliveryAttempt(
 ) domain.TelegramDeliveryAttempt {
 	value.StartedAt = operationalTime(value.StartedAt)
 	value.CompletedAt = operationalTimePointer(value.CompletedAt)
+	value.TelegramMessageID = strings.TrimSpace(value.TelegramMessageID)
 	return value
 }
 

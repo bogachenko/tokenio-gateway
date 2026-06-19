@@ -99,3 +99,37 @@ func TestTelegramDeliveryAttemptDownMigrationDropsAttemptTable(
 		t.Fatal("down migration does not drop Telegram delivery attempts")
 	}
 }
+
+func TestTelegramDeliveryMessageIDMigrationContainsCanonicalContract(
+	t *testing.T,
+) {
+	up := migrationFile(
+		t,
+		"000010_telegram_delivery_message_id.up.sql",
+	)
+
+	required := []string{
+		"ADD COLUMN telegram_message_id TEXT",
+		"tokenio_telegram_delivery_attempts_message_id_shape_chk",
+		"status = 'succeeded'",
+		"telegram_message_id IS NULL",
+		"btrim(telegram_message_id) <> ''",
+		"status <> 'succeeded'",
+	}
+	for _, fragment := range required {
+		if !strings.Contains(up, fragment) {
+			t.Errorf(
+				"Telegram message id migration missing %q",
+				fragment,
+			)
+		}
+	}
+
+	down := migrationFile(
+		t,
+		"000010_telegram_delivery_message_id.down.sql",
+	)
+	if !strings.Contains(down, "DROP COLUMN IF EXISTS telegram_message_id") {
+		t.Fatal("down migration does not drop Telegram message id column")
+	}
+}

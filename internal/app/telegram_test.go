@@ -98,6 +98,8 @@ type telegramInfrastructureSenderStub struct{}
 func (*telegramInfrastructureSenderStub) SendMessage(
 	_ context.Context,
 	_ string,
-) (telegramalert.MessageDeliveryOutcome, error) {
-	return telegramalert.MessageDeliveryOutcomeNotSent, nil
+) (telegramalert.MessageDeliveryResult, error) {
+	return telegramalert.MessageDeliveryResult{
+		Outcome: telegramalert.MessageDeliveryOutcomeNotSent,
+	}, nil
 }

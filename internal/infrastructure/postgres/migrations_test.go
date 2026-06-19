@@ -18,6 +18,7 @@ func TestLoadMigrationsReturnsCanonicalSequence(t *testing.T) {
 		"forwarding_attempts",
 		"telegram_delivery_attempts",
 		"admin_audit_reason",
+		"telegram_delivery_message_id",
 	}
 	if len(items) != len(expectedNames) {
 		t.Fatalf("migration count = %d, want %d", len(items), len(expectedNames))

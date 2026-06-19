@@ -28,6 +28,8 @@ type TelegramDeliveryAttempt struct {
 	AttemptState TelegramDeliveryAttemptState
 	FailureCode  string
 
+	TelegramMessageID string
+
 	StartedAt   time.Time
 	CompletedAt *time.Time
 }

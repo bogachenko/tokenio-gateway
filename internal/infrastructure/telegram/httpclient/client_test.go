@@ -38,7 +38,7 @@ func TestSendMessageDeliversExpectedTelegramRequest(t *testing.T) {
 				t.Fatalf("payload = %#v", payload)
 			}
 			writer.Header().Set("Content-Type", "application/json")
-			_, _ = io.WriteString(writer, `{"ok":true}`)
+			_, _ = io.WriteString(writer, `{"ok":true,"result":{"message_id":12345}}`)
 		},
 	))
 	defer server.Close()
@@ -52,12 +52,13 @@ func TestSendMessageDeliversExpectedTelegramRequest(t *testing.T) {
 		MaxResponseBodyBytes: 1024,
 	})
 
-	outcome, err := client.SendMessage(context.Background(), message)
+	result, err := client.SendMessage(context.Background(), message)
 	if err != nil {
 		t.Fatalf("SendMessage: %v", err)
 	}
-	if outcome != telegramalert.MessageDeliveryOutcomeResponseReceived {
-		t.Fatalf("outcome = %q", outcome)
+	if result.Outcome != telegramalert.MessageDeliveryOutcomeResponseReceived ||
+		result.TelegramMessageID != "12345" {
+		t.Fatalf("result = %#v", result)
 	}
 	if calls.Load() != 1 {
 		t.Fatalf("calls = %d", calls.Load())
@@ -106,16 +107,16 @@ func TestSendMessageClassifiesDefinitiveResponses(t *testing.T) {
 				Timeout:              time.Second,
 				MaxResponseBodyBytes: 1024,
 			})
-			outcome, err := client.SendMessage(
+			result, err := client.SendMessage(
 				context.Background(),
 				"message",
 			)
 			if !errors.Is(err, test.wantErr) {
 				t.Fatalf("error = %v", err)
 			}
-			if outcome !=
+			if result.Outcome !=
 				telegramalert.MessageDeliveryOutcomeResponseReceived {
-				t.Fatalf("outcome = %q", outcome)
+				t.Fatalf("result = %#v", result)
 			}
 		})
 	}
@@ -163,16 +164,16 @@ func TestSendMessageClassifiesUnknownDeliveryOutcome(t *testing.T) {
 				Timeout:              time.Second,
 				MaxResponseBodyBytes: test.limit,
 			})
-			outcome, err := client.SendMessage(
+			result, err := client.SendMessage(
 				context.Background(),
 				"message",
 			)
 			if !errors.Is(err, test.wantErr) {
 				t.Fatalf("error = %v", err)
 			}
-			if outcome !=
+			if result.Outcome !=
 				telegramalert.MessageDeliveryOutcomeSentNoResponse {
-				t.Fatalf("outcome = %q", outcome)
+				t.Fatalf("result = %#v", result)
 			}
 		})
 	}
@@ -195,15 +196,15 @@ func TestSendMessageUsesBoundedContext(t *testing.T) {
 	})
 
 	startedAt := time.Now()
-	outcome, err := client.SendMessage(
+	result, err := client.SendMessage(
 		context.Background(),
 		"message",
 	)
 	if !errors.Is(err, ErrTransport) {
 		t.Fatalf("error = %v", err)
 	}
-	if outcome != telegramalert.MessageDeliveryOutcomeSentNoResponse {
-		t.Fatalf("outcome = %q", outcome)
+	if result.Outcome != telegramalert.MessageDeliveryOutcomeSentNoResponse {
+		t.Fatalf("result = %#v", result)
 	}
 	if elapsed := time.Since(startedAt); elapsed > time.Second {
 		t.Fatalf("bounded request took %s", elapsed)
@@ -220,15 +221,15 @@ func TestSendMessageRejectsInvalidInputAsNotSent(t *testing.T) {
 		MaxResponseBodyBytes: 1024,
 	})
 
-	outcome, err := client.SendMessage(nil, "message")
+	result, err := client.SendMessage(nil, "message")
 	if !errors.Is(err, ErrInvalidMessage) ||
-		outcome != telegramalert.MessageDeliveryOutcomeNotSent {
-		t.Fatalf("outcome=%q error=%v", outcome, err)
+		result.Outcome != telegramalert.MessageDeliveryOutcomeNotSent {
+		t.Fatalf("result=%#v error=%v", result, err)
 	}
-	outcome, err = client.SendMessage(context.Background(), " ")
+	result, err = client.SendMessage(context.Background(), " ")
 	if !errors.Is(err, ErrInvalidMessage) ||
-		outcome != telegramalert.MessageDeliveryOutcomeNotSent {
-		t.Fatalf("outcome=%q error=%v", outcome, err)
+		result.Outcome != telegramalert.MessageDeliveryOutcomeNotSent {
+		t.Fatalf("result=%#v error=%v", result, err)
 	}
 }
 
