@@ -24,6 +24,7 @@ var (
 	ErrUnsupportedRoute         = errors.New("unsupported ollama native route")
 	ErrInvalidUpstreamURL       = errors.New("invalid ollama native upstream URL")
 	ErrUpstreamResponseTooLarge = errors.New("ollama native upstream response too large")
+	ErrInvalidUsage             = errors.New("invalid ollama native usage")
 	ErrUsageNotFound            = errors.New("ollama native usage metadata not found")
 )
 
