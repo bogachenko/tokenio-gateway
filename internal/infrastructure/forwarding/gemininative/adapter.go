@@ -213,11 +213,29 @@ func handleResponse(resp *http.Response, limit int64) (ports.ForwardResponse, er
 		)
 	}
 	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
-		return ports.ForwardResponse{
+		usage, usageErr := ExtractUsage(body)
+		if usageErr != nil && !errors.Is(usageErr, ErrUsageNotFound) {
+			return ports.ForwardResponse{}, forwarding.NewFailure(
+				forwarding.FailureKindMalformedResponse,
+				resp.StatusCode,
+				forwarding.AttemptStateResponseReceived,
+				false,
+				usageErr,
+			)
+		}
+
+		response := ports.ForwardResponse{
 			StatusCode: resp.StatusCode,
 			Headers:    cloneHeaders(resp.Header),
 			Body:       body,
-		}, nil
+		}
+		if usageErr == nil {
+			response.Usage = &ports.ForwardUsage{
+				InputTokens:  usage.InputTokens,
+				OutputTokens: usage.OutputTokens,
+			}
+		}
+		return response, nil
 	}
 	classification := classifyFailure(resp.StatusCode, resp.Header, body)
 	return ports.ForwardResponse{}, forwarding.NewFailureWithRetryAfter(

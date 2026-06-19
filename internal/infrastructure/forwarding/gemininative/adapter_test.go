@@ -197,6 +197,45 @@ func TestAdapterRejectsUnsupportedGeminiRoute(t *testing.T) {
 	}
 }
 
+func TestAdapterAttachesGeminiUsageMetadata(t *testing.T) {
+	adapter, err := NewAdapter(Config{
+		Reseller: domain.Reseller{
+			ID:           "reseller-gemini",
+			ProviderType: domain.ProviderGemini,
+			BaseURL:      "https://gemini.example",
+		},
+		ResellerAPIKey:       "sk_provider_secret",
+		MaxResponseBodyBytes: 1024,
+		Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": {"application/json"}},
+				Body: io.NopCloser(strings.NewReader(
+					`{"candidates":[{"content":{"parts":[{"text":"ok"}]}}],"usageMetadata":{"promptTokenCount":11,"candidatesTokenCount":3,"totalTokenCount":14}}`,
+				)),
+			}, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	response, err := adapter.Forward(context.Background(), ports.ForwardRequest{
+		Route:  geminiRoute(domain.EndpointChat, "gemini-client", "gemini-client", domain.ModelRewritePolicyNone),
+		Method: http.MethodPost,
+		Path:   "/v1beta/models/gemini-client:generateContent",
+		Body:   []byte(`{"contents":[{"parts":[{"text":"hello"}]}]}`),
+	})
+	if err != nil {
+		t.Fatalf("Forward: %v", err)
+	}
+	if response.Usage == nil ||
+		response.Usage.InputTokens != 11 ||
+		response.Usage.OutputTokens != 3 {
+		t.Fatalf("usage=%+v", response.Usage)
+	}
+}
+
 func geminiRoute(endpoint domain.EndpointKind, clientModel string, providerModel string, policy domain.ModelRewritePolicy) domain.Route {
 	return domain.Route{
 		ID:                 "route-gemini",

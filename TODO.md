@@ -126,7 +126,7 @@ Native support must be implemented as parallel vertical slices. Do not convert n
 * [x] Preserve body byte-for-byte except allowed path model segment rewrite.
 * [x] Implement Gemini forwarding adapter.
 * [x] Wire Gemini forwarding factory into application forwarding registry.
-* [ ] Implement Gemini usage extraction.
+* [x] Implement Gemini usage extraction.
 * [ ] Implement Gemini failure classifier.
 * [x] Return upstream success body byte-for-byte.
 * [ ] Add transport-to-ledger acceptance tests.
