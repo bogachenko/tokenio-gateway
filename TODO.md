@@ -98,9 +98,9 @@ Native support must be implemented as parallel vertical slices. Do not convert n
 
 ### 2.2. Anthropic native
 
-* [ ] Implement `POST /v1/messages`.
-* [ ] Accept Tokenio key only through `x-api-key`.
-* [ ] Extract model from native request.
+* [x] Implement `POST /v1/messages`.
+* [x] Accept Tokenio key only through `x-api-key`.
+* [x] Extract model from native request.
 * [ ] Preserve body byte-for-byte except allowed model identifier rewrite.
 * [ ] Implement Anthropic forwarding adapter.
 * [ ] Implement Anthropic usage extraction.
