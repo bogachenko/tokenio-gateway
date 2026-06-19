@@ -36,6 +36,7 @@ type Service interface {
 	) (application.ListResult[application.APIKeyProvisioningView], error)
 	GetAPIKeyProvisioning(context.Context, string) (application.APIKeyProvisioningView, error)
 	ListRouteEvents(context.Context, application.RouteEventListInput) (application.ListResult[domain.RouteEvent], error)
+	ListTelegramAlerts(context.Context, application.TelegramAlertListInput) (application.ListResult[application.TelegramAlertView], error)
 	CreateAPIKey(context.Context, application.CommandContext, application.CreateAPIKeyInput) (application.CreatedAPIKey, error)
 	RevokeAPIKey(context.Context, application.CommandContext, string) (application.APIKeyView, error)
 	ListResellers(context.Context, application.ResellerListInput) (application.ListResult[application.ResellerView], error)
@@ -124,6 +125,9 @@ func (h *Router) dispatch(w http.ResponseWriter, r *http.Request, command applic
 			return
 		case "route-events":
 			h.handleRouteEvents(w, r, command)
+			return
+		case "telegram-alerts":
+			h.handleTelegramAlerts(w, r, command)
 			return
 		case "billing-charge-batches":
 			h.handleBillingBatches(w, r, command)

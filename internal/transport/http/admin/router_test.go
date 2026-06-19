@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	application "github.com/bogachenko/tokenio-gateway/internal/application/admin"
 	"github.com/bogachenko/tokenio-gateway/internal/auth"
@@ -56,6 +57,8 @@ type testService struct {
 	listCalls           int
 	listErr             error
 	updateResellerInput application.UpdateResellerInput
+	telegramInput       application.TelegramAlertListInput
+	telegramCalls       int
 	retryCalls          int
 	retryCommand        application.CommandContext
 	retryBatchID        string
@@ -74,6 +77,24 @@ func (f *testService) UpdateReseller(_ context.Context, _ application.CommandCon
 	defer f.mu.Unlock()
 	f.updateResellerInput = input
 	return application.ResellerView{ID: input.ID}, nil
+}
+
+func (f *testService) ListTelegramAlerts(
+	_ context.Context,
+	input application.TelegramAlertListInput,
+) (application.ListResult[application.TelegramAlertView], error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.telegramCalls++
+	f.telegramInput = input
+	return application.ListResult[application.TelegramAlertView]{
+		Data: []application.TelegramAlertView{{ID: "tgalt_1"}},
+		Pagination: application.Pagination{
+			Limit:  input.Limit,
+			Offset: input.Offset,
+			Total:  1,
+		},
+	}, nil
 }
 
 func (f *testService) RetryFailedBillingChargeBatch(
@@ -536,5 +557,65 @@ func TestAdminUnknownPathInsideNamespaceIncludesRequestID(t *testing.T) {
 		`"request_id":"admreq_unknown"`,
 	) {
 		t.Fatalf("request ID missing from body: %s", response.Body.String())
+	}
+}
+
+func TestAdminTelegramAlertsListDispatchesFilters(t *testing.T) {
+	events := []string{}
+	service := &testService{}
+	router, err := NewRouter(
+		service,
+		&testAuthenticator{events: &events, subject: "admin_token"},
+		&testIDs{value: "admreq_tg_alerts"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	from := "2026-06-18T10:00:00Z"
+	to := "2026-06-18T11:00:00Z"
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/admin/v1/telegram-alerts?alert_type=reseller_balance_low&reseller_id=reseller_1&status=failed&created_from="+from+"&created_to="+to+"&limit=25&offset=50",
+		nil,
+	)
+	request.Header.Set("Authorization", "Bearer admin")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	if response.Header().Get(adminRequestIDHeader) != "admreq_tg_alerts" {
+		t.Fatalf("headers=%v", response.Header())
+	}
+	service.mu.Lock()
+	calls := service.telegramCalls
+	input := service.telegramInput
+	service.mu.Unlock()
+	if calls != 1 {
+		t.Fatalf("telegram calls=%d, want 1", calls)
+	}
+	createdFrom, err := time.Parse(time.RFC3339, from)
+	if err != nil {
+		t.Fatal(err)
+	}
+	createdTo, err := time.Parse(time.RFC3339, to)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if input.AlertType != "reseller_balance_low" ||
+		input.ResellerID != "reseller_1" ||
+		input.Status != domain.TelegramAlertStatusFailed ||
+		input.CreatedFrom == nil ||
+		!input.CreatedFrom.Equal(createdFrom) ||
+		input.CreatedTo == nil ||
+		!input.CreatedTo.Equal(createdTo) ||
+		input.Limit != 25 ||
+		input.Offset != 50 {
+		t.Fatalf("input=%+v", input)
+	}
+	if !strings.Contains(response.Body.String(), `"id":"tgalt_1"`) {
+		t.Fatalf("body=%s", response.Body.String())
 	}
 }
