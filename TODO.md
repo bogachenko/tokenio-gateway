@@ -248,7 +248,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 
 ### 4.1. Test dependencies
 
-* [ ] Create `integration/`.
+* [x] Create `integration/`.
+* [x] Add `integration/README.md` and a build-tagged smoke test so `go test -tags=integration ./integration/...` is a valid baseline command.
 * [ ] Add reproducible PostgreSQL environment.
 * [ ] Add fake Billing service.
 * [ ] Add fake OpenAI-compatible upstream.

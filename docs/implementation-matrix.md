@@ -82,3 +82,5 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] CI runs `go vet ./...` after unit tests.
 - [x] CI merge policy documents required branch protection check `Unit tests` for blocking failed checks.
 - [x] CI required local checks are documented and scripted with `scripts/check.sh`.
+
+- [x] Integration test package exists with build tag `integration` and a baseline smoke test.
