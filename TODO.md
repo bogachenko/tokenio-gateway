@@ -222,7 +222,8 @@ For every key in `docs/spec/090-configuration.ru.md` verify:
 * [x] Billing JWT issuer/audience/TTL are validated.
 * [x] Reseller keys resolve only through configured secret resolver.
 * [x] Add automated audit that reseller credential access stays behind configured secret resolver wiring.
-* [ ] Raw secrets are absent from database, audit, errors and logs.
+* [x] Raw secrets are absent from database, audit, errors and logs.
+* [x] Add automated audit that admin audit state rejects raw API keys, key hashes, encrypted raw keys, auth headers and service/admin tokens, and that DB/migration paths do not define raw-secret persistence columns.
 * [ ] Query-string credentials are rejected.
 * [ ] Hop-by-hop headers are removed.
 * [ ] Inbound Tokenio auth headers are removed before forwarding.
