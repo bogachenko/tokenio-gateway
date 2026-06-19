@@ -35,8 +35,16 @@ database schema to have been applied explicitly before use.
 
 ## Reset local state
 
+Use the checked-in reset script:
+
 ```bash
-docker compose down -v
+./scripts/docker-compose-reset.sh
+```
+
+It runs:
+
+```bash
+docker compose down -v --remove-orphans
 ```
 ## Smoke-test the documented environment
 
