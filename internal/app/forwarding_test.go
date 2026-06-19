@@ -43,8 +43,22 @@ func TestNewForwardingInfrastructureGraph(
 			domain.ProviderAnthropic,
 		) {
 		t.Fatal(
-			"unregistered native adapter support is present",
+			"Anthropic native model rewrite support must not be wired through OpenAI-compatible rewrite registry",
 		)
+	}
+	if !graph.AdapterSupport.SupportsForwardingAdapter(
+		domain.APIFamilyAnthropicNative,
+		domain.ProviderAnthropic,
+		domain.EndpointChat,
+	) {
+		t.Fatal("Anthropic native forwarding adapter support is absent")
+	}
+	if graph.AdapterSupport.SupportsForwardingAdapter(
+		domain.APIFamilyAnthropicNative,
+		domain.ProviderAnthropic,
+		domain.EndpointEmbeddings,
+	) {
+		t.Fatal("Anthropic native embeddings adapter support is present")
 	}
 }
 
@@ -119,5 +133,40 @@ func TestForwardingInfrastructureGraphRejectsUnregisteredNativeFactory(
 	_, err = graph.AdapterFactory.Build(input)
 	if !errors.Is(err, registry.ErrFactoryNotRegistered) {
 		t.Fatalf("error=%v", err)
+	}
+}
+
+func TestForwardingInfrastructureGraphWiresAnthropicNativeFactory(
+	t *testing.T,
+) {
+	graph, err := NewForwardingInfrastructureGraph()
+	if err != nil {
+		t.Fatalf("NewForwardingInfrastructureGraph: %v", err)
+	}
+	input := ports.ForwardingAdapterFactoryInput{
+		Route: domain.Route{
+			ID:                 "route-anthropic",
+			ResellerID:         "reseller-anthropic",
+			ProviderType:       domain.ProviderAnthropic,
+			APIFamily:          domain.APIFamilyAnthropicNative,
+			EndpointKind:       domain.EndpointChat,
+			ClientModel:        "claude-client",
+			ProviderModel:      "claude-client",
+			ModelRewritePolicy: domain.ModelRewritePolicyNone,
+		},
+		Reseller: domain.Reseller{
+			ID:           "reseller-anthropic",
+			ProviderType: domain.ProviderAnthropic,
+			BaseURL:      "https://anthropic.example",
+		},
+		ResellerAPIKey:       "rk_anthropic_secret",
+		MaxResponseBodyBytes: 1024,
+	}
+	client, err := graph.AdapterFactory.Build(input)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if client == nil {
+		t.Fatal("Anthropic native client is nil")
 	}
 }

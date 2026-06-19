@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
+	"github.com/bogachenko/tokenio-gateway/internal/infrastructure/forwarding/anthropicnative"
 	"github.com/bogachenko/tokenio-gateway/internal/infrastructure/forwarding/openaicompat"
 	"github.com/bogachenko/tokenio-gateway/internal/infrastructure/forwarding/registry"
 	"github.com/bogachenko/tokenio-gateway/internal/infrastructure/forwarding/rewritesupport"
@@ -71,11 +72,32 @@ func NewForwardingInfrastructureGraph() (ForwardingInfrastructureGraph, error) {
 				err,
 			)
 	}
+	anthropicFactory, err := anthropicnative.NewFactory(
+		transport.Clone(),
+	)
+	if err != nil {
+		return ForwardingInfrastructureGraph{},
+			fmt.Errorf(
+				"construct anthropic-native forwarding factory: %w",
+				err,
+			)
+	}
 
+	adapterRegistrations := openAICompatibleRegistrations(
+		openAICompatibleFactory,
+	)
+	adapterRegistrations = append(
+		adapterRegistrations,
+		registry.Registration{
+			Key: registry.Key{
+				APIFamily:    domain.APIFamilyAnthropicNative,
+				ProviderType: domain.ProviderAnthropic,
+			},
+			Factory: anthropicFactory,
+		},
+	)
 	adapterRegistry, err := registry.New(
-		openAICompatibleRegistrations(
-			openAICompatibleFactory,
-		)...,
+		adapterRegistrations...,
 	)
 	if err != nil {
 		return ForwardingInfrastructureGraph{},
