@@ -64,9 +64,9 @@ Do not reopen these sections in this TODO unless a concrete failing test or miss
 
 ### 1.3. Telegram delivery evidence gaps
 
-* [ ] Store Telegram message ID on successful delivery if Telegram API returns it.
-* [ ] Verify temporary Telegram failure lifecycle.
-* [ ] Verify permanent Telegram failure lifecycle.
+* [x] Store Telegram message ID on successful delivery if Telegram API returns it.
+* [x] Verify temporary Telegram failure lifecycle.
+* [x] Verify permanent Telegram failure lifecycle.
 * [ ] Verify stale attempt recovery after restart.
 * [ ] Verify Telegram error never rolls back committed reseller balance operation.
 

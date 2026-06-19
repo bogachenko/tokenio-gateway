@@ -283,6 +283,94 @@ func TestDeliverySentNoResponseLeavesAlertPending(t *testing.T) {
 	}
 }
 
+func TestDeliveryPermanentTelegramRejectionMarksAlertFailed(t *testing.T) {
+	startedAt := pendingAlert().CreatedAt.Add(time.Minute)
+	completedAt := startedAt.Add(time.Second)
+	alert := pendingAlert()
+	alerts := &deliveryStoreFake{current: &alert}
+	attempts := &deliveryAttemptStoreFake{}
+	sender := &deliverySenderFake{
+		outcome: MessageDeliveryOutcomeResponseReceived,
+		err:     errors.New("telegram rejected"),
+	}
+	service := mustDeliveryService(
+		t,
+		alerts,
+		attempts,
+		sender,
+		&sequenceClock{values: []time.Time{startedAt, completedAt}},
+	)
+
+	result, err := service.Deliver(context.Background(), alert.ID)
+	if !errors.Is(err, ErrDeliveryFailed) {
+		t.Fatalf("error = %v", err)
+	}
+	if result.Alert.Status != domain.TelegramAlertStatusFailed ||
+		result.Alert.Error != DeliveryErrorUnavailable ||
+		result.Alert.SentAt != nil {
+		t.Fatalf("result = %#v", result)
+	}
+	if alerts.casCalls != 1 ||
+		alerts.casExpected.Status != domain.TelegramAlertStatusPending ||
+		alerts.casNext.Status != domain.TelegramAlertStatusFailed ||
+		alerts.casNext.Error != DeliveryErrorUnavailable ||
+		alerts.casNext.SentAt != nil {
+		t.Fatalf(
+			"CAS calls=%d expected=%#v next=%#v",
+			alerts.casCalls,
+			alerts.casExpected,
+			alerts.casNext,
+		)
+	}
+	if len(attempts.completeCalls) != 1 {
+		t.Fatalf("complete calls = %#v", attempts.completeCalls)
+	}
+	terminal := attempts.completeCalls[0]
+	if terminal.Status != domain.TelegramDeliveryAttemptStatusFailed ||
+		terminal.AttemptState != domain.TelegramDeliveryAttemptStateResponseReceived ||
+		terminal.FailureCode != deliveryAttemptFailureRejected ||
+		terminal.TelegramMessageID != "" {
+		t.Fatalf("terminal = %#v", terminal)
+	}
+}
+
+func TestDeliveryTemporaryTelegramFailureKeepsAlertPendingForRecovery(t *testing.T) {
+	startedAt := pendingAlert().CreatedAt.Add(time.Minute)
+	completedAt := startedAt.Add(time.Second)
+	alert := pendingAlert()
+	alerts := &deliveryStoreFake{current: &alert}
+	attempts := &deliveryAttemptStoreFake{}
+	sender := &deliverySenderFake{
+		outcome: MessageDeliveryOutcomeSentNoResponse,
+		err:     errors.New("timeout"),
+	}
+	service := mustDeliveryService(
+		t,
+		alerts,
+		attempts,
+		sender,
+		&sequenceClock{values: []time.Time{startedAt, completedAt}},
+	)
+
+	_, err := service.Deliver(context.Background(), alert.ID)
+	if !errors.Is(err, ErrDeliveryStateUncertain) {
+		t.Fatalf("error = %v", err)
+	}
+	if alerts.casCalls != 0 {
+		t.Fatalf("alert CAS calls = %d", alerts.casCalls)
+	}
+	if len(attempts.completeCalls) != 1 {
+		t.Fatalf("complete calls = %#v", attempts.completeCalls)
+	}
+	terminal := attempts.completeCalls[0]
+	if terminal.Status != domain.TelegramDeliveryAttemptStatusFailed ||
+		terminal.AttemptState != domain.TelegramDeliveryAttemptStateSentNoResponse ||
+		terminal.FailureCode != deliveryAttemptFailureSentNoResponse ||
+		terminal.TelegramMessageID != "" {
+		t.Fatalf("terminal = %#v", terminal)
+	}
+}
+
 func TestDeliveryDoesNotSendWhenHistoryIsUncertain(t *testing.T) {
 	alert := pendingAlert()
 	started := domain.TelegramDeliveryAttempt{
