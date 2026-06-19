@@ -285,7 +285,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add integration provider 5xx scenario covering deterministic server failures for all fake dependencies.
 * [x] Timeout.
 * [x] Add deterministic local timeout scenario using delayed `httptest.Server` and short client timeout.
-* [ ] Connection reset.
+* [x] Connection reset.
+* [x] Add deterministic local connection reset scenario using a TCP listener that closes accepted connections.
 * [ ] Headers received, body failed.
 * [ ] Missing usage.
 * [ ] Malformed usage.

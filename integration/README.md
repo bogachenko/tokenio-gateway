@@ -110,4 +110,8 @@ dependency can deterministically return a provider/server 5xx response.
 
 `integration/fake_timeout_test.go` verifies a deterministic local timeout using an
 in-process delayed `httptest.Server`.
+## Fake service connection reset scenario
+
+`integration/fake_connection_reset_test.go` verifies a deterministic local connection
+reset using a TCP listener that accepts and immediately closes the connection.
 
