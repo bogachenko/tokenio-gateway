@@ -38,8 +38,10 @@ func NewRouter(
 
 func (h *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
-	case r.URL.Path == "/health":
-		healthHandler(w, r)
+	case r.URL.Path == HealthPath ||
+		r.URL.Path == ReadinessPath ||
+		r.URL.Path == "/health":
+		HealthHandler(w, r)
 	case r.URL.Path == "/v1/models":
 		h.public.ServeHTTP(w, r)
 	case r.URL.Path == "/api/tags":

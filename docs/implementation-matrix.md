@@ -77,3 +77,5 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Integration environment includes a Docker Compose smoke script that starts the app with documented environment and checks `/readyz`.
 - [x] Integration smoke path checks `/readyz` and verifies `/v1/models` is reachable and protected.
 - [x] Integration environment documents and scripts local Docker Compose cleanup with volume/orphan removal.
+
+- [x] CI runs Go unit tests with `go test ./...` on pull requests and pushes to `main`.
