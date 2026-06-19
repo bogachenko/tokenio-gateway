@@ -73,6 +73,7 @@ func TestWriteUpstreamSuccessFiltersHeaders(t *testing.T) {
 	headers.Set("Proxy-Authorization", "Basic secret")
 	headers.Set("TE", "trailers")
 	headers.Set("Trailer", "Expires")
+	headers.Set("Keep-Alive", "timeout=5")
 	headers.Set("x-local-request-id", "upstream")
 	headers.Set("x-billing-amount-cents", "100")
 	headers.Set("X-Wallet-Balance-Cents", "100")
@@ -83,7 +84,20 @@ func TestWriteUpstreamSuccessFiltersHeaders(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for _, key := range []string{"Content-Length", "Connection", "Transfer-Encoding", "Upgrade", "Proxy-Authenticate", "Proxy-Authorization", "TE", "Trailer", "X-Local-Request-ID", "X-Billing-Amount-Cents", "X-Wallet-Balance-Cents"} {
+	for _, key := range []string{
+		"Content-Length",
+		"Connection",
+		"Transfer-Encoding",
+		"Upgrade",
+		"Proxy-Authenticate",
+		"Proxy-Authorization",
+		"TE",
+		"Trailer",
+		"Keep-Alive",
+		"X-Local-Request-ID",
+		"X-Billing-Amount-Cents",
+		"X-Wallet-Balance-Cents",
+	} {
 		if got := recorder.Header().Get(key); got != "" {
 			t.Fatalf("%s copied as %q", key, got)
 		}

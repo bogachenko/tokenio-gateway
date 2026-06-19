@@ -226,7 +226,8 @@ For every key in `docs/spec/090-configuration.ru.md` verify:
 * [x] Add automated audit that admin audit state rejects raw API keys, key hashes, encrypted raw keys, auth headers and service/admin tokens, and that DB/migration paths do not define raw-secret persistence columns.
 * [x] Query-string credentials are rejected.
 * [x] Add automated tests that model and LLM credential extraction reject `key`, `api_key`, `access_token`, auth-header aliases and provider API-key aliases in query strings.
-* [ ] Hop-by-hop headers are removed.
+* [x] Hop-by-hop headers are removed.
+* [x] Add automated response-pass-through evidence that hop-by-hop upstream headers including `Connection`, `Keep-Alive`, `Proxy-*`, `TE`, `Trailer`, `Transfer-Encoding` and `Upgrade` are not copied to clients.
 * [ ] Inbound Tokenio auth headers are removed before forwarding.
 * [ ] Admin auth is separate from public auth.
 * [ ] Provisioning auth is separate from public/admin auth.

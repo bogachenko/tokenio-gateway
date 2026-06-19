@@ -55,12 +55,22 @@ func copySafeResponseHeaders(dst http.Header, src http.Header) {
 }
 
 func isSafeUpstreamResponseHeader(key string) bool {
-	switch strings.ToLower(key) {
-	case "content-length", "connection", "transfer-encoding", "upgrade", "proxy-authenticate", "proxy-authorization", "te", "trailer":
+	lower := strings.ToLower(key)
+	switch lower {
+	case "content-length",
+		"connection",
+		"keep-alive",
+		"proxy-authenticate",
+		"proxy-authorization",
+		"te",
+		"trailer",
+		"transfer-encoding",
+		"upgrade":
 		return false
 	}
-	lower := strings.ToLower(key)
-	return lower != "x-local-request-id" && !strings.HasPrefix(lower, "x-billing-") && !strings.HasPrefix(lower, "x-wallet-")
+	return lower != "x-local-request-id" &&
+		!strings.HasPrefix(lower, "x-billing-") &&
+		!strings.HasPrefix(lower, "x-wallet-")
 }
 
 func SetBillingHeaders(h http.Header, headers BillingHeaders) {
