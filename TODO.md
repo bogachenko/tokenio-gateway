@@ -217,7 +217,8 @@ For every key in `docs/spec/090-configuration.ru.md` verify:
 
 * [x] User API keys are hashed only with HMAC-SHA256.
 * [x] Add automated security audit that user API key hash implementation imports `crypto/hmac` and `crypto/sha256` and rejects raw SHA256/MD5/SHA1/bcrypt/scrypt/argon2 in that context.
-* [ ] Startup fails without `TOKENIO_API_KEY_HASH_SECRET`.
+* [x] Startup fails without `TOKENIO_API_KEY_HASH_SECRET`.
+* [x] Add behavioral startup evidence that empty or whitespace-only `TOKENIO_API_KEY_HASH_SECRET` fails before runtime construction.
 * [ ] Billing JWT issuer/audience/TTL are validated.
 * [ ] Reseller keys resolve only through configured secret resolver.
 * [ ] Raw secrets are absent from database, audit, errors and logs.
