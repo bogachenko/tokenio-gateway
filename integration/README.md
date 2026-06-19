@@ -106,4 +106,8 @@ dependency can deterministically return a quota exhausted response.
 
 `integration/fake_provider_5xx_test.go` verifies that every checked-in fake
 dependency can deterministically return a provider/server 5xx response.
+## Fake service timeout scenario
+
+`integration/fake_timeout_test.go` verifies a deterministic local timeout using an
+in-process delayed `httptest.Server`.
 

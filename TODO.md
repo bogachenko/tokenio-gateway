@@ -283,7 +283,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add integration quota exhausted scenario covering deterministic quota responses for all fake dependencies.
 * [x] Provider 5xx.
 * [x] Add integration provider 5xx scenario covering deterministic server failures for all fake dependencies.
-* [ ] Timeout.
+* [x] Timeout.
+* [x] Add deterministic local timeout scenario using delayed `httptest.Server` and short client timeout.
 * [ ] Connection reset.
 * [ ] Headers received, body failed.
 * [ ] Missing usage.
