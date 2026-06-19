@@ -79,3 +79,4 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Integration environment documents and scripts local Docker Compose cleanup with volume/orphan removal.
 
 - [x] CI runs Go unit tests with `go test ./...` on pull requests and pushes to `main`.
+- [x] CI runs `go vet ./...` after unit tests.
