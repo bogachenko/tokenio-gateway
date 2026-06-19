@@ -228,7 +228,8 @@ For every key in `docs/spec/090-configuration.ru.md` verify:
 * [x] Add automated tests that model and LLM credential extraction reject `key`, `api_key`, `access_token`, auth-header aliases and provider API-key aliases in query strings.
 * [x] Hop-by-hop headers are removed.
 * [x] Add automated response-pass-through evidence that hop-by-hop upstream headers including `Connection`, `Keep-Alive`, `Proxy-*`, `TE`, `Trailer`, `Transfer-Encoding` and `Upgrade` are not copied to clients.
-* [ ] Inbound Tokenio auth headers are removed before forwarding.
+* [x] Inbound Tokenio auth headers are removed before forwarding.
+* [x] Add automated contract audit that forwarding receives `PreparedRequest`, and `PreparedRequest` cannot carry inbound authorization/API-key headers or raw public API key material.
 * [ ] Admin auth is separate from public auth.
 * [ ] Provisioning auth is separate from public/admin auth.
 
