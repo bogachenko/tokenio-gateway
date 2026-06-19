@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bogachenko/tokenio-gateway/internal/config"
 	provisioningexpiration "github.com/bogachenko/tokenio-gateway/internal/worker/provisioningexpiration"
 )
 
@@ -59,6 +60,7 @@ func TestNewWorkerGraphWiresProvisioningExpiration(
 	graph, err := NewWorkerGraph(
 		cfg,
 		applications,
+		validLoggingGraph(t),
 		workerGraphObserver{},
 	)
 	if err != nil {
@@ -111,6 +113,7 @@ func TestNewWorkerGraphAllowsProvisioningDisabled(
 	graph, err := NewWorkerGraph(
 		cfg,
 		applications,
+		validLoggingGraph(t),
 		nil,
 	)
 	if err != nil {
@@ -154,6 +157,7 @@ func TestNewWorkerGraphRejectsInvalidWorkerConfig(
 	graph, err := NewWorkerGraph(
 		cfg,
 		applications,
+		validLoggingGraph(t),
 		workerGraphObserver{},
 	)
 	if err == nil {
@@ -219,4 +223,21 @@ func TestWorkerGraphRunRejectsInvalidState(
 	if runner.calls != 0 {
 		t.Fatal("invalid graph invoked worker")
 	}
+}
+
+func validLoggingGraph(t *testing.T) LoggingGraph {
+	t.Helper()
+	graph, err := NewLoggingGraph(
+		config.Config{
+			Environment: "test",
+			LogLevel:    "info",
+			LogFormat:   "text",
+			LogBodies:   false,
+		},
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("NewLoggingGraph: %v", err)
+	}
+	return graph
 }

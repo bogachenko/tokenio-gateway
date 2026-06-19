@@ -34,6 +34,7 @@ func TestNewWorkerGraphWiresTelegramFailedRetryOnlyWhenConfigured(
 		graph, err := NewWorkerGraph(
 			cfg,
 			applications,
+			validLoggingGraph(t),
 			workerGraphObserver{},
 		)
 		if err != nil {
@@ -79,6 +80,7 @@ func TestNewWorkerGraphWiresTelegramFailedRetryOnlyWhenConfigured(
 		graph, err := NewWorkerGraph(
 			cfg,
 			applications,
+			validLoggingGraph(t),
 			workerGraphObserver{},
 		)
 		if err != nil {

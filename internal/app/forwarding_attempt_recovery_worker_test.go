@@ -75,6 +75,7 @@ func TestNewWorkerGraphWiresForwardingAttemptRecovery(
 	graph, err := newWorkerGraphWithObservers(
 		cfg,
 		applications,
+		validLoggingGraph(t),
 		workerGraphObserver{},
 		forwardingRecoveryObserverStub{},
 		billingRecoveryObserverStub{},

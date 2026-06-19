@@ -41,6 +41,7 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Composition-root consumer evidence maps parsed config fields to `internal/app` wiring.
 - [x] Central structured logger/redactor exists and consumes `LogLevel`, `LogFormat` and `LogBodies` through `internal/app` logging composition.
 - [x] Current stdlib logging sites are audited and frozen pending central structured logger/redactor implementation.
+- [x] Worker observer factories use the central logging graph stdlib bridge instead of direct `log.Default()` calls.
 | Reproducible integration environment | All runtime specs | Required `integration/` package with fake Postgres/Billing/OpenAI/Anthropic/Gemini/Ollama/Telegram environment | Required gateway/migration startup orchestration for integration tests | Required `integration/...` tests for public APIs, admin/provisioning, workers, restart and failure scenarios | `go test -tags=integration ./integration/...` | `pending` |
 | Production verification | All specs and ADRs | Full repository after all implementation stages | Gateway/migrate binaries and runtime lifecycle | Clean checkout verification evidence, race tests, integration tests, shutdown/restart/concurrency checks | `gofmt -w . && go vet ./... && go test ./... && go test -race ./... && go test -tags=integration ./integration/... && go build ./cmd/gateway && go build ./cmd/migrate` | `pending` |
 

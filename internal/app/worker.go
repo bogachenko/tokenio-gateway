@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 
 	"github.com/bogachenko/tokenio-gateway/internal/config"
 	billingrecovery "github.com/bogachenko/tokenio-gateway/internal/worker/billingrecovery"
@@ -50,11 +49,19 @@ type WorkerGraph struct {
 func NewWorkerGraph(
 	cfg config.Config,
 	applications ApplicationGraph,
+	loggingGraph LoggingGraph,
 	provisioningObserver provisioningexpiration.Observer,
 ) (WorkerGraph, error) {
+	if err := loggingGraph.Validate(); err != nil {
+		return WorkerGraph{}, fmt.Errorf(
+			"validate logging graph: %w",
+			err,
+		)
+	}
+
 	recoveryObserver, err :=
 		NewForwardingAttemptRecoveryLogObserver(
-			log.Default(),
+			loggingGraph.StdLogger,
 		)
 	if err != nil {
 		return WorkerGraph{}, fmt.Errorf(
@@ -63,7 +70,7 @@ func NewWorkerGraph(
 		)
 	}
 	billingObserver, err := NewBillingRecoveryLogObserver(
-		log.Default(),
+		loggingGraph.StdLogger,
 	)
 	if err != nil {
 		return WorkerGraph{}, fmt.Errorf(
@@ -72,7 +79,7 @@ func NewWorkerGraph(
 		)
 	}
 	telegramDeliveryObserver, err := NewTelegramDeliveryLogObserver(
-		log.Default(),
+		loggingGraph.StdLogger,
 	)
 	if err != nil {
 		return WorkerGraph{}, fmt.Errorf(
@@ -81,7 +88,7 @@ func NewWorkerGraph(
 		)
 	}
 	telegramFailedRetryObserver, err := NewTelegramFailedRetryLogObserver(
-		log.Default(),
+		loggingGraph.StdLogger,
 	)
 	if err != nil {
 		return WorkerGraph{}, fmt.Errorf(
@@ -90,7 +97,7 @@ func NewWorkerGraph(
 		)
 	}
 	telegramBalanceScanObserver, err := NewTelegramBalanceScanLogObserver(
-		log.Default(),
+		loggingGraph.StdLogger,
 	)
 	if err != nil {
 		return WorkerGraph{}, fmt.Errorf(
@@ -101,6 +108,7 @@ func NewWorkerGraph(
 	return newWorkerGraphWithObservers(
 		cfg,
 		applications,
+		loggingGraph,
 		provisioningObserver,
 		recoveryObserver,
 		billingObserver,
@@ -113,6 +121,7 @@ func NewWorkerGraph(
 func newWorkerGraphWithObservers(
 	cfg config.Config,
 	applications ApplicationGraph,
+	loggingGraph LoggingGraph,
 	provisioningObserver provisioningexpiration.Observer,
 	recoveryObserver forwardingattemptrecovery.Observer,
 	billingObserver billingrecovery.Observer,
@@ -203,7 +212,7 @@ func newWorkerGraphWithObservers(
 	}
 
 	telegramRecoveryObserver, err :=
-		NewTelegramStaleAttemptRecoveryLogObserver(log.Default())
+		NewTelegramStaleAttemptRecoveryLogObserver(loggingGraph.StdLogger)
 	if err != nil {
 		return WorkerGraph{}, fmt.Errorf(
 			"construct Telegram stale-attempt recovery observer: %w",

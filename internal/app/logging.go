@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"io"
+	"log"
 	"log/slog"
 
 	"github.com/bogachenko/tokenio-gateway/internal/config"
@@ -11,6 +12,7 @@ import (
 
 type LoggingGraph struct {
 	Logger             *slog.Logger
+	StdLogger          *log.Logger
 	Redactor           gatewaylogging.Redactor
 	BodyLoggingEnabled bool
 }
@@ -37,6 +39,7 @@ func NewLoggingGraph(
 
 	graph := LoggingGraph{
 		Logger:             logger,
+		StdLogger:          slog.NewLogLogger(logger.Handler(), slog.LevelInfo),
 		Redactor:           redactor,
 		BodyLoggingEnabled: cfg.LogBodies,
 	}
@@ -49,6 +52,9 @@ func NewLoggingGraph(
 func (g LoggingGraph) Validate() error {
 	if g.Logger == nil {
 		return fmt.Errorf("logging graph logger is nil")
+	}
+	if g.StdLogger == nil {
+		return fmt.Errorf("logging graph stdlib bridge logger is nil")
 	}
 	return nil
 }

@@ -143,6 +143,7 @@ func NewRuntime(
 	workers, err := NewWorkerGraph(
 		cfg,
 		applications,
+		loggingGraph,
 		provisioningExpirationObserver,
 	)
 	if err != nil {

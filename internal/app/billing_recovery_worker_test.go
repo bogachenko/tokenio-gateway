@@ -37,6 +37,7 @@ func TestNewWorkerGraphWiresBillingRecovery(t *testing.T) {
 	graph, err := NewWorkerGraph(
 		cfg,
 		applications,
+		validLoggingGraph(t),
 		workerGraphObserver{},
 	)
 	if err != nil {

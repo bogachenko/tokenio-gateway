@@ -33,6 +33,7 @@ func TestNewWorkerGraphWiresTelegramStaleAttemptRecovery(
 	graph, err := NewWorkerGraph(
 		cfg,
 		applications,
+		validLoggingGraph(t),
 		workerGraphObserver{},
 	)
 	if err != nil {

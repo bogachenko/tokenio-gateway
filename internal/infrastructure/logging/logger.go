@@ -89,15 +89,16 @@ func (r Redactor) String(value string) string {
 }
 
 func (r Redactor) Header(headers http.Header) http.Header {
-	copy := make(http.Header, len(headers))
+	clone := make(http.Header, len(headers))
 	for key, values := range headers {
-		if shouldRedactKey(key) {
-			copy[key] = []string{redacted}
+		canonicalKey := http.CanonicalHeaderKey(key)
+		if shouldRedactKey(key) || shouldRedactKey(canonicalKey) {
+			clone[canonicalKey] = []string{redacted}
 			continue
 		}
-		copy[key] = append([]string(nil), values...)
+		clone[canonicalKey] = append([]string(nil), values...)
 	}
-	return copy
+	return clone
 }
 
 func (Redactor) DSN(raw string) string {

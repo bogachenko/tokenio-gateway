@@ -85,26 +85,35 @@ func TestNewRejectsBodyLoggingInProduction(t *testing.T) {
 func TestRedactorHeaderAndDSN(t *testing.T) {
 	redactor := Redactor{}
 	headers := http.Header{
-		"Authorization": []string{"Bearer secret"},
-		"Content-Type":  []string{"application/json"},
+		"X-API-Key":     {"secret-key"},
+		"Authorization": {"Bearer secret-token"},
+		"X-Request-ID":  {"req_123"},
 	}
 
 	redactedHeaders := redactor.Header(headers)
-	if got := redactedHeaders.Get("Authorization"); got != redacted {
-		t.Fatalf("Authorization = %q, want redacted", got)
+	if value := redactedHeaders.Get("X-API-Key"); value != redacted {
+		t.Fatalf("X-API-Key = %q, want redacted", value)
 	}
-	if got := redactedHeaders.Get("Content-Type"); got != "application/json" {
-		t.Fatalf("Content-Type = %q", got)
+	if value := redactedHeaders.Get("Authorization"); value != redacted {
+		t.Fatalf("Authorization = %q, want redacted", value)
 	}
-	if headers.Get("Authorization") != "Bearer secret" {
-		t.Fatal("Header mutated original headers")
+	if value := redactedHeaders.Get("X-Request-ID"); value != "req_123" {
+		t.Fatalf("X-Request-ID = %q", value)
+	}
+	if got := headers["X-API-Key"][0]; got != "secret-key" {
+		t.Fatalf("redactor mutated original headers: %q", got)
+	}
+	redactedHeaders.Set("X-Request-ID", "changed")
+	if got := headers["X-Request-ID"][0]; got != "req_123" {
+		t.Fatalf("redactor returned header aliases original values: %q", got)
 	}
 
-	redactedDSN := redactor.DSN("postgres://user:password@localhost:5432/tokenio")
-	if strings.Contains(redactedDSN, "password") {
+	dsn := "postgres://user:secret-password@localhost:5432/tokenio"
+	redactedDSN := redactor.DSN(dsn)
+	if strings.Contains(redactedDSN, "secret-password") {
 		t.Fatalf("DSN leaked password: %s", redactedDSN)
 	}
-	if !strings.Contains(redactedDSN, redacted) {
-		t.Fatalf("DSN = %s, want URL-escaped redaction marker", redactedDSN)
+	if !strings.Contains(redactedDSN, "REDACTED") {
+		t.Fatalf("DSN = %s, want redaction marker", redactedDSN)
 	}
 }

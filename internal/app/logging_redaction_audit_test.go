@@ -39,12 +39,6 @@ func currentStdlibLoggingSitesPendingStructuredLogger() []string {
 		"internal/app/app.go:70",
 		"internal/app/app.go:87",
 		"internal/app/application.go:470",
-		"internal/app/worker.go:57",
-		"internal/app/worker.go:66",
-		"internal/app/worker.go:75",
-		"internal/app/worker.go:84",
-		"internal/app/worker.go:93",
-		"internal/app/worker.go:206",
 	}
 }
 
