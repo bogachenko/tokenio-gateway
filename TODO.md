@@ -271,7 +271,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 
 ### 4.2. Fake service scenarios
 
-* [ ] Success.
+* [x] Success.
+* [x] Add integration success scenario covering default happy-path responses for all fake dependencies.
 * [ ] Invalid request.
 * [ ] Authentication failure.
 * [ ] Rate limit.

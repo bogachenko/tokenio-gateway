@@ -82,4 +82,8 @@ Integration tests must not call external real services. Use only:
 
 The `integration/no_external_services_test.go` audit fails if integration files reference
 known external service markers.
+## Fake service success scenario
+
+`integration/fake_success_test.go` verifies that every checked-in fake dependency has
+a deterministic successful default response.
 

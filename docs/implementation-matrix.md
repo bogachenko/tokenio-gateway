@@ -93,3 +93,4 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Integration fake Telegram API exists at `integration/fakes/telegram` with deterministic `sendMessage` default and programmable responses.
 - [x] Integration migrations and gateway lifecycle command exists at `scripts/integration-lifecycle-smoke.sh`.
 - [x] Integration external-service audit exists at `integration/no_external_services_test.go`.
+- [x] Fake service success scenario exists at `integration/fake_success_test.go`.
