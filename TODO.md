@@ -88,9 +88,9 @@ Native support must be implemented as parallel vertical slices. Do not convert n
 
 ### 2.1. Shared native-family contract
 
-* [ ] Add transport-level family/auth extraction contract for native adapters.
-* [ ] Normalize each accepted auth carrier into the same internal Tokenio raw API key contract.
-* [ ] Reject conflicting/unsupported carriers deterministically.
+* [x] Add transport-level family/auth extraction contract for native adapters.
+* [x] Normalize each accepted auth carrier into the same internal Tokenio raw API key contract.
+* [x] Reject conflicting/unsupported carriers deterministically.
 * [ ] Ensure inbound Tokenio credentials are stripped before upstream forwarding.
 * [ ] Ensure route selection is always constrained by `api_family + endpoint_kind + client_model`.
 * [ ] Ensure fallback never crosses `api_family`.
