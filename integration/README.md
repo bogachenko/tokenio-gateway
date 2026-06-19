@@ -119,4 +119,8 @@ reset using a TCP listener that accepts and immediately closes the connection.
 `integration/fake_headers_body_failed_test.go` verifies a deterministic case where
 HTTP headers are received successfully, but the response body fails before the declared
 `Content-Length` is satisfied.
+## Fake service missing usage scenario
+
+`integration/fake_missing_usage_test.go` verifies deterministic successful responses
+that intentionally omit provider usage fields.
 

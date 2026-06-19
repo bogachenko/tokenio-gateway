@@ -289,7 +289,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add deterministic local connection reset scenario using a TCP listener that closes accepted connections.
 * [x] Headers received, body failed.
 * [x] Add deterministic local scenario where HTTP headers are received but body read fails before declared `Content-Length`.
-* [ ] Missing usage.
+* [x] Missing usage.
+* [x] Add integration missing usage scenario covering successful fake provider responses without usage fields.
 * [ ] Malformed usage.
 * [ ] Partial Billing charge.
 * [ ] Duplicate Billing request.
