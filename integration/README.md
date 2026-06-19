@@ -102,4 +102,8 @@ can deterministically return a rate-limit response with `Retry-After`.
 
 `integration/fake_quota_exhausted_test.go` verifies that every checked-in fake
 dependency can deterministically return a quota exhausted response.
+## Fake service provider 5xx scenario
+
+`integration/fake_provider_5xx_test.go` verifies that every checked-in fake
+dependency can deterministically return a provider/server 5xx response.
 

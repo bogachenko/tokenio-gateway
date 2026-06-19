@@ -98,3 +98,4 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Fake service authentication failure scenario exists at `integration/fake_authentication_failure_test.go`.
 - [x] Fake service rate-limit scenario exists at `integration/fake_rate_limit_test.go`.
 - [x] Fake service quota exhausted scenario exists at `integration/fake_quota_exhausted_test.go`.
+- [x] Fake service provider 5xx scenario exists at `integration/fake_provider_5xx_test.go`.

@@ -281,7 +281,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add integration rate-limit scenario covering deterministic 429 responses with `Retry-After` for all fake dependencies.
 * [x] Quota exhausted.
 * [x] Add integration quota exhausted scenario covering deterministic quota responses for all fake dependencies.
-* [ ] Provider 5xx.
+* [x] Provider 5xx.
+* [x] Add integration provider 5xx scenario covering deterministic server failures for all fake dependencies.
 * [ ] Timeout.
 * [ ] Connection reset.
 * [ ] Headers received, body failed.
