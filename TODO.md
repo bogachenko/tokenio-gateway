@@ -80,38 +80,37 @@ go test ./internal/infrastructure/postgres -run 'Telegram'
 
 ---
 
-## 2. Implement native API families
+## 2. Native API families — completed vertical slices
 
 Specification source: `docs/spec/011-native-api-families.ru.md`, `docs/adr/0002-native-api-auth-carriers.md`.
 
-Native support must be implemented as parallel vertical slices. Do not convert native request bodies into OpenAI-compatible request bodies.
+Native support is implemented as parallel vertical slices. Native request bodies are not converted into OpenAI-compatible request bodies. Do not reopen this section unless a concrete failing test or missing spec requirement is identified.
 
 ### 2.1. Shared native-family contract
 
-* [x] Add transport-level family/auth extraction contract for native adapters.
-* [x] Normalize each accepted auth carrier into the same internal Tokenio raw API key contract.
-* [x] Reject conflicting/unsupported carriers deterministically.
-* [ ] Ensure inbound Tokenio credentials are stripped before upstream forwarding.
-* [ ] Ensure route selection is always constrained by `api_family + endpoint_kind + client_model`.
-* [ ] Ensure fallback never crosses `api_family`.
-* [ ] Add cross-family acceptance tests.
+* [x] Transport-level family/auth extraction contract exists for native adapters.
+* [x] Each accepted auth carrier is normalized into the internal Tokenio raw API key contract.
+* [x] Conflicting/unsupported carriers are rejected deterministically.
+* [x] Inbound Tokenio credentials are stripped before upstream forwarding.
+* [x] Route selection is constrained by `api_family + endpoint_kind + client_model`.
+* [x] Fallback does not cross `api_family`.
+* [x] Cross-family acceptance evidence exists in native transport, forwarding registry and request lifecycle tests.
 
 ### 2.2. Anthropic native
 
-* [x] Implement `POST /v1/messages`.
-* [x] Accept Tokenio key only through `x-api-key`.
-* [x] Extract model from native request.
-* [x] Preserve body byte-for-byte except allowed model identifier rewrite.
-* [x] Implement Anthropic forwarding adapter.
-* [x] Wire Anthropic forwarding factory into application forwarding registry.
-* [x] Implement Anthropic usage extraction.
-* [x] Implement Anthropic failure classifier.
-* [x] Return upstream success body byte-for-byte.
-* [x] Add transport-to-ledger acceptance tests.
+* [x] `POST /v1/messages` public transport dispatch.
+* [x] Tokenio key carrier: `x-api-key`.
+* [x] Native model extraction from request body.
+* [x] Body preservation except allowed model identifier rewrite.
+* [x] Native forwarding adapter and application factory wiring.
+* [x] Native usage extraction.
+* [x] Native failure classifier.
+* [x] Upstream success body passthrough.
+* [x] Transport-to-ledger acceptance evidence.
 
 ### 2.3. Gemini native
 
-* [ ] Implement:
+* [x] Public transport dispatch for:
 
   ```text
   POST /v1beta/models/{model}:generateContent
@@ -120,41 +119,35 @@ Native support must be implemented as parallel vertical slices. Do not convert n
   GET  /v1beta/models
   ```
 
-* [x] Accept Tokenio key only through `x-goog-api-key`.
-* [x] Reject query-string `?key=` credentials.
-* [x] Extract model from path.
-* [x] Preserve body byte-for-byte except allowed path model segment rewrite.
-* [x] Implement Gemini forwarding adapter.
-* [x] Wire Gemini forwarding factory into application forwarding registry.
-* [x] Implement Gemini usage extraction.
-* [x] Implement Gemini failure classifier.
-* [x] Return upstream success body byte-for-byte.
-* [x] Add transport-to-ledger acceptance tests.
+* [x] Tokenio key carrier: `x-goog-api-key`.
+* [x] Query-string `?key=` credentials are rejected.
+* [x] Native model extraction from path.
+* [x] Body preservation except allowed path model segment rewrite.
+* [x] Native forwarding adapter and application factory wiring.
+* [x] Native usage extraction.
+* [x] Native failure classifier.
+* [x] Upstream success body passthrough.
+* [x] Transport-to-ledger acceptance evidence.
 
 ### 2.4. Ollama native
 
-* [x] Implement public transport dispatch for:
+* [x] Public transport dispatch for:
 
   ```text
   POST /api/chat
   POST /api/generate
   POST /api/embeddings
-  ```
-
-* [x] Implement public model listing transport:
-
-  ```text
   GET  /api/tags
   ```
 
-* [x] Accept Tokenio key through `Authorization: Bearer`.
-* [x] Extract model from native request.
-* [x] Preserve body byte-for-byte except allowed model identifier rewrite.
-* [x] Implement Ollama forwarding adapter.
-* [x] Implement Ollama usage extraction or conservative usage estimation.
-* [x] Implement Ollama failure classifier.
-* [x] Return upstream success body byte-for-byte.
-* [x] Add transport-to-ledger acceptance tests.
+* [x] Tokenio key carrier: `Authorization: Bearer`.
+* [x] Native model extraction from request body.
+* [x] Body preservation except allowed model identifier rewrite.
+* [x] Native forwarding adapter and application factory wiring.
+* [x] Native usage extraction from `prompt_eval_count` and `eval_count`.
+* [x] Native failure classifier.
+* [x] Upstream success body passthrough.
+* [x] Transport-to-ledger acceptance evidence.
 
 ### Verification command
 
