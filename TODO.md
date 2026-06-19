@@ -162,6 +162,8 @@ go test ./internal/transport/http/... ./internal/infrastructure/requestmeta/... 
 
 ### 3.1. Config consumption audit
 
+* [x] Verify composition-root consumers for parsed config fields.
+
 * [x] Reconcile implementation-only worker and HTTP shutdown env keys into `docs/spec/090-configuration.ru.md`.
 For every key in `docs/spec/090-configuration.ru.md` verify:
 
@@ -177,6 +179,7 @@ For every key in `docs/spec/090-configuration.ru.md` verify:
 
 ### 3.2. Structured logging and redaction
 
+* [x] Audit current stdlib logging sites in `cmd/*` and `internal/app/*` and keep `LogLevel`/`LogFormat`/`LogBodies` scoped to structured logger implementation.
 * [ ] Add central structured logger.
 * [ ] Wire log level and log format from config.
 * [ ] Add correlation fields where available:

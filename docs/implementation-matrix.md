@@ -39,6 +39,7 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Config parsing/validation evidence maps every consumed env key to a typed field, parser, validation rule and behavioral coverage.
 - [x] Config composition-root consumer evidence maps non-logging typed config fields to `internal/app` consumers; `LogLevel`, `LogFormat` and `LogBodies` remain scoped to 3.2 structured logging/redaction.
 - [x] Composition-root consumer evidence maps parsed config fields to `internal/app` wiring, with logging fields intentionally pending structured logger implementation.
+- [x] Current stdlib logging sites are audited and frozen pending central structured logger/redactor implementation.
 | Reproducible integration environment | All runtime specs | Required `integration/` package with fake Postgres/Billing/OpenAI/Anthropic/Gemini/Ollama/Telegram environment | Required gateway/migration startup orchestration for integration tests | Required `integration/...` tests for public APIs, admin/provisioning, workers, restart and failure scenarios | `go test -tags=integration ./integration/...` | `pending` |
 | Production verification | All specs and ADRs | Full repository after all implementation stages | Gateway/migrate binaries and runtime lifecycle | Clean checkout verification evidence, race tests, integration tests, shutdown/restart/concurrency checks | `gofmt -w . && go vet ./... && go test ./... && go test -race ./... && go test -tags=integration ./integration/... && go build ./cmd/gateway && go build ./cmd/migrate` | `pending` |
 
