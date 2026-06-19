@@ -62,7 +62,8 @@ func isPublicLLMPath(path string) bool {
 	switch path {
 	case "/v1/chat/completions",
 		"/v1/embeddings",
-		"/v1/images/generations":
+		"/v1/images/generations",
+		"/v1/messages":
 		return true
 	default:
 		return false

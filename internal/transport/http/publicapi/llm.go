@@ -9,14 +9,16 @@ import (
 	llmrequestapp "github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
+	"github.com/bogachenko/tokenio-gateway/internal/transport/http/nativeapi"
 	"github.com/bogachenko/tokenio-gateway/internal/transport/httptransport"
 )
 
 const (
-	chatCompletionsPath  = "/v1/chat/completions"
-	embeddingsPath       = "/v1/embeddings"
-	imageGenerationsPath = "/v1/images/generations"
-	idempotencyKeyHeader = "Idempotency-Key"
+	chatCompletionsPath   = "/v1/chat/completions"
+	embeddingsPath        = "/v1/embeddings"
+	imageGenerationsPath  = "/v1/images/generations"
+	anthropicMessagesPath = "/v1/messages"
+	idempotencyKeyHeader  = "Idempotency-Key"
 )
 
 type LLMRequest interface {
@@ -64,7 +66,7 @@ func (h *LLMRouter) ServeHTTP(
 	}
 	writer.Header().Set(localRequestIDHeader, requestID)
 
-	endpointKind, ok := llmEndpointKind(request.URL.Path)
+	contract, ok := llmContractForPath(request.URL.Path)
 	if !ok {
 		writeError(
 			writer,
@@ -87,16 +89,18 @@ func (h *LLMRouter) ServeHTTP(
 		return
 	}
 
-	rawAPIKey, authFailure := parseAuthorization(
-		request.Header.Get("Authorization"),
+	credential, credentialFailure := nativeapi.ExtractCredential(
+		contract.APIFamily,
+		request.Header,
+		request.URL.Query(),
 	)
-	if authFailure != nil {
+	if credentialFailure != nil {
 		writeError(
 			writer,
 			requestID,
-			authFailure.status,
-			authFailure.code,
-			authFailure.message,
+			credentialFailure.Status,
+			domain.ErrorCodeUnauthorized,
+			credentialFailure.Reason,
 		)
 		return
 	}
@@ -120,10 +124,10 @@ func (h *LLMRouter) ServeHTTP(
 		request.Context(),
 		llmrequestapp.Input{
 			LocalRequestID: requestID,
-			RawAPIKey:      rawAPIKey,
+			RawAPIKey:      credential.RawAPIKey,
 			IdempotencyKey: idempotencyKey,
-			APIFamily:      domain.APIFamilyOpenAICompatible,
-			EndpointKind:   endpointKind,
+			APIFamily:      contract.APIFamily,
+			EndpointKind:   contract.EndpointKind,
 			Payload:        body,
 		},
 	)
@@ -178,17 +182,12 @@ func writeLLMApplicationError(
 	)
 }
 
-func llmEndpointKind(path string) (domain.EndpointKind, bool) {
-	switch path {
-	case chatCompletionsPath:
-		return domain.EndpointChat, true
-	case embeddingsPath:
-		return domain.EndpointEmbeddings, true
-	case imageGenerationsPath:
-		return domain.EndpointImagesGeneration, true
-	default:
-		return "", false
+func llmContractForPath(path string) (nativeapi.Contract, bool) {
+	contract, ok := nativeapi.Resolve(http.MethodPost, path)
+	if !ok || contract.EndpointKind == domain.EndpointModels {
+		return nativeapi.Contract{}, false
 	}
+	return contract, true
 }
 
 func writeLLMBodyError(

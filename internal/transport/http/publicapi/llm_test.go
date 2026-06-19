@@ -99,6 +99,7 @@ func TestLLMRouterDispatchesNormalizedInputAndPassesResponseThrough(
 		{chatCompletionsPath, domain.EndpointChat},
 		{embeddingsPath, domain.EndpointEmbeddings},
 		{imageGenerationsPath, domain.EndpointImagesGeneration},
+		{anthropicMessagesPath, domain.EndpointChat},
 	}
 
 	for _, test := range tests {
@@ -125,7 +126,11 @@ func TestLLMRouterDispatchesNormalizedInputAndPassesResponseThrough(
 				test.path,
 				strings.NewReader(string(body)),
 			)
-			request.Header.Set("Authorization", "Bearer sk_live_test")
+			if test.path == anthropicMessagesPath {
+				request.Header.Set("x-api-key", "sk_live_test")
+			} else {
+				request.Header.Set("Authorization", "Bearer sk_live_test")
+			}
 			request.Header.Set("Content-Type", "application/json")
 			request.Header.Set("Idempotency-Key", "idem-1")
 			response := httptest.NewRecorder()
@@ -141,9 +146,13 @@ func TestLLMRouterDispatchesNormalizedInputAndPassesResponseThrough(
 			if requests.calls != 1 {
 				t.Fatalf("calls=%d", requests.calls)
 			}
+			wantFamily := domain.APIFamilyOpenAICompatible
+			if test.path == anthropicMessagesPath {
+				wantFamily = domain.APIFamilyAnthropicNative
+			}
 			if requests.input.LocalRequestID != "llmreq_transport_1" ||
 				requests.input.RawAPIKey != "sk_live_test" ||
-				requests.input.APIFamily != domain.APIFamilyOpenAICompatible ||
+				requests.input.APIFamily != wantFamily ||
 				requests.input.EndpointKind != test.kind ||
 				string(requests.input.Payload) != string(body) ||
 				requests.input.IdempotencyKey == nil ||
@@ -455,5 +464,70 @@ func TestLLMRouterPassesThroughPricingFailedSuccess(t *testing.T) {
 	}
 	if response.Header().Get("X-Billing-Status") != "pricing_failed" {
 		t.Fatalf("headers=%#v", response.Header())
+	}
+}
+
+func TestLLMRouterRejectsAnthropicCredentialInWrongCarrier(t *testing.T) {
+	requests := &testLLMRequests{}
+	router, err := NewLLMRouter(
+		requests,
+		&testRequestIDs{local: "llmreq_anthropic_auth_1"},
+		1024,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name   string
+		header func(http.Header)
+		url    string
+	}{
+		{
+			name: "authorization bearer rejected",
+			header: func(header http.Header) {
+				header.Set("Authorization", "Bearer sk_live_test")
+			},
+			url: anthropicMessagesPath,
+		},
+		{
+			name: "query key rejected",
+			header: func(header http.Header) {
+				header.Set("x-api-key", "sk_live_test")
+			},
+			url: anthropicMessagesPath + "?key=sk_query_secret",
+		},
+		{
+			name: "conflicting carriers rejected",
+			header: func(header http.Header) {
+				header.Set("x-api-key", "sk_live_test")
+				header.Set("Authorization", "Bearer sk_other_secret")
+			},
+			url: anthropicMessagesPath,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(
+				http.MethodPost,
+				test.url,
+				strings.NewReader(`{"model":"claude-client","messages":[]}`),
+			)
+			request.Header.Set("Content-Type", "application/json")
+			test.header(request.Header)
+			response := httptest.NewRecorder()
+
+			router.ServeHTTP(response, request)
+
+			if response.Code != http.StatusUnauthorized || requests.calls != 0 {
+				t.Fatalf(
+					"status=%d calls=%d body=%s",
+					response.Code,
+					requests.calls,
+					response.Body.String(),
+				)
+			}
+		})
 	}
 }

@@ -192,3 +192,32 @@ func TestRouterDoesNotDispatchDisabledProvisioning(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
 	}
 }
+
+func TestRouterRoutesAnthropicMessagesAsPublicLLMPath(t *testing.T) {
+	public := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("public handler must not receive Anthropic messages")
+	})
+	admin := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("admin handler must not receive Anthropic messages")
+	})
+	llm := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/messages" {
+			t.Fatalf("path=%q", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusAccepted)
+	})
+	router, err := NewRouter(public, llm, admin, nil)
+	if err != nil {
+		t.Fatalf("NewRouter: %v", err)
+	}
+
+	response := httptest.NewRecorder()
+	router.ServeHTTP(
+		response,
+		httptest.NewRequest(http.MethodPost, "/v1/messages", nil),
+	)
+
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+}
