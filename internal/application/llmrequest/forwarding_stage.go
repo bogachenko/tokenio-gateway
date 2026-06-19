@@ -813,8 +813,13 @@ func equalForwardingAttemptTimes(
 
 func cloneForwardResponse(value ports.ForwardResponse) ports.ForwardResponse {
 	result := value
+	if value.Headers != nil {
+		result.Headers = make(map[string][]string, len(value.Headers))
+		for key, values := range value.Headers {
+			result.Headers[key] = append([]string(nil), values...)
+		}
+	}
 	result.Body = cloneBytes(value.Body)
-	result.Headers = cloneHeaders(value.Headers)
 	if value.Usage != nil {
 		usage := *value.Usage
 		result.Usage = &usage
