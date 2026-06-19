@@ -215,7 +215,8 @@ For every key in `docs/spec/090-configuration.ru.md` verify:
 
 ### 3.3. Security verification
 
-* [ ] User API keys are hashed only with HMAC-SHA256.
+* [x] User API keys are hashed only with HMAC-SHA256.
+* [x] Add automated security audit that user API key hash implementation imports `crypto/hmac` and `crypto/sha256` and rejects raw SHA256/MD5/SHA1/bcrypt/scrypt/argon2 in that context.
 * [ ] Startup fails without `TOKENIO_API_KEY_HASH_SECRET`.
 * [ ] Billing JWT issuer/audience/TTL are validated.
 * [ ] Reseller keys resolve only through configured secret resolver.

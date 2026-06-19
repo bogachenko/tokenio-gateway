@@ -56,3 +56,7 @@ Interface, struct, repository method or constructor alone is not implementation 
 6. Complete config/logging/security audit.
 7. Add reproducible integration environment.
 8. Run final production verification and update this matrix with final command evidence.
+
+## Security verification
+
+- [x] Security audit verifies user API key hashing uses HMAC-SHA256 and rejects non-HMAC/raw hash alternatives in API-key-hash production code.
