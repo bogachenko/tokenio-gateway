@@ -31,4 +31,9 @@ Stop and remove local state:
 ```bash
 ./scripts/integration-postgres-down.sh
 ```
+## Fake Billing service
+
+The reusable fake Billing service lives in `integration/fakes/billing`. It is an
+in-process `httptest.Server` with programmable responses and request recording.
+Use it from integration scenarios instead of calling external Billing services.
 
