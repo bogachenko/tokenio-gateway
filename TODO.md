@@ -50,17 +50,17 @@ Do not reopen these sections in this TODO unless a concrete failing test or miss
 
 ### 1.1. Admin transport endpoints
 
-* [ ] Expose `GET /admin/v1/telegram-alerts` in `internal/transport/http/admin`.
-* [ ] Expose `POST /admin/v1/telegram-alerts/{id}/retry` in `internal/transport/http/admin`.
-* [ ] Route both endpoints through `internal/application/admin`, not directly to Telegram application or Postgres.
-* [ ] Preserve admin auth, request ID and common response/error envelope behavior.
+* [x] Expose `GET /admin/v1/telegram-alerts` in `internal/transport/http/admin`.
+* [x] Expose `POST /admin/v1/telegram-alerts/{id}/retry` in `internal/transport/http/admin`.
+* [x] Route both endpoints through `internal/application/admin`, not directly to Telegram application or Postgres.
+* [x] Preserve admin auth, request ID and common response/error envelope behavior.
 
 ### 1.2. Admin application contract
 
-* [ ] Listing supports deterministic filters/pagination required by `docs/spec/060-admin-api.ru.md`.
-* [ ] Manual retry is allowed only for retryable alert states.
-* [ ] Manual retry records admin audit with reason and admin identity.
-* [ ] Successfully delivered alert cannot be sent again without explicit admin state transition.
+* [x] Listing supports deterministic filters/pagination required by `docs/spec/060-admin-api.ru.md`.
+* [x] Manual retry is allowed only for retryable alert states.
+* [x] Manual retry records admin audit with reason and admin identity.
+* [x] Successfully delivered alert cannot be sent again without explicit admin state transition.
 
 ### 1.3. Telegram delivery evidence gaps
 
@@ -68,7 +68,7 @@ Do not reopen these sections in this TODO unless a concrete failing test or miss
 * [x] Verify temporary Telegram failure lifecycle.
 * [x] Verify permanent Telegram failure lifecycle.
 * [x] Verify stale attempt recovery after restart.
-* [ ] Verify Telegram error never rolls back committed reseller balance operation.
+* [x] Verify Telegram error never rolls back committed reseller balance operation.
 
 ### Verification command
 
