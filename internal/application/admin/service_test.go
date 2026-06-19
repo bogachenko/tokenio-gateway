@@ -199,8 +199,12 @@ func (f *fakeGenerator) GenerateAPIKey() (string, error) { return f.raw, f.err }
 
 type telegramAlertStoreFake struct {
 	ports.TelegramAlertStore
-	filter ports.TelegramAlertListFilter
-	page   ports.Page[domain.TelegramAlert]
+	filter        ports.TelegramAlertListFilter
+	page          ports.Page[domain.TelegramAlert]
+	alert         *domain.TelegramAlert
+	retryExpected domain.TelegramAlert
+	retryNext     domain.TelegramAlert
+	retryAudit    domain.AuditContext
 }
 
 func (f *telegramAlertStoreFake) ListTelegramAlerts(
@@ -209,6 +213,30 @@ func (f *telegramAlertStoreFake) ListTelegramAlerts(
 ) (ports.Page[domain.TelegramAlert], error) {
 	f.filter = filter
 	return f.page, nil
+}
+
+func (f *telegramAlertStoreFake) FindTelegramAlertByID(
+	_ context.Context,
+	alertID string,
+) (*domain.TelegramAlert, error) {
+	if f.alert == nil || f.alert.ID != alertID {
+		return nil, ports.ErrNotFound
+	}
+	copy := *f.alert
+	return &copy, nil
+}
+
+func (f *telegramAlertStoreFake) CompareAndSwapTelegramAlertWithAudit(
+	_ context.Context,
+	expected domain.TelegramAlert,
+	next domain.TelegramAlert,
+	audit domain.AuditContext,
+) (domain.TelegramAlert, error) {
+	f.retryExpected = expected
+	f.retryNext = next
+	f.retryAudit = audit
+	f.alert = &next
+	return next, nil
 }
 
 type fakeRetrier struct{}

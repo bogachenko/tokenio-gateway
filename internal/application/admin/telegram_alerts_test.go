@@ -92,3 +92,92 @@ func TestListTelegramAlertsRejectsInvalidStatus(t *testing.T) {
 		t.Fatalf("error = %v, want ErrInvalidRequest", err)
 	}
 }
+
+func TestRetryTelegramAlertMovesFailedAlertToPendingWithAudit(t *testing.T) {
+	service := newServiceForTest(
+		t,
+		&fakeUsers{},
+		&fakeKeys{},
+		&fakeResellers{},
+		&fakeRoutes{},
+		&fakeLedger{},
+		&fakeSecrets{},
+		&fakeGenerator{},
+	)
+	alerts := service.deps.TelegramAlerts.(*telegramAlertStoreFake)
+	createdAt := time.Date(2026, 6, 18, 10, 0, 0, 0, time.UTC)
+	alerts.alert = &domain.TelegramAlert{
+		ID:         "tgalt_1",
+		AlertType:  "reseller_balance_low",
+		DedupeKey:  "reseller_1",
+		ResellerID: "reseller_1",
+		Message:    "low",
+		Status:     domain.TelegramAlertStatusFailed,
+		Error:      "telegram_unavailable",
+		CreatedAt:  createdAt,
+	}
+
+	result, err := service.RetryTelegramAlert(
+		context.Background(),
+		command(),
+		"tgalt_1",
+	)
+	if err != nil {
+		t.Fatalf("RetryTelegramAlert: %v", err)
+	}
+	if result.ID != "tgalt_1" ||
+		result.Status != domain.TelegramAlertStatusPending ||
+		result.Error != "" ||
+		result.SentAt != nil {
+		t.Fatalf("result = %#v", result)
+	}
+	if alerts.retryExpected.Status != domain.TelegramAlertStatusFailed ||
+		alerts.retryNext.Status != domain.TelegramAlertStatusPending ||
+		alerts.retryNext.Error != "" ||
+		alerts.retryNext.SentAt != nil {
+		t.Fatalf(
+			"expected=%#v next=%#v",
+			alerts.retryExpected,
+			alerts.retryNext,
+		)
+	}
+	if alerts.retryAudit.Action != domain.AuditActionTelegramAlertRetry ||
+		alerts.retryAudit.EntityType != "telegram_alert" ||
+		alerts.retryAudit.EntityID != "tgalt_1" ||
+		alerts.retryAudit.RequestID != command().RequestID {
+		t.Fatalf("audit = %#v", alerts.retryAudit)
+	}
+}
+
+func TestRetryTelegramAlertRejectsNonFailedAlert(t *testing.T) {
+	service := newServiceForTest(
+		t,
+		&fakeUsers{},
+		&fakeKeys{},
+		&fakeResellers{},
+		&fakeRoutes{},
+		&fakeLedger{},
+		&fakeSecrets{},
+		&fakeGenerator{},
+	)
+	alerts := service.deps.TelegramAlerts.(*telegramAlertStoreFake)
+	alerts.alert = &domain.TelegramAlert{
+		ID:        "tgalt_1",
+		AlertType: "reseller_balance_low",
+		DedupeKey: "reseller_1",
+		Message:   "low",
+		Status:    domain.TelegramAlertStatusPending,
+		CreatedAt: time.Date(
+			2026, 6, 18, 10, 0, 0, 0, time.UTC,
+		),
+	}
+
+	_, err := service.RetryTelegramAlert(
+		context.Background(),
+		command(),
+		"tgalt_1",
+	)
+	if !errors.Is(err, ErrStateConflict) {
+		t.Fatalf("error = %v, want ErrStateConflict", err)
+	}
+}

@@ -51,3 +51,25 @@ func (h *Router) handleTelegramAlerts(
 	}
 	writeList(writer, result.Data, result.Pagination)
 }
+
+func (h *Router) handleTelegramAlertPath(
+	writer http.ResponseWriter,
+	request *http.Request,
+	command application.CommandContext,
+	parts []string,
+) {
+	if len(parts) != 2 || parts[1] != "retry" {
+		writeError(writer, command.RequestID, http.StatusNotFound, domain.ErrorCodeNotFound, "Endpoint not found")
+		return
+	}
+	if request.Method != http.MethodPost {
+		methodNotAllowed(writer, command.RequestID, http.MethodPost)
+		return
+	}
+	result, err := h.service.RetryTelegramAlert(request.Context(), command, parts[0])
+	if err != nil {
+		writeApplicationError(writer, command.RequestID, err)
+		return
+	}
+	writeData(writer, result)
+}

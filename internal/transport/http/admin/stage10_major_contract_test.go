@@ -176,6 +176,14 @@ func (f *stage10MajorRouterServiceFake) ListTelegramAlerts(
 	return application.ListResult[application.TelegramAlertView]{}, nil
 }
 
+func (f *stage10MajorRouterServiceFake) RetryTelegramAlert(
+	context.Context,
+	application.CommandContext,
+	string,
+) (application.TelegramAlertView, error) {
+	return application.TelegramAlertView{}, nil
+}
+
 func TestStage10MajorAdminRequestIDExistsOnAuthErrorsAndUserKeyIsRejected(t *testing.T) {
 	router := stage10MajorNewTestRouter(t, &stage10MajorRouterServiceFake{})
 	cases := []struct {

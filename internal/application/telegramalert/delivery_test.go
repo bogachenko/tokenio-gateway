@@ -577,6 +577,16 @@ func mustDeliveryService(
 	return service
 }
 
+func (f *deliveryStoreFake) CompareAndSwapTelegramAlertWithAudit(
+	ctx context.Context,
+	expected domain.TelegramAlert,
+	next domain.TelegramAlert,
+	_ domain.AuditContext,
+) (domain.TelegramAlert, error) {
+	// ponytail: test fake delegates audit-free transition; production atomic audit is covered in postgres/admin tests.
+	return f.CompareAndSwapTelegramAlert(ctx, expected, next)
+}
+
 var _ ports.TelegramAlertStore = (*deliveryStoreFake)(nil)
 var _ ports.TelegramDeliveryAttemptStore = (*deliveryAttemptStoreFake)(nil)
 var _ MessageSender = (*deliverySenderFake)(nil)

@@ -530,3 +530,99 @@ func buildTelegramAlertFilter(
 	}
 	return " WHERE " + strings.Join(clauses, " AND "), args
 }
+
+func (s *TelegramAlertStore) CompareAndSwapTelegramAlertWithAudit(
+	ctx context.Context,
+	expected domain.TelegramAlert,
+	next domain.TelegramAlert,
+	audit domain.AuditContext,
+) (domain.TelegramAlert, error) {
+	if err := validateTelegramAlertPersistence(expected); err != nil {
+		return domain.TelegramAlert{}, err
+	}
+	if err := validateTelegramAlertPersistence(next); err != nil {
+		return domain.TelegramAlert{}, err
+	}
+	if !sameTelegramAlertIdentity(expected, next) {
+		return domain.TelegramAlert{}, ports.ErrStoreContractViolation
+	}
+	if err := validateTelegramAlertTransition(expected, next); err != nil {
+		return domain.TelegramAlert{}, err
+	}
+	if err := validateAuditForEntity(
+		audit,
+		domain.AuditActionTelegramAlertRetry,
+		"telegram_alert",
+		expected.ID,
+		telegramAlertAuditState(expected),
+		telegramAlertAuditState(next),
+		audit.CreatedAt,
+	); err != nil {
+		return domain.TelegramAlert{}, err
+	}
+
+	persistedNext := canonicalTelegramAlert(next)
+	var result domain.TelegramAlert
+
+	err := InTx(
+		ctx,
+		s.db,
+		pgx.TxOptions{IsoLevel: pgx.Serializable},
+		func(tx pgx.Tx) error {
+			current, err := scanTelegramAlert(
+				tx.QueryRow(ctx, findTelegramAlertForUpdateSQL, expected.ID),
+			)
+			if err != nil {
+				return err
+			}
+			if !sameTelegramAlert(current, expected) {
+				return ports.ErrStoreConflict
+			}
+			if err := insertAdminAudit(ctx, tx, audit); err != nil {
+				return err
+			}
+
+			value, err := scanTelegramAlert(tx.QueryRow(
+				ctx,
+				updateTelegramAlertSQL,
+				persistedNext.ID,
+				persistedNext.AlertType,
+				persistedNext.DedupeKey,
+				nullIfEmpty(persistedNext.ResellerID),
+				nullIfEmpty(persistedNext.RouteID),
+				persistedNext.Message,
+				string(persistedNext.Status),
+				nullIfEmpty(persistedNext.Error),
+				persistedNext.CreatedAt,
+				operationalTimeArg(persistedNext.SentAt),
+			))
+			if err != nil {
+				return NormalizeError(err)
+			}
+			if !sameTelegramAlert(value, persistedNext) {
+				return ports.ErrStoreContractViolation
+			}
+			result = value
+			return nil
+		},
+	)
+	if err != nil {
+		return domain.TelegramAlert{}, err
+	}
+	return result, nil
+}
+
+func telegramAlertAuditState(value domain.TelegramAlert) domain.AuditState {
+	return domain.AuditState{
+		"id":          value.ID,
+		"alert_type":  value.AlertType,
+		"dedupe_key":  value.DedupeKey,
+		"reseller_id": value.ResellerID,
+		"route_id":    value.RouteID,
+		"message":     value.Message,
+		"status":      value.Status,
+		"error":       value.Error,
+		"created_at":  value.CreatedAt.UTC(),
+		"sent_at":     adminCanonicalTimePointer(value.SentAt),
+	}
+}

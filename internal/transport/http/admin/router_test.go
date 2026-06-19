@@ -59,6 +59,9 @@ type testService struct {
 	updateResellerInput application.UpdateResellerInput
 	telegramInput       application.TelegramAlertListInput
 	telegramCalls       int
+	telegramRetryCalls  int
+	telegramRetryID     string
+	telegramRetryCmd    application.CommandContext
 	retryCalls          int
 	retryCommand        application.CommandContext
 	retryBatchID        string
@@ -95,6 +98,19 @@ func (f *testService) ListTelegramAlerts(
 			Total:  1,
 		},
 	}, nil
+}
+
+func (f *testService) RetryTelegramAlert(
+	_ context.Context,
+	command application.CommandContext,
+	alertID string,
+) (application.TelegramAlertView, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.telegramRetryCalls++
+	f.telegramRetryID = alertID
+	f.telegramRetryCmd = command
+	return application.TelegramAlertView{ID: alertID}, nil
 }
 
 func (f *testService) RetryFailedBillingChargeBatch(
@@ -617,5 +633,78 @@ func TestAdminTelegramAlertsListDispatchesFilters(t *testing.T) {
 	}
 	if !strings.Contains(response.Body.String(), `"id":"tgalt_1"`) {
 		t.Fatalf("body=%s", response.Body.String())
+	}
+}
+
+func TestAdminTelegramAlertRetryDispatchesCommandContext(t *testing.T) {
+	events := []string{}
+	service := &testService{}
+	router, err := NewRouter(
+		service,
+		&testAuthenticator{events: &events, subject: "admin_token"},
+		&testIDs{value: "admreq_tg_retry"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/admin/v1/telegram-alerts/tgalt_1/retry",
+		nil,
+	)
+	request.Header.Set("Authorization", "Bearer admin")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	service.mu.Lock()
+	calls := service.telegramRetryCalls
+	alertID := service.telegramRetryID
+	command := service.telegramRetryCmd
+	service.mu.Unlock()
+	if calls != 1 {
+		t.Fatalf("retry calls=%d, want 1", calls)
+	}
+	if alertID != "tgalt_1" {
+		t.Fatalf("alert id=%q", alertID)
+	}
+	if command.RequestID != "admreq_tg_retry" ||
+		command.AdminSubject != "admin_token" {
+		t.Fatalf("command=%+v", command)
+	}
+}
+
+func TestAdminTelegramAlertRetryRejectsWrongMethodBeforeService(t *testing.T) {
+	events := []string{}
+	service := &testService{}
+	router, err := NewRouter(
+		service,
+		&testAuthenticator{events: &events, subject: "admin_token"},
+		&testIDs{value: "admreq_tg_retry_method"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/admin/v1/telegram-alerts/tgalt_1/retry",
+		nil,
+	)
+	request.Header.Set("Authorization", "Bearer admin")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	service.mu.Lock()
+	calls := service.telegramRetryCalls
+	service.mu.Unlock()
+	if calls != 0 {
+		t.Fatalf("retry calls=%d, want 0", calls)
 	}
 }

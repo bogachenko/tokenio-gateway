@@ -27,6 +27,7 @@ const (
 	AuditActionUsageResolveFailed    AuditAction = "usage.resolve_failed"
 	AuditActionUsageResolveCharged   AuditAction = "usage.resolve_charged"
 	AuditActionBillingChargeRetry    AuditAction = "billing_charge.retry"
+	AuditActionTelegramAlertRetry    AuditAction = "telegram_alert.retry"
 )
 
 type AuditState map[string]any

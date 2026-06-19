@@ -107,4 +107,13 @@ type TelegramAlertStore interface {
 		domain.TelegramAlert,
 		domain.TelegramAlert,
 	) (domain.TelegramAlert, error)
+
+	// CompareAndSwapTelegramAlertWithAudit applies a manual admin transition
+	// and writes the audit entry in the same transaction.
+	CompareAndSwapTelegramAlertWithAudit(
+		context.Context,
+		domain.TelegramAlert,
+		domain.TelegramAlert,
+		domain.AuditContext,
+	) (domain.TelegramAlert, error)
 }

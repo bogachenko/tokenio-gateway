@@ -470,4 +470,15 @@ func mustServiceWithClock(
 }
 
 var _ ResellerReader = (*resellerReaderFake)(nil)
+
+func (f *alertStoreFake) CompareAndSwapTelegramAlertWithAudit(
+	ctx context.Context,
+	expected domain.TelegramAlert,
+	next domain.TelegramAlert,
+	_ domain.AuditContext,
+) (domain.TelegramAlert, error) {
+	// ponytail: test fake delegates audit-free transition; production atomic audit is covered in postgres/admin tests.
+	return f.CompareAndSwapTelegramAlert(ctx, expected, next)
+}
+
 var _ ports.TelegramAlertStore = (*alertStoreFake)(nil)
