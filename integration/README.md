@@ -72,4 +72,14 @@ Run a local lifecycle smoke using the checked-in Docker Compose stack:
 
 The script starts Postgres, applies migrations, starts the gateway smoke path and
 then removes local integration state.
+## External service rule
+
+Integration tests must not call external real services. Use only:
+
+- Docker Compose dependencies from this repository;
+- in-process fakes under `integration/fakes`;
+- local test-only URLs provided by scripts.
+
+The `integration/no_external_services_test.go` audit fails if integration files reference
+known external service markers.
 

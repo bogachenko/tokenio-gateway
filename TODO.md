@@ -266,7 +266,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add reusable fake Telegram API under `integration/fakes/telegram` for `sendMessage` responses and request recording.
 * [x] Add commands for migrations and gateway lifecycle.
 * [x] Add `scripts/integration-lifecycle-smoke.sh` to run Postgres startup, migrations and gateway smoke through local Docker Compose.
-* [ ] Do not use external production services in integration tests.
+* [x] Do not use external production services in integration tests.
+* [x] Add integration audit that fails on known external production service markers.
 
 ### 4.2. Fake service scenarios
 
