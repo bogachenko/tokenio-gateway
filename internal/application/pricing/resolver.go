@@ -14,6 +14,12 @@ type ResolveUsageInput struct {
 	RequestBody  []byte
 	ResponseBody []byte
 
+	// ActualUsage is a trusted usage value already extracted by a native
+	// forwarding adapter. It lets native adapters preserve the upstream
+	// response body byte-for-byte while still passing normalized usage to
+	// pricing and ledger finalization.
+	ActualUsage *domain.TokenUsage
+
 	RequestedCapabilities domain.CapabilitySet
 	Modalities            InputModalities
 
@@ -62,6 +68,9 @@ func (r *UsageResolver) Resolve(ctx context.Context, input ResolveUsageInput) (R
 	if input.RequestBody == nil || input.ResponseBody == nil {
 		return ResolvedUsageResult{}, fmt.Errorf("%w: request or response body is nil", ErrInvalidPricingInput)
 	}
+	if input.ActualUsage != nil {
+		return r.actualForwardedUsage(ctx, input)
+	}
 	extracted, err := r.extractor.Extract(ctx, ports.UsageExtractionRequest{
 		APIFamily:    input.Route.APIFamily,
 		EndpointKind: input.Route.EndpointKind,
@@ -101,6 +110,36 @@ func (r *UsageResolver) Resolve(ctx context.Context, input ResolveUsageInput) (R
 	default:
 		return ResolvedUsageResult{}, fmt.Errorf("%w: %q", ErrInvalidUsageCompleteness, completeness)
 	}
+}
+
+func (r *UsageResolver) actualForwardedUsage(
+	ctx context.Context,
+	input ResolveUsageInput,
+) (ResolvedUsageResult, error) {
+	usage := *input.ActualUsage
+	if err := ValidateUsage(usage); err != nil {
+		return ResolvedUsageResult{}, err
+	}
+	if IsZeroUsage(usage) && !input.ZeroUsageAllowed {
+		return r.estimateFallback(ctx, input, UsageCompletenessEstimated, nil)
+	}
+	calculation, err := r.calculator.CalculateActual(
+		ActualCalculationInput{
+			Usage:      usage,
+			Price:      input.Price,
+			InputMode:  InputPricingModeDetailed,
+			Modalities: input.Modalities,
+		},
+	)
+	if err != nil {
+		return ResolvedUsageResult{}, err
+	}
+	return resolvedFromCalculation(
+		calculation,
+		UsageCompletenessDetailed,
+		"",
+		"",
+	), nil
 }
 
 func (r *UsageResolver) partialActualResult(

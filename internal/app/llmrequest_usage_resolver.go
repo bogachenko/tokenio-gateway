@@ -6,6 +6,8 @@ import (
 
 	"github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
 	pricingapp "github.com/bogachenko/tokenio-gateway/internal/application/pricing"
+	"github.com/bogachenko/tokenio-gateway/internal/domain"
+	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
 
 type LLMRequestUsageResolver struct {
@@ -21,6 +23,18 @@ func NewLLMRequestUsageResolver(
 		return nil, llmrequest.ErrDependencyRequired
 	}
 	return &LLMRequestUsageResolver{pricing: pricing}, nil
+}
+
+func forwardUsageToTokenUsage(
+	value *ports.ForwardUsage,
+) *domain.TokenUsage {
+	if value == nil {
+		return nil
+	}
+	return &domain.TokenUsage{
+		InputTokens:  value.InputTokens,
+		OutputTokens: value.OutputTokens,
+	}
 }
 
 func (r *LLMRequestUsageResolver) Resolve(
@@ -49,6 +63,7 @@ func (r *LLMRequestUsageResolver) Resolve(
 			Price:        prepared.Plan.Price,
 			RequestBody:  append([]byte(nil), prepared.Payload...),
 			ResponseBody: append([]byte(nil), input.Response.Body...),
+			ActualUsage:  forwardUsageToTokenUsage(input.Response.Usage),
 			RequestedCapabilities: prepared.
 				RequestedCapabilities,
 			Modalities: pricingapp.InputModalities{
