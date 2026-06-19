@@ -60,4 +60,5 @@ Interface, struct, repository method or constructor alone is not implementation 
 ## Security verification
 
 - [x] Security audit verifies user API key hashing uses HMAC-SHA256 and rejects non-HMAC/raw hash alternatives in API-key-hash production code.
+- [x] Billing JWT identity tokens carry fixed issuer/audience claims, enforce configured TTL as `exp-iat`, and reject missing signing key, TTL or clock configuration.
 - [x] Startup validation fails before runtime construction when `TOKENIO_API_KEY_HASH_SECRET` is empty or whitespace-only.
