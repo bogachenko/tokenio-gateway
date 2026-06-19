@@ -1,22 +1,22 @@
 package httptransport
 
-import (
-	"net/http"
+import "net/http"
 
-	"github.com/bogachenko/tokenio-gateway/internal/domain"
+const (
+	HealthPath    = "/healthz"
+	ReadinessPath = "/readyz"
 )
 
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.Header().Set("Allow", http.MethodGet)
-		WriteGatewayError(w, GatewayError{
-			Status:  http.StatusMethodNotAllowed,
-			Code:    domain.ErrorCodeMethodNotAllowed,
-			Message: "Method not allowed",
-		})
+func HealthHandler(
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	if request.Method != http.MethodGet {
+		writer.Header().Set("Allow", http.MethodGet)
+		http.Error(writer, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	w.Header().Set("Content-Type", "text/plain")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("OK"))
+	writer.Header().Set("Content-Type", "application/json")
+	writer.WriteHeader(http.StatusOK)
+	_, _ = writer.Write([]byte(`{"status":"ok"}`))
 }
