@@ -47,4 +47,9 @@ request recording.
 The reusable fake Anthropic upstream lives in `integration/fakes/anthropic`.
 It supports deterministic defaults for `POST /v1/messages`, plus programmable
 responses and request recording.
+## Fake Gemini upstream
+
+The reusable fake Gemini upstream lives in `integration/fakes/gemini`. It supports
+deterministic defaults for `GET /v1beta/models`, `generateContent`, `embedContent`
+and `batchEmbedContents`, plus programmable responses and request recording.
 

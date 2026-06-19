@@ -258,7 +258,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add reusable fake OpenAI-compatible upstream under `integration/fakes/openaicompat` for models, chat, embeddings and images.
 * [x] Add fake Anthropic upstream.
 * [x] Add reusable fake Anthropic upstream under `integration/fakes/anthropic` for `POST /v1/messages`.
-* [ ] Add fake Gemini upstream.
+* [x] Add fake Gemini upstream.
+* [x] Add reusable fake Gemini upstream under `integration/fakes/gemini` for models, generateContent, embedContent and batchEmbedContents.
 * [ ] Add fake Ollama upstream.
 * [ ] Add fake Telegram API.
 * [ ] Add commands for migrations and gateway lifecycle.

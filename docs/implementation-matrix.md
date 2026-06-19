@@ -88,3 +88,4 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Integration fake Billing service exists at `integration/fakes/billing` with request recording and programmable responses.
 - [x] Integration fake OpenAI-compatible upstream exists at `integration/fakes/openaicompat` with deterministic defaults and programmable responses.
 - [x] Integration fake Anthropic upstream exists at `integration/fakes/anthropic` with deterministic `/v1/messages` defaults and programmable responses.
+- [x] Integration fake Gemini upstream exists at `integration/fakes/gemini` with deterministic native endpoint defaults and programmable responses.
