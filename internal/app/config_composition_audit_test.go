@@ -87,24 +87,6 @@ func TestConfigFieldsReachCompositionRootConsumers(t *testing.T) {
 	}
 }
 
-func TestLoggingConfigFieldsRemainStructuredLoggingScope(t *testing.T) {
-	appSource := readAppGoSources(t)
-	pendingStructuredLoggingFields := []string{
-		"LogLevel",
-		"LogFormat",
-		"LogBodies",
-	}
-
-	for _, field := range pendingStructuredLoggingFields {
-		field := field
-		t.Run(field, func(t *testing.T) {
-			if strings.Contains(appSource, "."+field) {
-				t.Fatalf("logging config field %s is now consumed in internal/app; move it from the 3.2 pending scope into the consumer evidence list", field)
-			}
-		})
-	}
-}
-
 func readAppGoSources(t *testing.T) string {
 	t.Helper()
 	matches, err := filepath.Glob("*.go")

@@ -180,8 +180,8 @@ For every key in `docs/spec/090-configuration.ru.md` verify:
 ### 3.2. Structured logging and redaction
 
 * [x] Audit current stdlib logging sites in `cmd/*` and `internal/app/*` and keep `LogLevel`/`LogFormat`/`LogBodies` scoped to structured logger implementation.
-* [ ] Add central structured logger.
-* [ ] Wire log level and log format from config.
+* [x] Add central structured logger.
+* [x] Wire log level and log format from config.
 * [ ] Add correlation fields where available:
 
   ```text
@@ -194,8 +194,9 @@ For every key in `docs/spec/090-configuration.ru.md` verify:
   billing_batch_id
   ```
 
-* [ ] Do not log request/response bodies by default.
-* [ ] Fail startup when body logging is enabled in production.
+* [x] Do not log request/response bodies by default.
+* [x] Fail startup when body logging is enabled in production.
+* [ ] Wire central logger/redactor into existing stdlib logging callsites.
 * [ ] Redact:
 
   ```text

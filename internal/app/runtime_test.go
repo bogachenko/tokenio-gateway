@@ -152,6 +152,8 @@ func TestNewRuntimeIntegration(t *testing.T) {
 		HTTPWriteTimeout:                       3 * time.Second,
 		HTTPIdleTimeout:                        4 * time.Second,
 		HTTPShutdownTimeout:                    5 * time.Second,
+		LogLevel:                               "info",
+		LogFormat:                              "text",
 	}
 
 	observer, err :=
@@ -230,6 +232,9 @@ func TestNewRuntimeIntegration(t *testing.T) {
 	}
 	if err := runtime.Transports.Validate(); err != nil {
 		t.Fatalf("transport graph: %v", err)
+	}
+	if err := runtime.Logging.Validate(); err != nil {
+		t.Fatalf("logging graph: %v", err)
 	}
 	if !runtime.Transports.ProvisioningEnabled ||
 		runtime.Transports.Provisioning == nil {

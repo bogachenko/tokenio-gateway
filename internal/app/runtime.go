@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"sync"
 
 	"github.com/bogachenko/tokenio-gateway/internal/config"
@@ -23,6 +24,7 @@ type Runtime struct {
 	Applications ApplicationGraph
 	Workers      WorkerGraph
 	Transports   TransportGraph
+	Logging      LoggingGraph
 	Handler      http.Handler
 
 	database  *postgres.DB
@@ -35,6 +37,11 @@ func NewRuntime(
 	provisioningExpirationObserver provisioningexpiration.Observer,
 ) (*Runtime, error) {
 	primitives, err := NewRuntimePrimitives()
+	if err != nil {
+		return nil, err
+	}
+
+	loggingGraph, err := NewLoggingGraph(cfg, os.Stderr)
 	if err != nil {
 		return nil, err
 	}
@@ -166,6 +173,7 @@ func NewRuntime(
 		Applications: applications,
 		Workers:      workers,
 		Transports:   transports,
+		Logging:      loggingGraph,
 		Handler:      transports.Root,
 		database:     database,
 	}

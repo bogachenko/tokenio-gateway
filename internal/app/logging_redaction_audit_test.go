@@ -32,16 +32,6 @@ func TestStructuredLoggingRedactionCurrentStateIsAudited(t *testing.T) {
 	}
 }
 
-func TestLoggingConfigFieldsRemainPendingCentralLogger(t *testing.T) {
-	appText := readAuditTree(t, ".")
-	for _, field := range []string{"LogLevel", "LogFormat", "LogBodies"} {
-		needle := "cfg." + field
-		if strings.Contains(appText, needle) {
-			t.Fatalf("%s is now consumed in internal/app; remove it from pending logging audit and add central logger/redactor evidence", field)
-		}
-	}
-}
-
 func currentStdlibLoggingSitesPendingStructuredLogger() []string {
 	return []string{
 		"cmd/gateway/main.go:11",
