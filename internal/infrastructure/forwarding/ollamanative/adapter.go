@@ -12,8 +12,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/bogachenko/tokenio-gateway/internal/application/forwarding"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
+	"time"
 )
 
 var (
@@ -198,31 +200,31 @@ func rewriteTopLevelModel(body []byte, clientModel string, providerModel string)
 	return rewritten, nil
 }
 
-func ExtractUsage(body []byte) (ports.ForwardUsage, error) {
+func ExtractUsage(body []byte) (Usage, error) {
 	var payload map[string]json.RawMessage
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.UseNumber()
 	if err := decoder.Decode(&payload); err != nil {
-		return ports.ForwardUsage{}, ErrInvalidForwardRequest
+		return Usage{}, ErrUsageNotFound
 	}
-	if decoder.More() {
-		return ports.ForwardUsage{}, ErrInvalidForwardRequest
+	if decoder.Decode(&struct{}{}) != io.EOF {
+		return Usage{}, ErrInvalidUsage
 	}
-	inputTokens, inputPresent, err := optionalNonNegativeInt64(payload, "prompt_eval_count")
-	if err != nil {
-		return ports.ForwardUsage{}, err
+	inputTokens, inputPresent, inputErr := ollamaTokenCount(payload, "prompt_eval_count")
+	if inputErr != nil {
+		return Usage{}, inputErr
 	}
-	outputTokens, outputPresent, err := optionalNonNegativeInt64(payload, "eval_count")
-	if err != nil {
-		return ports.ForwardUsage{}, err
+	outputTokens, outputPresent, outputErr := ollamaTokenCount(payload, "eval_count")
+	if outputErr != nil {
+		return Usage{}, outputErr
 	}
 	if !inputPresent && !outputPresent {
-		return ports.ForwardUsage{}, ErrUsageNotFound
+		return Usage{}, ErrUsageNotFound
 	}
-	return ports.ForwardUsage{
-		InputTokens:  inputTokens,
-		OutputTokens: outputTokens,
-	}, nil
+	if !inputPresent || !outputPresent {
+		return Usage{}, ErrInvalidUsage
+	}
+	return Usage{InputTokens: inputTokens, OutputTokens: outputTokens}, nil
 }
 
 func optionalNonNegativeInt64(
@@ -255,26 +257,57 @@ func handleResponse(resp *http.Response, limit int64) (ports.ForwardResponse, er
 	defer resp.Body.Close()
 	body, truncated, err := readBounded(resp.Body, limit)
 	if err != nil {
-		return ports.ForwardResponse{}, err
+		return ports.ForwardResponse{}, forwarding.NewFailure(
+			forwarding.FailureKindMalformedResponse,
+			resp.StatusCode,
+			forwarding.AttemptStateResponseReceived,
+			false,
+			err,
+		)
 	}
 	if truncated {
-		return ports.ForwardResponse{}, ErrUpstreamResponseTooLarge
-	}
-	response := ports.ForwardResponse{
-		StatusCode: resp.StatusCode,
-		Headers:    cloneHeaders(resp.Header),
-		Body:       body,
+		return ports.ForwardResponse{}, forwarding.NewFailure(
+			forwarding.FailureKindMalformedResponse,
+			resp.StatusCode,
+			forwarding.AttemptStateResponseReceived,
+			false,
+			ErrUpstreamResponseTooLarge,
+		)
 	}
 	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
 		usage, usageErr := ExtractUsage(body)
 		if usageErr != nil && !errors.Is(usageErr, ErrUsageNotFound) {
-			return ports.ForwardResponse{}, usageErr
+			return ports.ForwardResponse{}, forwarding.NewFailure(
+				forwarding.FailureKindMalformedResponse,
+				resp.StatusCode,
+				forwarding.AttemptStateResponseReceived,
+				false,
+				usageErr,
+			)
+		}
+
+		response := ports.ForwardResponse{
+			StatusCode: resp.StatusCode,
+			Headers:    cloneHeaders(resp.Header),
+			Body:       body,
 		}
 		if usageErr == nil {
-			response.Usage = &usage
+			response.Usage = &ports.ForwardUsage{
+				InputTokens:  usage.InputTokens,
+				OutputTokens: usage.OutputTokens,
+			}
 		}
+		return response, nil
 	}
-	return response, nil
+	classification := classifyFailure(resp.StatusCode, resp.Header, body)
+	return ports.ForwardResponse{}, forwarding.NewFailureWithRetryAfter(
+		classification.Kind,
+		resp.StatusCode,
+		forwarding.AttemptStateResponseReceived,
+		classification.RouteRetryCandidate,
+		classification.RetryAfter,
+		nil,
+	)
 }
 
 func parseBaseURL(value string) (*url.URL, error) {
@@ -363,4 +396,69 @@ func cloneHeaders(headers map[string][]string) map[string][]string {
 		result[key] = append([]string(nil), values...)
 	}
 	return result
+}
+
+func ollamaTokenCount(payload map[string]json.RawMessage, key string) (int64, bool, error) {
+	raw, ok := payload[key]
+	if !ok {
+		return 0, false, nil
+	}
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || trimmed[0] == '"' {
+		return 0, true, ErrInvalidUsage
+	}
+	var number json.Number
+	if err := json.Unmarshal(trimmed, &number); err != nil {
+		return 0, true, ErrInvalidUsage
+	}
+	value, err := strconv.ParseInt(number.String(), 10, 64)
+	if err != nil || value < 0 {
+		return 0, true, ErrInvalidUsage
+	}
+	return value, true, nil
+}
+
+func classifyFailure(statusCode int, headers http.Header, body []byte) forwarding.Classification {
+	bodyText := strings.ToLower(string(body))
+	switch {
+	case statusCode == http.StatusTooManyRequests:
+		retryAfter := parseRetryAfter(headers.Get("Retry-After"))
+		return forwarding.Classification{
+			Kind:                forwarding.FailureKindRateLimited,
+			RouteRetryCandidate: true,
+			RetryAfter:          retryAfter,
+		}
+	case statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden:
+		return forwarding.Classification{Kind: forwarding.FailureKindAuthError}
+	case statusCode == http.StatusPaymentRequired || strings.Contains(bodyText, "quota") || strings.Contains(bodyText, "resource"):
+		return forwarding.Classification{Kind: forwarding.FailureKindQuotaExceeded}
+	case statusCode >= 500:
+		return forwarding.Classification{
+			Kind:                forwarding.FailureKindProvider5XX,
+			RouteRetryCandidate: true,
+		}
+	default:
+		return forwarding.Classification{Kind: forwarding.FailureKindRequestError}
+	}
+}
+
+func parseRetryAfter(value string) forwarding.RetryAfter {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return forwarding.RetryAfter{}
+	}
+	seconds, err := strconv.Atoi(value)
+	if err != nil || seconds < 0 {
+		return forwarding.RetryAfter{}
+	}
+	retryAfter, err := forwarding.NewRetryAfterDelay(time.Duration(seconds) * time.Second)
+	if err != nil {
+		return forwarding.RetryAfter{}
+	}
+	return retryAfter
+}
+
+type Usage struct {
+	InputTokens  int64
+	OutputTokens int64
 }

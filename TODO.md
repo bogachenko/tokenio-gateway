@@ -152,7 +152,7 @@ Native support must be implemented as parallel vertical slices. Do not convert n
 * [x] Preserve body byte-for-byte except allowed model identifier rewrite.
 * [x] Implement Ollama forwarding adapter.
 * [x] Implement Ollama usage extraction or conservative usage estimation.
-* [ ] Implement Ollama failure classifier.
+* [x] Implement Ollama failure classifier.
 * [x] Return upstream success body byte-for-byte.
 * [x] Add transport-to-ledger acceptance tests.
 

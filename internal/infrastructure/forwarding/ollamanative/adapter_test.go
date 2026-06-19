@@ -7,8 +7,11 @@ import (
 	"strings"
 	"testing"
 
+	"errors"
+	"github.com/bogachenko/tokenio-gateway/internal/application/forwarding"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
+	"time"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -307,6 +310,107 @@ func TestAdapterRejectsUnsupportedOllamaRoute(t *testing.T) {
 		if _, err := adapter.Forward(context.Background(), request); err == nil {
 			t.Fatalf("request=%+v unexpectedly succeeded", request)
 		}
+	}
+}
+
+func TestAdapterClassifiesOllamaFailures(t *testing.T) {
+	tests := []struct {
+		name           string
+		statusCode     int
+		headers        http.Header
+		body           string
+		wantKind       forwarding.FailureKind
+		wantRetry      bool
+		wantRetryAfter time.Duration
+	}{
+		{
+			name:       "rate limited",
+			statusCode: http.StatusTooManyRequests,
+			headers: http.Header{
+				"Retry-After": {"6"},
+			},
+			body:           `{"error":"rate limit exceeded"}`,
+			wantKind:       forwarding.FailureKindRateLimited,
+			wantRetry:      true,
+			wantRetryAfter: 6 * time.Second,
+		},
+		{
+			name:       "auth error",
+			statusCode: http.StatusUnauthorized,
+			body:       `{"error":"unauthorized"}`,
+			wantKind:   forwarding.FailureKindAuthError,
+		},
+		{
+			name:       "quota exceeded by payment status",
+			statusCode: http.StatusPaymentRequired,
+			body:       `{"error":"payment required"}`,
+			wantKind:   forwarding.FailureKindQuotaExceeded,
+		},
+		{
+			name:       "quota exceeded by resource body",
+			statusCode: http.StatusBadRequest,
+			body:       `{"error":"resource exhausted"}`,
+			wantKind:   forwarding.FailureKindQuotaExceeded,
+		},
+		{
+			name:       "provider 5xx",
+			statusCode: http.StatusBadGateway,
+			body:       `{"error":"bad gateway"}`,
+			wantKind:   forwarding.FailureKindProvider5XX,
+			wantRetry:  true,
+		},
+		{
+			name:       "request error",
+			statusCode: http.StatusBadRequest,
+			body:       `{"error":"invalid request"}`,
+			wantKind:   forwarding.FailureKindRequestError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			adapter, err := NewAdapter(Config{
+				Reseller: domain.Reseller{
+					ID:           "reseller-ollama",
+					ProviderType: domain.ProviderOllama,
+					BaseURL:      "https://ollama.example",
+				},
+				ResellerAPIKey:       "sk_provider_secret",
+				MaxResponseBodyBytes: 1024,
+				Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+					return &http.Response{
+						StatusCode: test.statusCode,
+						Header:     test.headers,
+						Body:       io.NopCloser(strings.NewReader(test.body)),
+					}, nil
+				}),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			_, err = adapter.Forward(context.Background(), ports.ForwardRequest{
+				Route:  ollamaRoute(domain.EndpointChat, "llama-client", "llama-client", domain.ModelRewritePolicyNone),
+				Method: http.MethodPost,
+				Path:   "/api/chat",
+				Body:   []byte(`{"model":"llama-client","messages":[]}`),
+			})
+			var failure *forwarding.Failure
+			if !errors.As(err, &failure) {
+				t.Fatalf("error=%v, want forwarding failure", err)
+			}
+			if failure.Kind != test.wantKind ||
+				failure.StatusCode != test.statusCode ||
+				failure.AttemptState != forwarding.AttemptStateResponseReceived ||
+				failure.RouteRetryCandidate != test.wantRetry {
+				t.Fatalf("failure=%+v", failure)
+			}
+			if test.wantRetryAfter > 0 {
+				if !failure.FailureRetryAfterPresent() || failure.FailureRetryAfterDelay() != test.wantRetryAfter {
+					t.Fatalf("retry-after=%v present=%t", failure.FailureRetryAfterDelay(), failure.FailureRetryAfterPresent())
+				}
+			}
+		})
 	}
 }
 
