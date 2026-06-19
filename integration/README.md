@@ -42,4 +42,9 @@ The reusable fake OpenAI-compatible upstream lives in `integration/fakes/openaic
 It supports deterministic defaults for `/v1/models`, `/v1/chat/completions`,
 `/v1/embeddings` and `/v1/images/generations`, plus programmable responses and
 request recording.
+## Fake Anthropic upstream
+
+The reusable fake Anthropic upstream lives in `integration/fakes/anthropic`.
+It supports deterministic defaults for `POST /v1/messages`, plus programmable
+responses and request recording.
 

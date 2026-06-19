@@ -256,7 +256,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add reusable in-process fake Billing service under `integration/fakes/billing` with programmable responses and request recording.
 * [x] Add fake OpenAI-compatible upstream.
 * [x] Add reusable fake OpenAI-compatible upstream under `integration/fakes/openaicompat` for models, chat, embeddings and images.
-* [ ] Add fake Anthropic upstream.
+* [x] Add fake Anthropic upstream.
+* [x] Add reusable fake Anthropic upstream under `integration/fakes/anthropic` for `POST /v1/messages`.
 * [ ] Add fake Gemini upstream.
 * [ ] Add fake Ollama upstream.
 * [ ] Add fake Telegram API.
