@@ -232,7 +232,8 @@ For every key in `docs/spec/090-configuration.ru.md` verify:
 * [x] Add automated contract audit that forwarding receives `PreparedRequest`, and `PreparedRequest` cannot carry inbound authorization/API-key headers or raw public API key material.
 * [x] Admin auth is separate from public auth.
 * [x] Add automated tests that public `sk_...` API keys do not authorize admin endpoints and never reach admin application service handlers.
-* [ ] Provisioning auth is separate from public/admin auth.
+* [x] Provisioning auth is separate from public/admin auth.
+* [x] Add automated tests that provisioning endpoints ignore public/admin `Authorization` bearer credentials, require `X-Service-Token`, and stop before service dispatch without it.
 
 ### Verification command
 
