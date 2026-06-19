@@ -36,4 +36,10 @@ Stop and remove local state:
 The reusable fake Billing service lives in `integration/fakes/billing`. It is an
 in-process `httptest.Server` with programmable responses and request recording.
 Use it from integration scenarios instead of calling external Billing services.
+## Fake OpenAI-compatible upstream
+
+The reusable fake OpenAI-compatible upstream lives in `integration/fakes/openaicompat`.
+It supports deterministic defaults for `/v1/models`, `/v1/chat/completions`,
+`/v1/embeddings` and `/v1/images/generations`, plus programmable responses and
+request recording.
 

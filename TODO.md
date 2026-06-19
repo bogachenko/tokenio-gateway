@@ -254,7 +254,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add reproducible integration Postgres scripts and a build-tagged pgx ping test guarded by `TOKENIO_INTEGRATION_DATABASE_DSN`.
 * [x] Add fake Billing service.
 * [x] Add reusable in-process fake Billing service under `integration/fakes/billing` with programmable responses and request recording.
-* [ ] Add fake OpenAI-compatible upstream.
+* [x] Add fake OpenAI-compatible upstream.
+* [x] Add reusable fake OpenAI-compatible upstream under `integration/fakes/openaicompat` for models, chat, embeddings and images.
 * [ ] Add fake Anthropic upstream.
 * [ ] Add fake Gemini upstream.
 * [ ] Add fake Ollama upstream.
