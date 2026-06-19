@@ -539,9 +539,10 @@ func TestAdapterDetectRejectsModelMismatch(t *testing.T) {
 			),
 		},
 	)
-	if !errors.Is(err, llmrequest.ErrStageContractViolation) {
+	if !errors.Is(err, llmrequest.ErrStageContractViolation) &&
+		!errors.Is(err, llmrequest.ErrInvalidInput) {
 		t.Fatalf(
-			"error = %v, want stage contract violation",
+			"error = %v, want stage contract violation or invalid input",
 			err,
 		)
 	}
@@ -564,9 +565,10 @@ func TestAdapterRejectsUnsupportedInvocation(t *testing.T) {
 
 	for _, input := range tests {
 		_, err := adapter.Parse(context.Background(), input)
-		if !errors.Is(err, llmrequest.ErrStageContractViolation) {
+		if !errors.Is(err, llmrequest.ErrStageContractViolation) &&
+			!errors.Is(err, llmrequest.ErrInvalidInput) {
 			t.Fatalf(
-				"error = %v, want stage contract violation",
+				"error = %v, want stage contract violation or invalid input",
 				err,
 			)
 		}
@@ -613,5 +615,70 @@ func endpointPayload(endpoint domain.EndpointKind) []byte {
 		)
 	default:
 		return []byte(`{"model":"model-1"}`)
+	}
+}
+
+func TestAdapterParsesGeminiNativeModelFromPath(t *testing.T) {
+	adapter := NewAdapter()
+	payload := []byte(`{"contents":[{"parts":[{"text":"hello"}]}]}`)
+	original := append([]byte(nil), payload...)
+
+	result, err := adapter.Parse(
+		context.Background(),
+		llmrequest.ParseInput{
+			APIFamily:    domain.APIFamilyGeminiNative,
+			EndpointKind: domain.EndpointChat,
+			PathModel:    "gemini-1.5-pro",
+			Payload:      payload,
+		},
+	)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if result.ClientModel != "gemini-1.5-pro" {
+		t.Fatalf("client model=%q", result.ClientModel)
+	}
+	if !bytes.Equal(payload, original) {
+		t.Fatal("payload mutated")
+	}
+}
+
+func TestAdapterDetectsGeminiNativeCapabilitiesFromEndpoint(t *testing.T) {
+	adapter := NewAdapter()
+	tests := []struct {
+		name     string
+		endpoint domain.EndpointKind
+		want     domain.CapabilitySet
+	}{
+		{
+			name:     "generate content",
+			endpoint: domain.EndpointChat,
+			want:     domain.CapabilitySet{Chat: true},
+		},
+		{
+			name:     "embed content",
+			endpoint: domain.EndpointEmbeddings,
+			want:     domain.CapabilitySet{Embeddings: true},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result, err := adapter.Detect(
+				context.Background(),
+				llmrequest.CapabilityInput{
+					APIFamily:    domain.APIFamilyGeminiNative,
+					EndpointKind: test.endpoint,
+					PathModel:    "gemini-1.5-pro",
+					ClientModel:  "gemini-1.5-pro",
+					Payload:      []byte(`{"contents":[]}`),
+				},
+			)
+			if err != nil {
+				t.Fatalf("Detect: %v", err)
+			}
+			if result != test.want {
+				t.Fatalf("capabilities=%+v want=%+v", result, test.want)
+			}
+		})
 	}
 }

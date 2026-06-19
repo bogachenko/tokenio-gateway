@@ -120,15 +120,15 @@ Native support must be implemented as parallel vertical slices. Do not convert n
   GET  /v1beta/models
   ```
 
-* [ ] Accept Tokenio key only through `x-goog-api-key`.
-* [ ] Reject query-string `?key=` credentials.
-* [ ] Extract model from path.
+* [x] Accept Tokenio key only through `x-goog-api-key`.
+* [x] Reject query-string `?key=` credentials.
+* [x] Extract model from path.
 * [ ] Preserve body byte-for-byte except allowed path model segment rewrite.
 * [ ] Implement Gemini forwarding adapter.
 * [ ] Implement Gemini usage extraction.
 * [ ] Implement Gemini failure classifier.
 * [ ] Return upstream success body byte-for-byte.
-* [x] Add transport-to-ledger acceptance tests.
+* [ ] Add transport-to-ledger acceptance tests.
 
 ### 2.4. Ollama native
 

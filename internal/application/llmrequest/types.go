@@ -12,6 +12,7 @@ type Input struct {
 
 	APIFamily    domain.APIFamily
 	EndpointKind domain.EndpointKind
+	PathModel    string
 
 	Payload []byte
 }
@@ -25,6 +26,7 @@ type Principal struct {
 type ParseInput struct {
 	APIFamily    domain.APIFamily
 	EndpointKind domain.EndpointKind
+	PathModel    string
 	Payload      []byte
 }
 
@@ -36,6 +38,7 @@ type CapabilityInput struct {
 	APIFamily    domain.APIFamily
 	EndpointKind domain.EndpointKind
 	ClientModel  string
+	PathModel    string
 	Payload      []byte
 }
 

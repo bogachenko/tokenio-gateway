@@ -531,3 +531,81 @@ func TestLLMRouterRejectsAnthropicCredentialInWrongCarrier(t *testing.T) {
 		})
 	}
 }
+
+func TestLLMRouterDispatchesGeminiNativePathModelAndCredential(t *testing.T) {
+	body := []byte(`{"contents":[{"parts":[{"text":"hello"}]}]}`)
+	requests := &testLLMRequests{
+		result: successfulLLMResult(
+			"llmreq_gemini_native",
+			domain.EndpointChat,
+			[]byte(`{"candidates":[]}`),
+		),
+	}
+	router, err := NewLLMRouter(
+		requests,
+		&testRequestIDs{local: "llmreq_gemini_native"},
+		1024,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/v1beta/models/gemini-1.5-pro:generateContent",
+		strings.NewReader(string(body)),
+	)
+	request.Header.Set("x-goog-api-key", "sk_live_gemini")
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	if requests.calls != 1 {
+		t.Fatalf("calls=%d", requests.calls)
+	}
+	if requests.input.RawAPIKey != "sk_live_gemini" ||
+		requests.input.APIFamily != domain.APIFamilyGeminiNative ||
+		requests.input.EndpointKind != domain.EndpointChat ||
+		requests.input.PathModel != "gemini-1.5-pro" ||
+		string(requests.input.Payload) != string(body) {
+		t.Fatalf("input=%+v", requests.input)
+	}
+}
+
+func TestLLMRouterRejectsGeminiNativeQueryStringCredential(t *testing.T) {
+	requests := &testLLMRequests{}
+	router, err := NewLLMRouter(
+		requests,
+		&testRequestIDs{local: "llmreq_gemini_query_key"},
+		1024,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/v1beta/models/gemini-1.5-pro:generateContent?key=sk_query_secret",
+		strings.NewReader(`{"contents":[]}`),
+	)
+	request.Header.Set("x-goog-api-key", "sk_live_gemini")
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusUnauthorized ||
+		requests.calls != 0 ||
+		!strings.Contains(response.Body.String(), "query-string API keys are not allowed") {
+		t.Fatalf(
+			"status=%d calls=%d body=%s",
+			response.Code,
+			requests.calls,
+			response.Body.String(),
+		)
+	}
+}

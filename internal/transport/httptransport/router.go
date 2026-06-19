@@ -66,6 +66,6 @@ func isPublicLLMPath(path string) bool {
 		"/v1/messages":
 		return true
 	default:
-		return false
+		return strings.HasPrefix(path, "/v1beta/models/")
 	}
 }

@@ -128,6 +128,7 @@ func (h *LLMRouter) ServeHTTP(
 			IdempotencyKey: idempotencyKey,
 			APIFamily:      contract.APIFamily,
 			EndpointKind:   contract.EndpointKind,
+			PathModel:      contract.PathModel,
 			Payload:        body,
 		},
 	)

@@ -33,6 +33,9 @@ func (a *Adapter) Parse(
 	if err := validateContext(ctx); err != nil {
 		return llmrequest.ParsedRequest{}, err
 	}
+	if input.APIFamily == domain.APIFamilyGeminiNative {
+		return parseGeminiNative(input)
+	}
 	inspection, err := inspect(
 		input.APIFamily,
 		input.EndpointKind,
@@ -65,6 +68,15 @@ func (a *Adapter) Detect(
 			llmrequest.ErrStageContractViolation,
 		)
 	}
+	if input.APIFamily == domain.APIFamilyGeminiNative {
+		if input.ClientModel != input.PathModel {
+			return domain.CapabilitySet{}, fmt.Errorf(
+				"%w: parsed Gemini path model mismatch",
+				llmrequest.ErrStageContractViolation,
+			)
+		}
+		return geminiNativeCapabilities(input.EndpointKind)
+	}
 	inspection, err := inspect(
 		input.APIFamily,
 		input.EndpointKind,
@@ -80,6 +92,35 @@ func (a *Adapter) Detect(
 		)
 	}
 	return inspection.capabilities, nil
+}
+
+func parseGeminiNative(input llmrequest.ParseInput) (llmrequest.ParsedRequest, error) {
+	if strings.TrimSpace(input.PathModel) == "" {
+		return llmrequest.ParsedRequest{}, fmt.Errorf(
+			"%w: Gemini path model is required",
+			llmrequest.ErrInvalidInput,
+		)
+	}
+	if _, err := geminiNativeCapabilities(input.EndpointKind); err != nil {
+		return llmrequest.ParsedRequest{}, err
+	}
+	return llmrequest.ParsedRequest{
+		ClientModel: input.PathModel,
+	}, nil
+}
+
+func geminiNativeCapabilities(endpoint domain.EndpointKind) (domain.CapabilitySet, error) {
+	switch endpoint {
+	case domain.EndpointChat:
+		return domain.CapabilitySet{Chat: true}, nil
+	case domain.EndpointEmbeddings:
+		return domain.CapabilitySet{Embeddings: true}, nil
+	default:
+		return domain.CapabilitySet{}, fmt.Errorf(
+			"%w: unsupported Gemini native endpoint",
+			llmrequest.ErrInvalidInput,
+		)
+	}
 }
 
 func validateContext(ctx context.Context) error {

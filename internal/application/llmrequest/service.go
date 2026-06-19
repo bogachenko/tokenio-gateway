@@ -310,6 +310,7 @@ func (s *Service) prepare(
 		ParseInput{
 			APIFamily:    input.APIFamily,
 			EndpointKind: input.EndpointKind,
+			PathModel:    input.PathModel,
 			Payload:      cloneBytes(originalPayload),
 		},
 	)
@@ -331,6 +332,7 @@ func (s *Service) prepare(
 		CapabilityInput{
 			APIFamily:    input.APIFamily,
 			EndpointKind: input.EndpointKind,
+			PathModel:    input.PathModel,
 			ClientModel:  parsed.ClientModel,
 			Payload:      cloneBytes(originalPayload),
 		},
