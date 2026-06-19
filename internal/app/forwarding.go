@@ -7,6 +7,7 @@ import (
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/infrastructure/forwarding/anthropicnative"
 	"github.com/bogachenko/tokenio-gateway/internal/infrastructure/forwarding/gemininative"
+	"github.com/bogachenko/tokenio-gateway/internal/infrastructure/forwarding/ollamanative"
 	"github.com/bogachenko/tokenio-gateway/internal/infrastructure/forwarding/openaicompat"
 	"github.com/bogachenko/tokenio-gateway/internal/infrastructure/forwarding/registry"
 	"github.com/bogachenko/tokenio-gateway/internal/infrastructure/forwarding/rewritesupport"
@@ -93,6 +94,16 @@ func NewForwardingInfrastructureGraph() (ForwardingInfrastructureGraph, error) {
 				err,
 			)
 	}
+	ollamaFactory, err := ollamanative.NewFactory(
+		transport.Clone(),
+	)
+	if err != nil {
+		return ForwardingInfrastructureGraph{},
+			fmt.Errorf(
+				"construct ollama-native forwarding factory: %w",
+				err,
+			)
+	}
 
 	adapterRegistrations := openAICompatibleRegistrations(
 		openAICompatibleFactory,
@@ -112,6 +123,13 @@ func NewForwardingInfrastructureGraph() (ForwardingInfrastructureGraph, error) {
 				ProviderType: domain.ProviderGemini,
 			},
 			Factory: geminiFactory,
+		},
+		registry.Registration{
+			Key: registry.Key{
+				APIFamily:    domain.APIFamilyOllamaNative,
+				ProviderType: domain.ProviderOllama,
+			},
+			Factory: ollamaFactory,
 		},
 	)
 	adapterRegistry, err := registry.New(

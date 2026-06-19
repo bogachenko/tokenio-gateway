@@ -33,6 +33,7 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Gemini native failure classifier evidence covers retry/auth/quota/5xx/request errors.
 - [x] Ollama native public transport dispatch covers chat/generate/embeddings and tags.
 - [x] Ollama native public chat/generate/embeddings dispatch evidence exists.
+- [x] Ollama native forwarding adapter and factory evidence covers chat/generate/embeddings dispatch and model rewrite.
 - [x] Ollama native model extraction evidence covers chat/generate/embeddings JSON bodies.
 - [x] Gemini native transport-to-ledger evidence finalizes forwarding usage as billable usage.
 | Configuration, logging and security audit | `docs/spec/090-configuration.ru.md`, `docs/spec/020-auth-and-billing-identity.ru.md`, `docs/spec/080-error-model.ru.md` | `internal/config`, `internal/auth`, `internal/infrastructure/secrets/envresolver`, `internal/transport/httptransport`, plus current stdlib logging in `cmd/*` and `internal/app/*` | `internal/app/runtime.go`, `internal/app/security.go`, `internal/app/transport.go`, `internal/app/worker.go` | Existing: `internal/config/*_test.go`, `internal/auth/*_test.go`, `internal/infrastructure/secrets/envresolver/*_test.go`, `internal/transport/httptransport/*_test.go`; missing central structured logger/redaction evidence | `go test ./internal/config ./internal/auth ./internal/infrastructure/secrets/... ./internal/transport/httptransport ./internal/app` | `pending` |

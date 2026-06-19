@@ -150,7 +150,7 @@ Native support must be implemented as parallel vertical slices. Do not convert n
 * [x] Accept Tokenio key through `Authorization: Bearer`.
 * [x] Extract model from native request.
 * [x] Preserve body byte-for-byte except allowed model identifier rewrite.
-* [ ] Implement Ollama forwarding adapter.
+* [x] Implement Ollama forwarding adapter.
 * [ ] Implement Ollama usage extraction or conservative usage estimation.
 * [ ] Implement Ollama failure classifier.
 * [x] Return upstream success body byte-for-byte.

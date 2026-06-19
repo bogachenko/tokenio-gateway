@@ -1,11 +1,9 @@
 package app
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
-	"github.com/bogachenko/tokenio-gateway/internal/infrastructure/forwarding/registry"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
 
@@ -81,6 +79,20 @@ func TestNewForwardingInfrastructureGraph(
 	) {
 		t.Fatal("Gemini native images adapter support is present")
 	}
+	if !graph.AdapterSupport.SupportsForwardingAdapter(
+		domain.APIFamilyOllamaNative,
+		domain.ProviderOllama,
+		domain.EndpointChat,
+	) {
+		t.Fatal("Ollama native chat adapter support is absent")
+	}
+	if !graph.AdapterSupport.SupportsForwardingAdapter(
+		domain.APIFamilyOllamaNative,
+		domain.ProviderOllama,
+		domain.EndpointEmbeddings,
+	) {
+		t.Fatal("Ollama native embeddings adapter support is absent")
+	}
 }
 
 func TestForwardingInfrastructureGraphValidateRejectsMissingCapability(
@@ -129,7 +141,7 @@ func TestForwardingInfrastructureGraphWiresFactoryRegistry(
 	}
 }
 
-func TestForwardingInfrastructureGraphRejectsUnregisteredOllamaNativeFactory(
+func TestForwardingInfrastructureGraphWiresOllamaNativeFactory(
 	t *testing.T,
 ) {
 	graph, err := NewForwardingInfrastructureGraph()
@@ -138,22 +150,29 @@ func TestForwardingInfrastructureGraphRejectsUnregisteredOllamaNativeFactory(
 	}
 	input := ports.ForwardingAdapterFactoryInput{
 		Route: domain.Route{
-			ID:           "route-1",
-			ResellerID:   "reseller-1",
-			ProviderType: domain.ProviderOllama,
-			APIFamily:    domain.APIFamilyOllamaNative,
+			ID:                 "route-ollama",
+			ResellerID:         "reseller-ollama",
+			ProviderType:       domain.ProviderOllama,
+			APIFamily:          domain.APIFamilyOllamaNative,
+			EndpointKind:       domain.EndpointChat,
+			ClientModel:        "llama-client",
+			ProviderModel:      "llama-client",
+			ModelRewritePolicy: domain.ModelRewritePolicyNone,
 		},
 		Reseller: domain.Reseller{
-			ID:           "reseller-1",
+			ID:           "reseller-ollama",
 			ProviderType: domain.ProviderOllama,
-			BaseURL:      "https://provider.example",
+			BaseURL:      "https://ollama.example",
 		},
-		ResellerAPIKey:       "secret",
+		ResellerAPIKey:       "rk_ollama_secret",
 		MaxResponseBodyBytes: 1024,
 	}
-	_, err = graph.AdapterFactory.Build(input)
-	if !errors.Is(err, registry.ErrFactoryNotRegistered) {
-		t.Fatalf("error=%v", err)
+	client, err := graph.AdapterFactory.Build(input)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if client == nil {
+		t.Fatal("Ollama native client is nil")
 	}
 }
 
