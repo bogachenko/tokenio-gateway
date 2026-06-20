@@ -145,7 +145,11 @@ func handleResponse(resp *http.Response, limit int64) (ports.ForwardResponse, er
 		if usageErr != nil && !errors.Is(usageErr, ErrUsageNotFound) {
 			return ports.ForwardResponse{}, forwarding.NewFailure(forwarding.FailureKindMalformedResponse, resp.StatusCode, forwarding.AttemptStateResponseReceived, false, usageErr)
 		}
-		return ports.ForwardResponse{StatusCode: resp.StatusCode, Headers: cloneHeaders(resp.Header), Body: body, Usage: &ports.ForwardUsage{InputTokens: usage.InputTokens, OutputTokens: usage.OutputTokens}}, nil
+		response := ports.ForwardResponse{StatusCode: resp.StatusCode, Headers: cloneHeaders(resp.Header), Body: body}
+		if usageErr == nil {
+			response.Usage = &ports.ForwardUsage{InputTokens: usage.InputTokens, OutputTokens: usage.OutputTokens}
+		}
+		return response, nil
 	}
 	classification := classifyFailure(resp.StatusCode, resp.Header, body)
 	return ports.ForwardResponse{}, forwarding.NewFailureWithRetryAfter(classification.Kind, resp.StatusCode, forwarding.AttemptStateResponseReceived, classification.RouteRetryCandidate, classification.RetryAfter, nil)
