@@ -128,3 +128,5 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Provisioning lifecycle integration evidence exists at `integration/provisioning_lifecycle_test.go`.
 - [x] Admin mutation/audit integration evidence exists at `integration/admin_mutation_audit_test.go`.
 - [x] Telegram alert lifecycle integration scenario exists at `integration/telegram_alert_lifecycle_test.go`.
+
+- [x] Config missing/invalid/default behavioral tests exist in `internal/config/config_test.go`.

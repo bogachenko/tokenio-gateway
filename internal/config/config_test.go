@@ -374,3 +374,198 @@ func TestLoadRejectsInvalidUpstreamResponseBodyMaxBytes(
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestLoadAppliesBehavioralDefaults(t *testing.T) {
+	setValidRequiredEnv(t)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.GatewayAddr != ":8880" {
+		t.Fatalf("GatewayAddr = %q, want :8880", cfg.GatewayAddr)
+	}
+	if cfg.BillingJWTTTL != 15*time.Minute {
+		t.Fatalf("BillingJWTTTL = %s, want %s", cfg.BillingJWTTTL, 15*time.Minute)
+	}
+	if cfg.BillingTimeout != 30*time.Second {
+		t.Fatalf("BillingTimeout = %s, want %s", cfg.BillingTimeout, 30*time.Second)
+	}
+	if cfg.CostCurrency != "RUB" {
+		t.Fatalf("CostCurrency = %q, want RUB", cfg.CostCurrency)
+	}
+	if cfg.AutoChargeThresholdCents != 1000 {
+		t.Fatalf("AutoChargeThresholdCents = %d, want 1000", cfg.AutoChargeThresholdCents)
+	}
+	if cfg.MinChargeAmountCents != 100 {
+		t.Fatalf("MinChargeAmountCents = %d, want 100", cfg.MinChargeAmountCents)
+	}
+	if cfg.MinRequestBalanceCents != 500 {
+		t.Fatalf("MinRequestBalanceCents = %d, want 500", cfg.MinRequestBalanceCents)
+	}
+	if cfg.TokenEstimationSafetyFactor != 1.25 {
+		t.Fatalf("TokenEstimationSafetyFactor = %f, want 1.25", cfg.TokenEstimationSafetyFactor)
+	}
+	if cfg.CostEstimationSafetyFactor != 1.10 {
+		t.Fatalf("CostEstimationSafetyFactor = %f, want 1.10", cfg.CostEstimationSafetyFactor)
+	}
+	if cfg.RequestBodyMaxBytes != 64<<20 {
+		t.Fatalf("RequestBodyMaxBytes = %d, want %d", cfg.RequestBodyMaxBytes, int64(64<<20))
+	}
+	if cfg.UpstreamTimeout != 90*time.Second {
+		t.Fatalf("UpstreamTimeout = %s, want %s", cfg.UpstreamTimeout, 90*time.Second)
+	}
+	if cfg.UpstreamMaxAttempts != 3 {
+		t.Fatalf("UpstreamMaxAttempts = %d, want 3", cfg.UpstreamMaxAttempts)
+	}
+	if cfg.UpstreamMaxBackoff != 2*time.Second {
+		t.Fatalf("UpstreamMaxBackoff = %s, want %s", cfg.UpstreamMaxBackoff, 2*time.Second)
+	}
+	if cfg.RateLimitMaxWait != 5*time.Second {
+		t.Fatalf("RateLimitMaxWait = %s, want %s", cfg.RateLimitMaxWait, 5*time.Second)
+	}
+	if cfg.LogLevel != "info" {
+		t.Fatalf("LogLevel = %q, want info", cfg.LogLevel)
+	}
+	if cfg.LogFormat != "text" {
+		t.Fatalf("LogFormat = %q, want text", cfg.LogFormat)
+	}
+	if cfg.LogBodies {
+		t.Fatalf("LogBodies = true, want false")
+	}
+}
+
+func TestLoadRejectsMissingRequiredConfig(t *testing.T) {
+	tests := []struct {
+		name string
+		key  string
+		want string
+	}{
+		{
+			name: "database dsn",
+			key:  "TOKENIO_DATABASE_DSN",
+			want: "TOKENIO_DATABASE_DSN is required",
+		},
+		{
+			name: "billing base url",
+			key:  "TOKENIO_BILLING_BASE_URL",
+			want: "TOKENIO_BILLING_BASE_URL is required",
+		},
+		{
+			name: "billing service token",
+			key:  "TOKENIO_BILLING_SERVICE_TOKEN",
+			want: "TOKENIO_BILLING_SERVICE_TOKEN is required",
+		},
+		{
+			name: "billing jwt signing key",
+			key:  "TOKENIO_BILLING_JWT_SIGNING_KEY",
+			want: "TOKENIO_BILLING_JWT_SIGNING_KEY is required",
+		},
+		{
+			name: "admin token",
+			key:  "TOKENIO_ADMIN_TOKEN",
+			want: "TOKENIO_ADMIN_TOKEN is required",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			setValidRequiredEnv(t)
+			t.Setenv(test.key, "")
+
+			_, err := Load()
+			if err == nil {
+				t.Fatal("expected Load() error")
+			}
+			if !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("expected %q, got %v", test.want, err)
+			}
+		})
+	}
+}
+
+func TestLoadRejectsInvalidBehavioralConfigValues(t *testing.T) {
+	tests := []struct {
+		name  string
+		key   string
+		value string
+		want  string
+	}{
+		{
+			name:  "environment",
+			key:   "TOKENIO_ENV",
+			value: "staging",
+			want:  "TOKENIO_ENV must be one of production, development, test",
+		},
+		{
+			name:  "log level",
+			key:   "TOKENIO_LOG_LEVEL",
+			value: "trace",
+			want:  "TOKENIO_LOG_LEVEL must be one of debug, info, warn, error",
+		},
+		{
+			name:  "log format",
+			key:   "TOKENIO_LOG_FORMAT",
+			value: "console",
+			want:  "TOKENIO_LOG_FORMAT must be text or json",
+		},
+		{
+			name:  "upstream attempts",
+			key:   "TOKENIO_UPSTREAM_MAX_ATTEMPTS",
+			value: "0",
+			want:  "TOKENIO_UPSTREAM_MAX_ATTEMPTS must be >= 1",
+		},
+		{
+			name:  "token estimation factor",
+			key:   "TOKENIO_TOKEN_ESTIMATION_SAFETY_FACTOR",
+			value: "0.99",
+			want:  "TOKENIO_TOKEN_ESTIMATION_SAFETY_FACTOR must be >= 1",
+		},
+		{
+			name:  "request body max bytes",
+			key:   "TOKENIO_REQUEST_BODY_MAX_BYTES",
+			value: "0",
+			want:  "TOKENIO_REQUEST_BODY_MAX_BYTES must be positive",
+		},
+		{
+			name:  "invalid bool",
+			key:   "TOKENIO_LOG_BODIES",
+			value: "sometimes",
+			want:  "TOKENIO_LOG_BODIES must be bool",
+		},
+		{
+			name:  "invalid duration",
+			key:   "TOKENIO_UPSTREAM_TIMEOUT",
+			value: "soon",
+			want:  "TOKENIO_UPSTREAM_TIMEOUT must be duration",
+		},
+		{
+			name:  "invalid int",
+			key:   "TOKENIO_UPSTREAM_MAX_ATTEMPTS",
+			value: "many",
+			want:  "TOKENIO_UPSTREAM_MAX_ATTEMPTS must be int",
+		},
+		{
+			name:  "invalid float",
+			key:   "TOKENIO_COST_ESTIMATION_SAFETY_FACTOR",
+			value: "safe",
+			want:  "TOKENIO_COST_ESTIMATION_SAFETY_FACTOR must be float64",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			setValidRequiredEnv(t)
+			t.Setenv(test.key, test.value)
+
+			_, err := Load()
+			if err == nil {
+				t.Fatal("expected Load() error")
+			}
+			if !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("expected %q, got %v", test.want, err)
+			}
+		})
+	}
+}

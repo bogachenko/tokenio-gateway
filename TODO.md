@@ -174,7 +174,8 @@ For every key in `docs/spec/090-configuration.ru.md` verify:
 * [x] Verify validation exists for every documented key.
 * [x] Verify typed config field exists for every documented key.
 * [x] Verify composition-root consumer exists for every documented key.
-* [ ] Add behavioral tests for missing/invalid/default values where coverage is still absent.
+* [x] Add behavioral tests for missing/invalid/default values where coverage is still absent.
+* [x] Add config behavioral tests for required-value absence, default loading and invalid value rejection.
 * [ ] Remove unused config fields instead of keeping dead knobs.
 
 ### 3.2. Structured logging and redaction
