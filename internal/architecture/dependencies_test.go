@@ -169,8 +169,8 @@ func forbiddenDependency(source string, target string) string {
 			return "domain must not depend on outer layers"
 		}
 	case strings.HasPrefix(source, "application/"):
-		if target != "domain" && target != "ports" {
-			return "application may depend only on domain and ports"
+		if target == "infrastructure" || target == "transport" || target == "app" || (strings.HasPrefix(target, "application/") && target != source) {
+			return "application may depend only on domain, ports, and owned package code"
 		}
 	case source == "ports":
 		switch target {
