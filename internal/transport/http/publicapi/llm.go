@@ -129,6 +129,7 @@ func (h *LLMRouter) ServeHTTP(
 			APIFamily:      contract.APIFamily,
 			EndpointKind:   contract.EndpointKind,
 			PathModel:      contract.PathModel,
+			UpstreamPath:   request.URL.Path,
 			Payload:        body,
 		},
 	)
@@ -158,11 +159,7 @@ func (h *LLMRouter) ServeHTTP(
 	}
 }
 
-func writeLLMApplicationError(
-	writer http.ResponseWriter,
-	requestID string,
-	err error,
-) {
+func writeLLMApplicationError(writer http.ResponseWriter, requestID string, err error) {
 	if applicationError, ok := ports.AsApplicationError(err); ok {
 		writeError(
 			writer,
@@ -173,7 +170,6 @@ func writeLLMApplicationError(
 		)
 		return
 	}
-
 	writeError(
 		writer,
 		requestID,
@@ -191,54 +187,22 @@ func llmContractForPath(path string) (nativeapi.Contract, bool) {
 	return contract, true
 }
 
-func writeLLMBodyError(
-	writer http.ResponseWriter,
-	requestID string,
-	err error,
-) {
+func writeLLMBodyError(writer http.ResponseWriter, requestID string, err error) {
 	switch {
 	case errors.Is(err, httptransport.ErrRequestBodyTooLarge):
-		writeError(
-			writer,
-			requestID,
-			http.StatusRequestEntityTooLarge,
-			domain.ErrorCodeRequestBodyTooLarge,
-			"Request body is too large",
-		)
+		writeError(writer, requestID, http.StatusRequestEntityTooLarge, domain.ErrorCodeRequestBodyTooLarge, "Request body is too large")
 	case errors.Is(err, httptransport.ErrUnsupportedContentType):
-		writeError(
-			writer,
-			requestID,
-			http.StatusUnsupportedMediaType,
-			domain.ErrorCodeUnsupportedContentType,
-			"Content-Type must be application/json",
-		)
+		writeError(writer, requestID, http.StatusUnsupportedMediaType, domain.ErrorCodeUnsupportedContentType, "Content-Type must be application/json")
 	case errors.Is(err, httptransport.ErrInvalidJSON):
-		writeError(
-			writer,
-			requestID,
-			http.StatusBadRequest,
-			domain.ErrorCodeInvalidJSON,
-			"Request body must contain valid JSON",
-		)
+		writeError(writer, requestID, http.StatusBadRequest, domain.ErrorCodeInvalidJSON, "Request body must contain valid JSON")
 	default:
-		writeError(
-			writer,
-			requestID,
-			http.StatusBadRequest,
-			domain.ErrorCodeInvalidJSON,
-			"Request body could not be read",
-		)
+		writeError(writer, requestID, http.StatusBadRequest, domain.ErrorCodeInvalidJSON, "Request body could not be read")
 	}
 }
 
-func setKnownBillingHeaders(
-	headers http.Header,
-	result llmrequestapp.ForwardedRequest,
-) {
+func setKnownBillingHeaders(headers http.Header, result llmrequestapp.ForwardedRequest) {
 	record := result.FinalUsageRecord
 	admission := result.Reserved.Admission
-
 	headers.Set(localRequestIDHeader, record.LocalRequestID)
 	headers.Set("X-Billing-Provider-Type", string(record.ProviderType))
 	headers.Set("X-Billing-Client-Model", record.ClientModel)
@@ -246,15 +210,8 @@ func setKnownBillingHeaders(
 	headers.Set("X-Billing-Status", string(record.Status))
 	headers.Set("X-Billing-Usage-Completeness", record.UsageCompleteness)
 	headers.Set("X-Billing-Currency", record.Currency)
-	headers.Set(
-		"X-Billing-Amount-Cents",
-		strconv.FormatInt(record.ClientAmountCents, 10),
-	)
-	headers.Set(
-		"X-Billing-Remaining-Cents",
-		strconv.FormatInt(record.RemainingAmountCents, 10),
-	)
-
+	headers.Set("X-Billing-Amount-Cents", strconv.FormatInt(record.ClientAmountCents, 10))
+	headers.Set("X-Billing-Remaining-Cents", strconv.FormatInt(record.RemainingAmountCents, 10))
 	usageHeaders := []struct {
 		name  string
 		value int64
@@ -273,25 +230,12 @@ func setKnownBillingHeaders(
 	for _, header := range usageHeaders {
 		headers.Set(header.name, strconv.FormatInt(header.value, 10))
 	}
-
 	walletBalance := admission.RemoteBalanceCents
 	if result.AutoCharge.BillingBalanceCents != nil {
 		walletBalance = *result.AutoCharge.BillingBalanceCents
 	}
-	headers.Set(
-		"X-Wallet-Balance-Cents",
-		strconv.FormatInt(walletBalance, 10),
-	)
-	headers.Set(
-		"X-Wallet-Effective-Balance-Cents",
-		strconv.FormatInt(admission.EffectiveBalanceCents, 10),
-	)
-	headers.Set(
-		"X-Billing-Pending-Cents",
-		strconv.FormatInt(admission.PendingAmountCents, 10),
-	)
-	headers.Set(
-		"X-Billing-Auto-Charge-Status",
-		string(result.AutoCharge.Status),
-	)
+	headers.Set("X-Wallet-Balance-Cents", strconv.FormatInt(walletBalance, 10))
+	headers.Set("X-Wallet-Effective-Balance-Cents", strconv.FormatInt(admission.EffectiveBalanceCents, 10))
+	headers.Set("X-Billing-Pending-Cents", strconv.FormatInt(admission.PendingAmountCents, 10))
+	headers.Set("X-Billing-Auto-Charge-Status", string(result.AutoCharge.Status))
 }

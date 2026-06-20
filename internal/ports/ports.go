@@ -27,11 +27,7 @@ type APIKeyRepository interface {
 }
 
 type APIKeyUsageRecorder interface {
-	RecordLastUsedAt(
-		context.Context,
-		string,
-		time.Time,
-	) error
+	RecordLastUsedAt(context.Context, string, time.Time) error
 }
 
 type UserRepository interface {
@@ -53,10 +49,7 @@ type RouteRepository interface {
 }
 
 type ModelCatalogRouteRepository interface {
-	ListModelCatalogRoutes(
-		context.Context,
-		domain.APIFamily,
-	) ([]domain.Route, error)
+	ListModelCatalogRoutes(context.Context, domain.APIFamily) ([]domain.Route, error)
 }
 
 type RoutePriceRepository interface {
@@ -75,10 +68,7 @@ type RouteCapacityResult struct {
 }
 
 type RouteCapacityChecker interface {
-	Check(
-		context.Context,
-		RouteCapacityCheckInput,
-	) (RouteCapacityResult, error)
+	Check(context.Context, RouteCapacityCheckInput) (RouteCapacityResult, error)
 }
 
 type RouteCapacityAcquireInput struct {
@@ -95,29 +85,10 @@ type RouteCapacityReservation struct {
 	RouteID        string
 }
 
-// RouteCapacityManager implementations must return
-// ErrRouteCapacityUnavailable when a valid route cannot accept this
-// attempt because of RPM, TPM, or concurrency limits. Contract and
-// identity violations must not be reported as capacity exhaustion.
 type RouteCapacityManager interface {
 	RouteCapacityChecker
-
-	// Acquire atomically re-checks route limits and records one route attempt
-	// against RPM, TPM, and concurrency. Repeated acquisition for the same
-	// ReservationID must be idempotent. LocalRequestID is correlation only and
-	// may be shared by multiple sequential attempt reservations.
-	Acquire(
-		context.Context,
-		RouteCapacityAcquireInput,
-	) (RouteCapacityReservation, error)
-
-	// Release removes only the in-flight concurrency slot. RPM and TPM usage
-	// remain accounted for until their limiter window expires. Repeated release
-	// of the same reservation must be idempotent.
-	Release(
-		context.Context,
-		RouteCapacityReservation,
-	) error
+	Acquire(context.Context, RouteCapacityAcquireInput) (RouteCapacityReservation, error)
+	Release(context.Context, RouteCapacityReservation) error
 }
 
 type SecretResolver interface {
@@ -125,24 +96,15 @@ type SecretResolver interface {
 }
 
 type ForwardingAdapterEndpointSupport interface {
-	SupportsForwardingEndpoint(
-		domain.EndpointKind,
-	) bool
+	SupportsForwardingEndpoint(domain.EndpointKind) bool
 }
 
 type ForwardingAdapterSupport interface {
-	SupportsForwardingAdapter(
-		domain.APIFamily,
-		domain.ProviderType,
-		domain.EndpointKind,
-	) bool
+	SupportsForwardingAdapter(domain.APIFamily, domain.ProviderType, domain.EndpointKind) bool
 }
 
 type ModelIdentifierRewriteSupport interface {
-	SupportsModelIdentifierRewrite(
-		domain.APIFamily,
-		domain.ProviderType,
-	) bool
+	SupportsModelIdentifierRewrite(domain.APIFamily, domain.ProviderType) bool
 }
 
 type Clock interface {
@@ -267,14 +229,12 @@ type ForwardingAdapter interface {
 
 type ForwardingClientRequest struct {
 	Route domain.Route
+	Path  string
 	Body  []byte
 }
 
 type ForwardingClient interface {
-	Forward(
-		context.Context,
-		ForwardingClientRequest,
-	) (ForwardResponse, error)
+	Forward(context.Context, ForwardingClientRequest) (ForwardResponse, error)
 }
 
 type ForwardingAdapterFactoryInput struct {
@@ -286,9 +246,7 @@ type ForwardingAdapterFactoryInput struct {
 }
 
 type ForwardingAdapterFactory interface {
-	Build(
-		ForwardingAdapterFactoryInput,
-	) (ForwardingClient, error)
+	Build(ForwardingAdapterFactoryInput) (ForwardingClient, error)
 }
 
 type UsageReserveOutcome string
@@ -311,40 +269,10 @@ type UsageTransitionResult struct {
 }
 
 type ForwardingAttemptStore interface {
-	// StartAttempt durably inserts exactly one started attempt before any
-	// upstream network write. The pair local_request_id + attempt_number is
-	// unique. Repeating an identical command is idempotent; conflicting facts
-	// must return ErrStoreConflict or ErrStoreContractViolation.
-	StartAttempt(
-		context.Context,
-		domain.ForwardingAttempt,
-	) (domain.ForwardingAttempt, error)
-
-	// CompleteAttempt atomically transitions the exact persisted started
-	// attempt to succeeded or failed. Terminal attempts are immutable.
-	// Repeating the identical completion is idempotent.
-	CompleteAttempt(
-		context.Context,
-		domain.ForwardingAttempt,
-	) (domain.ForwardingAttempt, error)
-
-	// LoadAttempts returns every persisted attempt for one request ordered by
-	// attempt_number ASC. Missing requests return an empty slice.
-	LoadAttempts(
-		context.Context,
-		string,
-	) ([]domain.ForwardingAttempt, error)
-
-	// LoadStartedBefore returns at most limit durable attempts that are
-	// still started and have started_at strictly before cutoff. Results
-	// are ordered by started_at ASC, local_request_id ASC, then
-	// attempt_number ASC so recovery can process bounded deterministic
-	// batches. cutoff must be non-zero UTC and limit must be positive.
-	LoadStartedBefore(
-		context.Context,
-		time.Time,
-		int,
-	) ([]domain.ForwardingAttempt, error)
+	StartAttempt(context.Context, domain.ForwardingAttempt) (domain.ForwardingAttempt, error)
+	CompleteAttempt(context.Context, domain.ForwardingAttempt) (domain.ForwardingAttempt, error)
+	LoadAttempts(context.Context, string) ([]domain.ForwardingAttempt, error)
+	LoadStartedBefore(context.Context, time.Time, int) ([]domain.ForwardingAttempt, error)
 }
 
 type UsageExposureSnapshot struct {
@@ -384,54 +312,18 @@ type UsageChargeSuccess struct {
 }
 
 type BillingRecoveryStore interface {
-	// ListOpenChargeBatchesForRecovery returns at most limit durable pending or
-	// failed charge commands. Repository order is unspecified; application code
-	// must process snapshots by batch.created_at ASC, then batch.id ASC.
-	ListOpenChargeBatchesForRecovery(
-		ctx context.Context,
-		limit int,
-	) ([]BillingChargeBatchSnapshot, error)
-
-	ListChargeableBillingSubjects(
-		ctx context.Context,
-		limit int,
-	) ([]BillingChargeSubject, error)
+	ListOpenChargeBatchesForRecovery(ctx context.Context, limit int) ([]BillingChargeBatchSnapshot, error)
+	ListChargeableBillingSubjects(ctx context.Context, limit int) ([]BillingChargeSubject, error)
 }
 
 type UsageLedger interface {
-	// CreateReserved atomically checks unresolved user pricing failures, local_request_id
-	// uniqueness, optional client idempotency scope (user_id + endpoint_kind +
-	// idempotency_key), and inserts the reserved usage record in one persistence
-	// transaction. Callers must not emulate this with a Find-then-Insert sequence.
 	CreateReserved(ctx context.Context, record domain.UsageRecord) (UsageReserveResult, error)
 	FindByLocalRequestID(ctx context.Context, localRequestID string) (*domain.UsageRecord, error)
-	// CompareAndSwap persists next only when the current record identified by
-	// localRequestID is still in expectedStatus; when Applied is false Current
-	// contains the actual current record.
 	CompareAndSwap(ctx context.Context, localRequestID string, expectedStatus domain.UsageStatus, next domain.UsageRecord) (UsageTransitionResult, error)
 	LoadExposure(ctx context.Context, userID string, currency string) (UsageExposureSnapshot, error)
-	// LoadOpenChargeBatches returns durable pending/failed batches that must be
-	// retried before creating new charge batches. Succeeded batches are not open.
-	// Repository order is unspecified; application code must process snapshots by
-	// batch.created_at ASC, then batch.id ASC.
 	LoadOpenChargeBatches(ctx context.Context, userID string, billingSubjectUserID string, currency string) ([]BillingChargeBatchSnapshot, error)
-	// LoadChargeCandidates returns chargeable billable or partially_charged records
-	// with positive remaining amount. Billable records must be unclaimed. Partially
-	// charged records must reference a succeeded historical charge batch and must
-	// not be owned by any pending/failed active charge batch; PrepareChargeBatch
-	// must atomically re-check this before replacing the claim for remaining amount.
 	LoadChargeCandidates(ctx context.Context, userID string, currency string) ([]domain.UsageRecord, error)
-	// PrepareChargeBatch atomically verifies ExpectedRecords, creates the pending
-	// batch and allocations, and claims all records with BillingChargeRequestID.
 	PrepareChargeBatch(ctx context.Context, plan UsageChargeBatchPlan) (BillingChargeBatchSnapshot, error)
-	// MarkChargeBatchFailed atomically transitions pending -> failed only when
-	// the current batch status matches expectedStatus. Succeeded is terminal;
-	// an identical already-terminal succeeded batch must not be overwritten.
 	MarkChargeBatchFailed(ctx context.Context, batchID string, expectedStatus domain.BillingChargeStatus, billingErrorCode string, failedAt time.Time) error
-	// ApplyChargeSuccess atomically loads the persisted immutable batch command,
-	// verifies caller metadata against persisted allocations/expected records,
-	// transitions pending|failed -> succeeded, applies allocation deltas to usage
-	// records, sets charged/partially_charged record status, clears any failed
-	// metadata, and treats identical already-succeeded batches as idempotent success.
 	ApplyChargeSuccess(ctx context.Context, success UsageChargeSuccess) error
 }
