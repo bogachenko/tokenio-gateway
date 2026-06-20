@@ -209,4 +209,9 @@ usage handling and response passthrough.
 `integration/route_fallback_test.go` verifies repository evidence for fallback
 decisions, retryable provider failure classification, provider attempt ordering and
 terminal no-route/no-capacity failures.
+## Cooldown scenario
+
+`integration/cooldown_test.go` verifies repository evidence for cooldown policy/state,
+rejection behavior, retry-after/window semantics, route/provider scope and automated
+coverage.
 

@@ -119,3 +119,4 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Gemini generate/embed/models integration scenario exists at `integration/gemini_generate_embed_models_test.go`.
 - [x] Ollama chat/generate/embeddings/tags integration scenario exists at `integration/ollama_chat_generate_embeddings_tags_test.go`.
 - [x] Route fallback integration evidence exists at `integration/route_fallback_test.go`.
+- [x] Cooldown integration evidence exists at `integration/cooldown_test.go`.

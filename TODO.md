@@ -326,7 +326,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add integration Ollama chat/generate/embeddings/tags scenario covering fake tags, chat, generate, embeddings, usage and passthrough evidence.
 * [x] Route fallback.
 * [x] Add integration route fallback evidence covering fallback policy, retryable failures, attempt ordering and terminal no-route/no-capacity failure.
-* [ ] Cooldown.
+* [x] Cooldown.
+* [x] Add integration cooldown evidence covering policy/state, rejection behavior, retry-after/window semantics, scope and automated coverage.
 * [ ] Capacity rejection.
 * [ ] Usage finalization.
 * [ ] Request-triggered charge.
