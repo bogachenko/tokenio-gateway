@@ -297,7 +297,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add integration partial Billing charge scenario with deterministic partial charge response and request recording.
 * [x] Duplicate Billing request.
 * [x] Add integration duplicate Billing request scenario with deterministic duplicate response and two recorded equal requests.
-* [ ] Unknown Billing result.
+* [x] Unknown Billing result.
+* [x] Add integration unknown Billing result scenario with deterministic unknown business-status response and recorded request.
 * [ ] Telegram temporary failure.
 * [ ] Telegram permanent failure.
 

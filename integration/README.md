@@ -137,4 +137,9 @@ charge request body.
 `integration/fake_billing_duplicate_request_test.go` verifies that the fake Billing
 service can deterministically return a duplicate/idempotent response while recording
 multiple equal charge requests.
+## Fake Billing unknown result scenario
+
+`integration/fake_billing_unknown_result_test.go` verifies that the fake Billing
+service can deterministically return a successful HTTP response with an unknown
+business result while recording the charge request body.
 

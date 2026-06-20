@@ -106,3 +106,4 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Fake service malformed usage scenario exists at `integration/fake_malformed_usage_test.go`.
 - [x] Fake Billing partial charge scenario exists at `integration/fake_billing_partial_charge_test.go`.
 - [x] Fake Billing duplicate request scenario exists at `integration/fake_billing_duplicate_request_test.go`.
+- [x] Fake Billing unknown result scenario exists at `integration/fake_billing_unknown_result_test.go`.
