@@ -324,7 +324,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add integration Gemini generate/embed/models scenario covering fake models, generateContent, embedContent, batchEmbedContents, usage and passthrough evidence.
 * [x] Ollama chat/generate/embeddings/tags.
 * [x] Add integration Ollama chat/generate/embeddings/tags scenario covering fake tags, chat, generate, embeddings, usage and passthrough evidence.
-* [ ] Route fallback.
+* [x] Route fallback.
+* [x] Add integration route fallback evidence covering fallback policy, retryable failures, attempt ordering and terminal no-route/no-capacity failure.
 * [ ] Cooldown.
 * [ ] Capacity rejection.
 * [ ] Usage finalization.

@@ -204,4 +204,9 @@ evidence for public routes, usage handling and response passthrough.
 `integration/ollama_chat_generate_embeddings_tags_test.go` verifies fake Ollama tags,
 chat, generate and embeddings happy paths plus repository evidence for public routes,
 usage handling and response passthrough.
+## Route fallback scenario
+
+`integration/route_fallback_test.go` verifies repository evidence for fallback
+decisions, retryable provider failure classification, provider attempt ordering and
+terminal no-route/no-capacity failures.
 
