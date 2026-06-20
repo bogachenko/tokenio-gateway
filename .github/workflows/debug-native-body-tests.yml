@@ -1,0 +1,44 @@
+name: Debug Native Body Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - codex/preserve-native-model-body-bytes
+
+jobs:
+  debug-native-body-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Run required commands and capture output
+        id: checks
+        run: |
+          set +e
+          {
+            echo '$ go test ./internal/infrastructure/forwarding/anthropicnative'
+            go test ./internal/infrastructure/forwarding/anthropicnative
+            echo '$ go test ./internal/infrastructure/forwarding/ollamanative'
+            go test ./internal/infrastructure/forwarding/ollamanative
+            echo '$ go test ./internal/infrastructure/forwarding/openaicompat'
+            go test ./internal/infrastructure/forwarding/openaicompat
+            echo '$ go test ./...'
+            go test ./...
+            echo '$ go vet ./...'
+            go vet ./...
+          } > native-body-test-output.txt 2>&1
+          status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-body-test-output
+          path: native-body-test-output.txt
+      - name: Fail when checks fail
+        if: steps.checks.outputs.status != '0'
+        run: exit 1
