@@ -2,57 +2,27 @@ package llmrequest
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"testing"
 
-	pricingapp "github.com/bogachenko/tokenio-gateway/internal/application/pricing"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
 
-type usageResolverExtractor struct{}
-
-func (usageResolverExtractor) Extract(
+type usagePricingResolverFunc func(
 	context.Context,
-	ports.UsageExtractionRequest,
-) (ports.UsageExtractionResult, error) {
-	return ports.UsageExtractionResult{
-		Usage: domain.TokenUsage{
-			InputTokens:  10,
-			OutputTokens: 5,
-		},
-		Completeness: "detailed",
-	}, nil
-}
+	UsagePricingInput,
+) (UsagePricingResult, error)
 
-type failingUsageResolverExtractor struct {
-	called *bool
-}
-
-func (extractor failingUsageResolverExtractor) Extract(
-	context.Context,
-	ports.UsageExtractionRequest,
-) (ports.UsageExtractionResult, error) {
-	if extractor.called != nil {
-		*extractor.called = true
-	}
-	return ports.UsageExtractionResult{}, errors.New(
-		"extractor must not be called when forward usage is present",
-	)
-}
-
-type usageResolverEstimator struct{}
-
-func (usageResolverEstimator) Estimate(
-	context.Context,
-	ports.TokenEstimateRequest,
-) (ports.TokenEstimate, error) {
-	return ports.TokenEstimate{}, errors.New("unexpected estimation")
+func (function usagePricingResolverFunc) Resolve(
+	ctx context.Context,
+	input UsagePricingInput,
+) (UsagePricingResult, error) {
+	return function(ctx, input)
 }
 
 func TestLLMRequestUsageResolverMapsPricingResult(t *testing.T) {
-	resolver := mustLLMRequestUsageResolver(t, usageResolverExtractor{})
+	resolver := mustLLMRequestUsageResolver(t, nil)
 
 	result, err := resolver.Resolve(
 		context.Background(),
@@ -84,7 +54,12 @@ func TestLLMRequestUsageResolverMapsPricingResult(t *testing.T) {
 }
 
 func TestLLMRequestUsageResolverUsesForwardingUsageBeforeResponseExtraction(t *testing.T) {
-	resolver := mustLLMRequestUsageResolver(t, failingUsageResolverExtractor{})
+	resolver := mustLLMRequestUsageResolver(t, func(t *testing.T, input UsagePricingInput) {
+		t.Helper()
+		if input.ActualUsage == nil || input.ActualUsage.InputTokens != 12 || input.ActualUsage.OutputTokens != 8 {
+			t.Fatalf("actual usage = %+v", input.ActualUsage)
+		}
+	})
 
 	result, err := resolver.Resolve(
 		context.Background(),
@@ -120,11 +95,12 @@ func TestLLMRequestUsageResolverUsesForwardingUsageBeforeResponseExtraction(t *t
 }
 
 func TestLLMRequestUsageResolverUsesForwardResponseUsageWithoutReparsingBody(t *testing.T) {
-	extractorCalled := false
-	resolver := mustLLMRequestUsageResolver(
-		t,
-		failingUsageResolverExtractor{called: &extractorCalled},
-	)
+	resolver := mustLLMRequestUsageResolver(t, func(t *testing.T, input UsagePricingInput) {
+		t.Helper()
+		if input.ActualUsage == nil || input.ActualUsage.InputTokens != 12 || input.ActualUsage.OutputTokens != 7 {
+			t.Fatalf("actual usage = %+v", input.ActualUsage)
+		}
+	})
 
 	result, err := resolver.Resolve(
 		context.Background(),
@@ -148,9 +124,6 @@ func TestLLMRequestUsageResolverUsesForwardResponseUsageWithoutReparsingBody(t *
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	if extractorCalled {
-		t.Fatal("response body extractor was called despite forward usage")
-	}
 	if result.Usage.InputTokens != 12 ||
 		result.Usage.OutputTokens != 7 ||
 		result.Completeness != "detailed" ||
@@ -164,23 +137,30 @@ func TestLLMRequestUsageResolverUsesForwardResponseUsageWithoutReparsingBody(t *
 
 func mustLLMRequestUsageResolver(
 	t *testing.T,
-	extractor ports.UsageExtractor,
+	assert func(*testing.T, UsagePricingInput),
 ) *LLMRequestUsageResolver {
 	t.Helper()
 
-	calculator, err := pricingapp.NewCalculator(1.25, 1.10)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pricingResolver, err := pricingapp.NewUsageResolver(
-		extractor,
-		usageResolverEstimator{},
-		calculator,
+	resolver, err := NewLLMRequestUsageResolver(
+		usagePricingResolverFunc(
+			func(_ context.Context, input UsagePricingInput) (UsagePricingResult, error) {
+				if assert != nil {
+					assert(t, input)
+				}
+				usage := domain.TokenUsage{InputTokens: 10, OutputTokens: 5}
+				if input.ActualUsage != nil {
+					usage = *input.ActualUsage
+				}
+				return UsagePricingResult{
+					Usage:             usage,
+					Completeness:      domain.UsageCompletenessDetailed,
+					UpstreamCostCents: 7,
+					ClientAmountCents: 11,
+					Currency:          "RUB",
+				}, nil
+			},
+		),
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resolver, err := NewLLMRequestUsageResolver(pricingResolver)
 	if err != nil {
 		t.Fatal(err)
 	}
