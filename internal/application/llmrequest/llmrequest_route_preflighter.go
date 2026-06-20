@@ -5,14 +5,34 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/bogachenko/tokenio-gateway/internal/application/pricing"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
 
+type PreflightPricingInput struct {
+	Route                 domain.Route
+	Price                 domain.RoutePrice
+	RequestBody           []byte
+	RequestedCapabilities domain.CapabilitySet
+}
+
+type PreflightPricingResult struct {
+	EstimatedUsage domain.TokenUsage
+
+	EstimatedClientAmountCents int64
+	EstimatedUpstreamCostCents int64
+
+	Currency   string
+	Confidence string
+}
+
+type PreflightPricer interface {
+	Price(context.Context, PreflightPricingInput) (PreflightPricingResult, error)
+}
+
 type LLMRequestRoutePreflighter struct {
 	secrets        ports.SecretPresenceChecker
-	pricer         *pricing.PreflightPricer
+	pricer         PreflightPricer
 	capacity       ports.RouteCapacityChecker
 	adapterSupport ports.ForwardingAdapterSupport
 	rewriteSupport ports.ModelIdentifierRewriteSupport
@@ -22,7 +42,7 @@ var _ RouteCandidatePreflighter = (*LLMRequestRoutePreflighter)(nil)
 
 func NewLLMRequestRoutePreflighter(
 	secrets ports.SecretPresenceChecker,
-	pricer *pricing.PreflightPricer,
+	pricer PreflightPricer,
 	capacity ports.RouteCapacityChecker,
 	adapterSupport ports.ForwardingAdapterSupport,
 	rewriteSupport ports.ModelIdentifierRewriteSupport,
@@ -104,7 +124,7 @@ func (p *LLMRequestRoutePreflighter) Evaluate(
 
 	priced, err := p.pricer.Price(
 		ctx,
-		pricing.PreflightInput{
+		PreflightPricingInput{
 			Route:                 input.Route,
 			Price:                 *input.Price,
 			RequestBody:           append([]byte(nil), input.Payload...),
