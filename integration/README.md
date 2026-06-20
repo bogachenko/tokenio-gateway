@@ -239,4 +239,9 @@ retry/recovery and finalization behavior.
 `integration/gateway_restart_test.go` verifies repository evidence for gateway
 lifecycle commands, readiness after start, persisted state across restart and
 idempotent recovery behavior.
+## Provisioning lifecycle scenario
+
+`integration/provisioning_lifecycle_test.go` verifies repository evidence for the
+internal provisioning endpoint, service authentication, idempotency, API key creation
+and duplicate handling.
 

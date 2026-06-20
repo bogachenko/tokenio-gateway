@@ -338,7 +338,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add integration recovery worker charge evidence covering worker entrypoint, candidate loading, batch preparation, billing handoff, retry/recovery and finalization behavior.
 * [x] Gateway restart.
 * [x] Add integration gateway restart evidence covering lifecycle commands, readiness, persisted state and idempotent recovery behavior.
-* [ ] Provisioning lifecycle.
+* [x] Provisioning lifecycle.
+* [x] Add integration provisioning lifecycle evidence covering endpoint, service auth, idempotency, API key creation and duplicate handling.
 * [ ] Admin mutation/audit.
 * [ ] Telegram alert lifecycle.
 
