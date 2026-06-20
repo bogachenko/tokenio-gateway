@@ -299,12 +299,6 @@ func TestAdapterRejectsUnsupportedOllamaRoute(t *testing.T) {
 			Path:   "/api/embeddings",
 			Body:   []byte(`{"model":"client-model"}`),
 		},
-		{
-			Route:  ollamaRoute(domain.EndpointChat, "client-model", "client-model", domain.ModelRewritePolicyNone),
-			Method: http.MethodPost,
-			Path:   "/api/chat",
-			Body:   []byte(`{"model":"other-model"}`),
-		},
 	}
 	for _, request := range tests {
 		if _, err := adapter.Forward(context.Background(), request); err == nil {

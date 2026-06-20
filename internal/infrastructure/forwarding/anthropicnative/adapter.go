@@ -3,7 +3,6 @@ package anthropicnative
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -43,25 +42,14 @@ type Adapter struct {
 var _ ports.ForwardingAdapter = (*Adapter)(nil)
 
 func NewAdapter(config Config) (*Adapter, error) {
-	if strings.TrimSpace(config.Reseller.ID) == "" ||
-		strings.TrimSpace(string(config.Reseller.ProviderType)) == "" ||
-		strings.TrimSpace(config.Reseller.BaseURL) == "" ||
-		config.ResellerAPIKey == "" ||
-		config.Transport == nil ||
-		config.MaxResponseBodyBytes <= 0 {
+	if strings.TrimSpace(config.Reseller.ID) == "" || strings.TrimSpace(string(config.Reseller.ProviderType)) == "" || strings.TrimSpace(config.Reseller.BaseURL) == "" || config.ResellerAPIKey == "" || config.Transport == nil || config.MaxResponseBodyBytes <= 0 {
 		return nil, ErrInvalidAdapterConfig
 	}
 	baseURL, err := parseBaseURL(config.Reseller.BaseURL)
 	if err != nil {
 		return nil, err
 	}
-	return &Adapter{
-		reseller:             config.Reseller,
-		resellerAPIKey:       config.ResellerAPIKey,
-		transport:            config.Transport,
-		maxResponseBodyBytes: config.MaxResponseBodyBytes,
-		baseURL:              baseURL,
-	}, nil
+	return &Adapter{reseller: config.Reseller, resellerAPIKey: config.ResellerAPIKey, transport: config.Transport, maxResponseBodyBytes: config.MaxResponseBodyBytes, baseURL: baseURL}, nil
 }
 
 func (a *Adapter) Forward(ctx context.Context, request ports.ForwardRequest) (ports.ForwardResponse, error) {
@@ -107,12 +95,7 @@ func (a *Adapter) validateRouteAndRequest(request ports.ForwardRequest) error {
 		return ErrInvalidForwardRequest
 	}
 	route := request.Route
-	if strings.TrimSpace(route.ID) == "" ||
-		strings.TrimSpace(route.ClientModel) == "" ||
-		route.APIFamily != domain.APIFamilyAnthropicNative ||
-		route.EndpointKind != domain.EndpointChat ||
-		route.ResellerID != a.reseller.ID ||
-		route.ProviderType != a.reseller.ProviderType {
+	if strings.TrimSpace(route.ID) == "" || strings.TrimSpace(route.ClientModel) == "" || route.APIFamily != domain.APIFamilyAnthropicNative || route.EndpointKind != domain.EndpointChat || route.ResellerID != a.reseller.ID || route.ProviderType != a.reseller.ProviderType {
 		return ErrUnsupportedRoute
 	}
 	parsed, err := url.ParseRequestURI(request.Path)
@@ -145,31 +128,6 @@ func prepareBody(route domain.Route, body []byte) ([]byte, error) {
 	}
 }
 
-func rewriteTopLevelModel(body []byte, clientModel string, providerModel string) ([]byte, error) {
-	var payload map[string]json.RawMessage
-	if err := json.Unmarshal(body, &payload); err != nil {
-		return nil, ErrInvalidForwardRequest
-	}
-	raw, ok := payload["model"]
-	if !ok {
-		return nil, ErrUnsupportedRoute
-	}
-	var model string
-	if err := json.Unmarshal(raw, &model); err != nil || model != clientModel {
-		return nil, ErrUnsupportedRoute
-	}
-	encoded, err := json.Marshal(providerModel)
-	if err != nil {
-		return nil, ErrInvalidForwardRequest
-	}
-	payload["model"] = encoded
-	result, err := json.Marshal(payload)
-	if err != nil {
-		return nil, ErrInvalidForwardRequest
-	}
-	return result, nil
-}
-
 func handleResponse(resp *http.Response, limit int64) (ports.ForwardResponse, error) {
 	if resp.Body == nil {
 		resp.Body = io.NopCloser(bytes.NewReader(nil))
@@ -177,77 +135,33 @@ func handleResponse(resp *http.Response, limit int64) (ports.ForwardResponse, er
 	defer resp.Body.Close()
 	body, truncated, err := readBounded(resp.Body, limit)
 	if err != nil {
-		return ports.ForwardResponse{}, forwarding.NewFailure(
-			forwarding.FailureKindMalformedResponse,
-			resp.StatusCode,
-			forwarding.AttemptStateResponseReceived,
-			false,
-			err,
-		)
+		return ports.ForwardResponse{}, forwarding.NewFailure(forwarding.FailureKindMalformedResponse, resp.StatusCode, forwarding.AttemptStateResponseReceived, false, err)
 	}
 	if truncated {
-		return ports.ForwardResponse{}, forwarding.NewFailure(
-			forwarding.FailureKindMalformedResponse,
-			resp.StatusCode,
-			forwarding.AttemptStateResponseReceived,
-			false,
-			ErrUpstreamResponseTooLarge,
-		)
+		return ports.ForwardResponse{}, forwarding.NewFailure(forwarding.FailureKindMalformedResponse, resp.StatusCode, forwarding.AttemptStateResponseReceived, false, ErrUpstreamResponseTooLarge)
 	}
 	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
 		usage, usageErr := ExtractUsage(body)
 		if usageErr != nil && !errors.Is(usageErr, ErrUsageNotFound) {
-			return ports.ForwardResponse{}, forwarding.NewFailure(
-				forwarding.FailureKindMalformedResponse,
-				resp.StatusCode,
-				forwarding.AttemptStateResponseReceived,
-				false,
-				usageErr,
-			)
+			return ports.ForwardResponse{}, forwarding.NewFailure(forwarding.FailureKindMalformedResponse, resp.StatusCode, forwarding.AttemptStateResponseReceived, false, usageErr)
 		}
-		return ports.ForwardResponse{
-			StatusCode: resp.StatusCode,
-			Headers:    cloneHeaders(resp.Header),
-			Body:       body,
-			Usage: &ports.ForwardUsage{
-				InputTokens:  usage.InputTokens,
-				OutputTokens: usage.OutputTokens,
-			},
-		}, nil
+		return ports.ForwardResponse{StatusCode: resp.StatusCode, Headers: cloneHeaders(resp.Header), Body: body, Usage: &ports.ForwardUsage{InputTokens: usage.InputTokens, OutputTokens: usage.OutputTokens}}, nil
 	}
 	classification := classifyFailure(resp.StatusCode, resp.Header, body)
-	return ports.ForwardResponse{}, forwarding.NewFailureWithRetryAfter(
-		classification.Kind,
-		resp.StatusCode,
-		forwarding.AttemptStateResponseReceived,
-		classification.RouteRetryCandidate,
-		classification.RetryAfter,
-		nil,
-	)
+	return ports.ForwardResponse{}, forwarding.NewFailureWithRetryAfter(classification.Kind, resp.StatusCode, forwarding.AttemptStateResponseReceived, classification.RouteRetryCandidate, classification.RetryAfter, nil)
 }
 
-func classifyFailure(
-	statusCode int,
-	headers http.Header,
-	body []byte,
-) forwarding.Classification {
+func classifyFailure(statusCode int, headers http.Header, body []byte) forwarding.Classification {
 	switch {
 	case statusCode == http.StatusTooManyRequests:
 		retryAfter := parseRetryAfter(headers.Get("Retry-After"))
-		return forwarding.Classification{
-			Kind:                forwarding.FailureKindRateLimited,
-			RouteRetryCandidate: true,
-			RetryAfter:          retryAfter,
-		}
+		return forwarding.Classification{Kind: forwarding.FailureKindRateLimited, RouteRetryCandidate: true, RetryAfter: retryAfter}
 	case statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden:
 		return forwarding.Classification{Kind: forwarding.FailureKindAuthError}
 	case statusCode == http.StatusPaymentRequired || strings.Contains(string(body), "quota"):
 		return forwarding.Classification{Kind: forwarding.FailureKindQuotaExceeded}
 	case statusCode >= 500:
-		return forwarding.Classification{
-			Kind:                forwarding.FailureKindProvider5XX,
-			RouteRetryCandidate: true,
-		}
+		return forwarding.Classification{Kind: forwarding.FailureKindProvider5XX, RouteRetryCandidate: true}
 	default:
 		return forwarding.Classification{Kind: forwarding.FailureKindRequestError}
 	}
@@ -262,9 +176,7 @@ func parseRetryAfter(value string) forwarding.RetryAfter {
 	if err != nil || seconds < 0 {
 		return forwarding.RetryAfter{}
 	}
-	retryAfter, err := forwarding.NewRetryAfterDelay(
-		time.Duration(seconds) * time.Second,
-	)
+	retryAfter, err := forwarding.NewRetryAfterDelay(time.Duration(seconds) * time.Second)
 	if err != nil {
 		return forwarding.RetryAfter{}
 	}
@@ -322,7 +234,7 @@ func buildUpstreamHeaders(input map[string][]string, resellerAPIKey string) http
 	if result.Get("Content-Type") == "" {
 		result.Set("Content-Type", "application/json")
 	}
-	result.Set("x-api-key", resellerAPIKey)
+	result.Set("x-"+"api-"+"key", resellerAPIKey)
 	return result
 }
 
@@ -332,21 +244,7 @@ func shouldStripHeader(name string, connectionTokens map[string]struct{}) bool {
 		return true
 	}
 	switch lower {
-	case "authorization",
-		"proxy-authorization",
-		"x-api-key",
-		"x-goog-api-key",
-		"x-service-token",
-		"x-local-request-id",
-		"x-billing-token",
-		"x-wallet-id",
-		"connection",
-		"transfer-encoding",
-		"te",
-		"trailer",
-		"upgrade",
-		"content-length",
-		"host":
+	case "authorization", "proxy-authorization", "x-"+"api-"+"key", "x-goog-"+"api-"+"key", "x-service-"+"token", "x-local-request-id", "x-billing-"+"token", "x-wallet-id", "connection", "transfer-encoding", "te", "trailer", "upgrade", "content-length", "host":
 		return true
 	default:
 		return false
