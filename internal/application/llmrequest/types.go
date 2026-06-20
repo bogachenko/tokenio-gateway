@@ -13,6 +13,7 @@ type Input struct {
 	APIFamily    domain.APIFamily
 	EndpointKind domain.EndpointKind
 	PathModel    string
+	UpstreamPath string
 
 	Payload []byte
 }
@@ -95,6 +96,7 @@ type PreparedRequest struct {
 	EndpointKind          domain.EndpointKind
 	ClientModel           string
 	RequestedCapabilities domain.CapabilitySet
+	UpstreamPath          string
 
 	Payload []byte
 	Plan    RoutePlan
