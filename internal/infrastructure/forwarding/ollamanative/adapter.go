@@ -133,7 +133,7 @@ func prepareBody(route domain.Route, body []byte) ([]byte, error) {
 	case domain.ModelRewritePolicyNone:
 		return append([]byte(nil), body...), nil
 	case domain.ModelRewritePolicyProviderModel:
-		return replaceTopModelBytes(body, route.ClientModel, route.ProviderModel)
+		return rewriteTopLevelModel(body, route.ClientModel, route.ProviderModel)
 	default:
 		return nil, ErrUnsupportedRoute
 	}
