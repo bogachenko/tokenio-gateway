@@ -1,11 +1,10 @@
-package app
+package llmrequest
 
 import (
 	"context"
 	"fmt"
 	"strings"
 
-	"github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
 
@@ -15,7 +14,7 @@ type LLMRequestForwardingExecutor struct {
 	maxResponseBodyBytes int64
 }
 
-var _ llmrequest.ForwardingExecutor = (*LLMRequestForwardingExecutor)(nil)
+var _ ForwardingExecutor = (*LLMRequestForwardingExecutor)(nil)
 
 func NewLLMRequestForwardingExecutor(
 	secrets ports.SecretResolver,
@@ -25,7 +24,7 @@ func NewLLMRequestForwardingExecutor(
 	if secrets == nil ||
 		factory == nil ||
 		maxResponseBodyBytes <= 0 {
-		return nil, llmrequest.ErrDependencyRequired
+		return nil, ErrDependencyRequired
 	}
 	return &LLMRequestForwardingExecutor{
 		secrets:              secrets,
@@ -36,23 +35,22 @@ func NewLLMRequestForwardingExecutor(
 
 func (e *LLMRequestForwardingExecutor) Forward(
 	ctx context.Context,
-	input llmrequest.ForwardingExecutionInput,
-) (llmrequest.ForwardingExecutionResult, error) {
+	input ForwardingExecutionInput,
+) (ForwardingExecutionResult, error) {
 	if e == nil ||
 		e.secrets == nil ||
 		e.factory == nil ||
 		e.maxResponseBodyBytes <= 0 {
-		return llmrequest.ForwardingExecutionResult{},
-			llmrequest.ErrDependencyRequired
+		return ForwardingExecutionResult{}, ErrDependencyRequired
 	}
 	if ctx == nil {
-		return llmrequest.ForwardingExecutionResult{}, fmt.Errorf(
+		return ForwardingExecutionResult{}, fmt.Errorf(
 			"%w: nil forwarding executor context",
-			llmrequest.ErrInvalidInput,
+			ErrInvalidInput,
 		)
 	}
 	if err := ctx.Err(); err != nil {
-		return llmrequest.ForwardingExecutionResult{}, err
+		return ForwardingExecutionResult{}, err
 	}
 
 	route := input.Prepared.Plan.Route
@@ -61,23 +59,23 @@ func (e *LLMRequestForwardingExecutor) Forward(
 		route.ResellerID != reseller.ID ||
 		route.ProviderType != reseller.ProviderType ||
 		input.Prepared.Payload == nil {
-		return llmrequest.ForwardingExecutionResult{}, fmt.Errorf(
+		return ForwardingExecutionResult{}, fmt.Errorf(
 			"%w: invalid forwarding execution input",
-			llmrequest.ErrStageContractViolation,
+			ErrStageContractViolation,
 		)
 	}
 
 	secret, err := e.secrets.Resolve(ctx, reseller.APIKeyEnv)
 	if err != nil {
-		return llmrequest.ForwardingExecutionResult{}, fmt.Errorf(
+		return ForwardingExecutionResult{}, fmt.Errorf(
 			"resolve reseller secret: %w",
 			err,
 		)
 	}
 	if strings.TrimSpace(secret) == "" {
-		return llmrequest.ForwardingExecutionResult{}, fmt.Errorf(
+		return ForwardingExecutionResult{}, fmt.Errorf(
 			"%w: resolved reseller secret is blank",
-			llmrequest.ErrStageContractViolation,
+			ErrStageContractViolation,
 		)
 	}
 
@@ -90,7 +88,7 @@ func (e *LLMRequestForwardingExecutor) Forward(
 		},
 	)
 	if err != nil {
-		return llmrequest.ForwardingExecutionResult{}, fmt.Errorf(
+		return ForwardingExecutionResult{}, fmt.Errorf(
 			"build forwarding client: %w",
 			err,
 		)
@@ -104,10 +102,10 @@ func (e *LLMRequestForwardingExecutor) Forward(
 		},
 	)
 	if err != nil {
-		return llmrequest.ForwardingExecutionResult{}, err
+		return ForwardingExecutionResult{}, err
 	}
 
-	return llmrequest.ForwardingExecutionResult{
+	return ForwardingExecutionResult{
 		Response: cloneExecutorForwardResponse(response),
 	}, nil
 }

@@ -1,29 +1,48 @@
-package app
+package llmrequest
 
 import (
 	"context"
 	"fmt"
 	"strings"
 
-	"github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
-	"github.com/bogachenko/tokenio-gateway/internal/application/pricing"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
 
+type PreflightPricingInput struct {
+	Route                 domain.Route
+	Price                 domain.RoutePrice
+	RequestBody           []byte
+	RequestedCapabilities domain.CapabilitySet
+}
+
+type PreflightPricingResult struct {
+	EstimatedUsage domain.TokenUsage
+
+	EstimatedClientAmountCents int64
+	EstimatedUpstreamCostCents int64
+
+	Currency   string
+	Confidence string
+}
+
+type PreflightPricer interface {
+	Price(context.Context, PreflightPricingInput) (PreflightPricingResult, error)
+}
+
 type LLMRequestRoutePreflighter struct {
 	secrets        ports.SecretPresenceChecker
-	pricer         *pricing.PreflightPricer
+	pricer         PreflightPricer
 	capacity       ports.RouteCapacityChecker
 	adapterSupport ports.ForwardingAdapterSupport
 	rewriteSupport ports.ModelIdentifierRewriteSupport
 }
 
-var _ llmrequest.RouteCandidatePreflighter = (*LLMRequestRoutePreflighter)(nil)
+var _ RouteCandidatePreflighter = (*LLMRequestRoutePreflighter)(nil)
 
 func NewLLMRequestRoutePreflighter(
 	secrets ports.SecretPresenceChecker,
-	pricer *pricing.PreflightPricer,
+	pricer PreflightPricer,
 	capacity ports.RouteCapacityChecker,
 	adapterSupport ports.ForwardingAdapterSupport,
 	rewriteSupport ports.ModelIdentifierRewriteSupport,
@@ -33,7 +52,7 @@ func NewLLMRequestRoutePreflighter(
 		capacity == nil ||
 		adapterSupport == nil ||
 		rewriteSupport == nil {
-		return nil, llmrequest.ErrDependencyRequired
+		return nil, ErrDependencyRequired
 	}
 	return &LLMRequestRoutePreflighter{
 		secrets:        secrets,
@@ -46,31 +65,30 @@ func NewLLMRequestRoutePreflighter(
 
 func (p *LLMRequestRoutePreflighter) Evaluate(
 	ctx context.Context,
-	input llmrequest.RouteCandidatePreflightInput,
-) (llmrequest.RouteCandidatePreflightResult, error) {
+	input RouteCandidatePreflightInput,
+) (RouteCandidatePreflightResult, error) {
 	if p == nil ||
 		p.secrets == nil ||
 		p.pricer == nil ||
 		p.capacity == nil ||
 		p.adapterSupport == nil ||
 		p.rewriteSupport == nil {
-		return llmrequest.RouteCandidatePreflightResult{},
-			llmrequest.ErrDependencyRequired
+		return RouteCandidatePreflightResult{}, ErrDependencyRequired
 	}
 	if ctx == nil {
-		return llmrequest.RouteCandidatePreflightResult{}, fmt.Errorf(
+		return RouteCandidatePreflightResult{}, fmt.Errorf(
 			"%w: nil route preflight context",
-			llmrequest.ErrInvalidInput,
+			ErrInvalidInput,
 		)
 	}
 	if err := ctx.Err(); err != nil {
-		return llmrequest.RouteCandidatePreflightResult{}, err
+		return RouteCandidatePreflightResult{}, err
 	}
 	if err := validateLLMRequestRoutePreflightInput(input); err != nil {
-		return llmrequest.RouteCandidatePreflightResult{}, err
+		return RouteCandidatePreflightResult{}, err
 	}
 
-	result := llmrequest.RouteCandidatePreflightResult{
+	result := RouteCandidatePreflightResult{
 		ForwardingAdapterAvailable: p.adapterSupport.SupportsForwardingAdapter(
 			input.Route.APIFamily,
 			input.Route.ProviderType,
@@ -92,11 +110,10 @@ func (p *LLMRequestRoutePreflighter) Evaluate(
 			input.Reseller.APIKeyEnv,
 		)
 		if err != nil {
-			return llmrequest.RouteCandidatePreflightResult{},
-				fmt.Errorf(
-					"check reseller secret presence: %w",
-					err,
-				)
+			return RouteCandidatePreflightResult{}, fmt.Errorf(
+				"check reseller secret presence: %w",
+				err,
+			)
 		}
 		result.SecretAvailable = available
 	}
@@ -107,7 +124,7 @@ func (p *LLMRequestRoutePreflighter) Evaluate(
 
 	priced, err := p.pricer.Price(
 		ctx,
-		pricing.PreflightInput{
+		PreflightPricingInput{
 			Route:                 input.Route,
 			Price:                 *input.Price,
 			RequestBody:           append([]byte(nil), input.Payload...),
@@ -116,18 +133,15 @@ func (p *LLMRequestRoutePreflighter) Evaluate(
 	)
 	if err != nil {
 		if contextError := ctx.Err(); contextError != nil {
-			return llmrequest.RouteCandidatePreflightResult{},
-				contextError
+			return RouteCandidatePreflightResult{}, contextError
 		}
 		return result, nil
 	}
 
 	result.CostAvailable = true
 	result.EstimatedUsage = priced.EstimatedUsage
-	result.EstimatedClientAmountCents =
-		priced.EstimatedClientAmountCents
-	result.EstimatedUpstreamCostCents =
-		priced.EstimatedUpstreamCostCents
+	result.EstimatedClientAmountCents = priced.EstimatedClientAmountCents
+	result.EstimatedUpstreamCostCents = priced.EstimatedUpstreamCostCents
 	result.Currency = priced.Currency
 	result.Confidence = priced.Confidence
 
@@ -140,8 +154,7 @@ func (p *LLMRequestRoutePreflighter) Evaluate(
 		},
 	)
 	if err != nil {
-		return llmrequest.RouteCandidatePreflightResult{},
-			fmt.Errorf("check route capacity: %w", err)
+		return RouteCandidatePreflightResult{}, fmt.Errorf("check route capacity: %w", err)
 	}
 	result.RateLimitAllowed = capacity.RateLimitAllowed
 	result.ConcurrencyAllowed = capacity.ConcurrencyAllowed
@@ -149,7 +162,7 @@ func (p *LLMRequestRoutePreflighter) Evaluate(
 }
 
 func validateLLMRequestRoutePreflightInput(
-	input llmrequest.RouteCandidatePreflightInput,
+	input RouteCandidatePreflightInput,
 ) error {
 	if strings.TrimSpace(input.Route.ID) == "" ||
 		strings.TrimSpace(input.Route.ResellerID) == "" ||
@@ -163,14 +176,13 @@ func validateLLMRequestRoutePreflightInput(
 		input.Payload == nil {
 		return fmt.Errorf(
 			"%w: invalid route preflight input",
-			llmrequest.ErrStageContractViolation,
+			ErrStageContractViolation,
 		)
 	}
-	if input.Price != nil &&
-		input.Price.RouteID != input.Route.ID {
+	if input.Price != nil && input.Price.RouteID != input.Route.ID {
 		return fmt.Errorf(
 			"%w: route price identity mismatch",
-			llmrequest.ErrStageContractViolation,
+			ErrStageContractViolation,
 		)
 	}
 	return nil

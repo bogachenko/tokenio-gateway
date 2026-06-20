@@ -1,4 +1,4 @@
-package app
+package llmrequest
 
 import (
 	"bytes"
@@ -6,15 +6,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
 
-type executorSecretResolverFunc func(
-	context.Context,
-	string,
-) (string, error)
+type executorSecretResolverFunc func(context.Context, string) (string, error)
 
 func (function executorSecretResolverFunc) Resolve(
 	ctx context.Context,
@@ -57,18 +53,13 @@ func TestLLMRequestForwardingExecutorUsesSemanticBoundary(t *testing.T) {
 	executor := mustLLMRequestForwardingExecutor(
 		t,
 		executorSecretResolverFunc(
-			func(
-				_ context.Context,
-				name string,
-			) (string, error) {
+			func(_ context.Context, name string) (string, error) {
 				gotSecretName = name
 				return "resolved-secret", nil
 			},
 		),
 		executorFactoryFunc(
-			func(
-				value ports.ForwardingAdapterFactoryInput,
-			) (ports.ForwardingClient, error) {
+			func(value ports.ForwardingAdapterFactoryInput) (ports.ForwardingClient, error) {
 				gotFactory = value
 				return executorClientFunc(
 					func(
@@ -76,10 +67,7 @@ func TestLLMRequestForwardingExecutorUsesSemanticBoundary(t *testing.T) {
 						request ports.ForwardingClientRequest,
 					) (ports.ForwardResponse, error) {
 						gotClientRouteID = request.Route.ID
-						gotClientBody = append(
-							[]byte(nil),
-							request.Body...,
-						)
+						gotClientBody = append([]byte(nil), request.Body...)
 						request.Body[0] = 'X'
 						return ports.ForwardResponse{
 							StatusCode: 200,
@@ -110,11 +98,7 @@ func TestLLMRequestForwardingExecutorUsesSemanticBoundary(t *testing.T) {
 	}
 	if gotClientRouteID != input.Prepared.Plan.Route.ID ||
 		!bytes.Equal(gotClientBody, original) {
-		t.Fatalf(
-			"client input route/body=%q/%q",
-			gotClientRouteID,
-			gotClientBody,
-		)
+		t.Fatalf("client input route/body=%q/%q", gotClientRouteID, gotClientBody)
 	}
 	if !bytes.Equal(input.Prepared.Payload, original) {
 		t.Fatalf("caller payload mutated: %q", input.Prepared.Payload)
@@ -134,9 +118,7 @@ func TestLLMRequestForwardingExecutorStopsAtSecretFailure(t *testing.T) {
 			},
 		),
 		executorFactoryFunc(
-			func(
-				ports.ForwardingAdapterFactoryInput,
-			) (ports.ForwardingClient, error) {
+			func(ports.ForwardingAdapterFactoryInput) (ports.ForwardingClient, error) {
 				t.Fatal("factory must not be called")
 				return nil, nil
 			},
@@ -144,10 +126,7 @@ func TestLLMRequestForwardingExecutorStopsAtSecretFailure(t *testing.T) {
 		1024,
 	)
 
-	_, err := executor.Forward(
-		context.Background(),
-		validExecutorInput(),
-	)
+	_, err := executor.Forward(context.Background(), validExecutorInput())
 	if !errors.Is(err, stageError) {
 		t.Fatalf("error=%v", err)
 	}
@@ -162,9 +141,7 @@ func TestLLMRequestForwardingExecutorRejectsBlankSecret(t *testing.T) {
 			},
 		),
 		executorFactoryFunc(
-			func(
-				ports.ForwardingAdapterFactoryInput,
-			) (ports.ForwardingClient, error) {
+			func(ports.ForwardingAdapterFactoryInput) (ports.ForwardingClient, error) {
 				t.Fatal("factory must not be called")
 				return nil, nil
 			},
@@ -172,32 +149,20 @@ func TestLLMRequestForwardingExecutorRejectsBlankSecret(t *testing.T) {
 		1024,
 	)
 
-	_, err := executor.Forward(
-		context.Background(),
-		validExecutorInput(),
-	)
-	if !errors.Is(err, llmrequest.ErrStageContractViolation) {
+	_, err := executor.Forward(context.Background(), validExecutorInput())
+	if !errors.Is(err, ErrStageContractViolation) {
 		t.Fatalf("error=%v", err)
 	}
 }
 
-func TestNewLLMRequestForwardingExecutorRequiresDependencies(
-	t *testing.T,
-) {
+func TestNewLLMRequestForwardingExecutorRequiresDependencies(t *testing.T) {
 	validSecrets := executorSecretResolverFunc(
-		func(context.Context, string) (string, error) {
-			return "secret", nil
-		},
+		func(context.Context, string) (string, error) { return "secret", nil },
 	)
 	validFactory := executorFactoryFunc(
-		func(
-			ports.ForwardingAdapterFactoryInput,
-		) (ports.ForwardingClient, error) {
+		func(ports.ForwardingAdapterFactoryInput) (ports.ForwardingClient, error) {
 			return executorClientFunc(
-				func(
-					context.Context,
-					ports.ForwardingClientRequest,
-				) (ports.ForwardResponse, error) {
+				func(context.Context, ports.ForwardingClientRequest) (ports.ForwardResponse, error) {
 					return ports.ForwardResponse{}, nil
 				},
 			), nil
@@ -221,7 +186,7 @@ func TestNewLLMRequestForwardingExecutorRequiresDependencies(
 				test.factory,
 				test.limit,
 			)
-			if !errors.Is(err, llmrequest.ErrDependencyRequired) {
+			if !errors.Is(err, ErrDependencyRequired) {
 				t.Fatalf("error=%v", err)
 			}
 		})
@@ -236,18 +201,14 @@ func mustLLMRequestForwardingExecutor(
 ) *LLMRequestForwardingExecutor {
 	t.Helper()
 
-	executor, err := NewLLMRequestForwardingExecutor(
-		secrets,
-		factory,
-		limit,
-	)
+	executor, err := NewLLMRequestForwardingExecutor(secrets, factory, limit)
 	if err != nil {
 		t.Fatalf("NewLLMRequestForwardingExecutor: %v", err)
 	}
 	return executor
 }
 
-func validExecutorInput() llmrequest.ForwardingExecutionInput {
+func validExecutorInput() ForwardingExecutionInput {
 	route := domain.Route{
 		ID:                 "route-1",
 		ResellerID:         "reseller-1",
@@ -267,9 +228,9 @@ func validExecutorInput() llmrequest.ForwardingExecutionInput {
 		BaseURL:      "https://provider.example/api",
 		APIKeyEnv:    "RESELLER_API_KEY",
 	}
-	prepared := llmrequest.PreparedRequest{
+	prepared := PreparedRequest{
 		LocalRequestID: "llmreq_test",
-		Principal: llmrequest.Principal{
+		Principal: Principal{
 			UserID:               "user-1",
 			APIKeyID:             "key-1",
 			BillingSubjectUserID: "billing-1",
@@ -279,7 +240,7 @@ func validExecutorInput() llmrequest.ForwardingExecutionInput {
 		ClientModel:           route.ClientModel,
 		RequestedCapabilities: route.Capabilities,
 		Payload:               []byte(`{"model":"model-1"}`),
-		Plan: llmrequest.RoutePlan{
+		Plan: RoutePlan{
 			Route:                      route,
 			Reseller:                   reseller,
 			BillingModel:               "model-1",
@@ -290,15 +251,15 @@ func validExecutorInput() llmrequest.ForwardingExecutionInput {
 			Confidence:                 "estimated",
 		},
 	}
-	return llmrequest.ForwardingExecutionInput{
+	return ForwardingExecutionInput{
 		Prepared: prepared,
-		Admission: llmrequest.BillingAdmissionResult{
+		Admission: BillingAdmissionResult{
 			Allowed:              true,
 			RequiredReserveCents: 20,
 			Currency:             "RUB",
 		},
-		Reservation: llmrequest.ReservationResult{
-			Disposition: llmrequest.ReservationDispositionCreated,
+		Reservation: ReservationResult{
+			Disposition: ReservationDispositionCreated,
 			Usage: domain.UsageRecord{
 				LocalRequestID:  "llmreq_test",
 				SelectedRouteID: "route-1",

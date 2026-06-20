@@ -1,23 +1,21 @@
-package app
+package llmrequest
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	ledgerapp "github.com/bogachenko/tokenio-gateway/internal/application/ledger"
-	"github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 )
 
 type finalizerLedger struct {
-	commitInput  ledgerapp.CommitBillableInput
-	failureInput ledgerapp.MarkPricingFailedInput
+	commitInput  CommitBillableInput
+	failureInput MarkPricingFailedInput
 }
 
 func (l *finalizerLedger) CommitBillable(
 	_ context.Context,
-	input ledgerapp.CommitBillableInput,
+	input CommitBillableInput,
 ) (domain.UsageRecord, error) {
 	l.commitInput = input
 	return domain.UsageRecord{
@@ -28,7 +26,7 @@ func (l *finalizerLedger) CommitBillable(
 
 func (l *finalizerLedger) MarkPricingFailed(
 	_ context.Context,
-	input ledgerapp.MarkPricingFailedInput,
+	input MarkPricingFailedInput,
 ) (domain.UsageRecord, error) {
 	l.failureInput = input
 	return domain.UsageRecord{
@@ -45,9 +43,9 @@ func TestLLMRequestFinalizerCommitsResolvedUsage(t *testing.T) {
 	}
 	result, err := finalizer.Commit(
 		context.Background(),
-		llmrequest.FinalizationInput{
+		FinalizationInput{
 			Reserved: finalizerReservedRequest(),
-			ResolvedUsage: llmrequest.UsageResolutionResult{
+			ResolvedUsage: UsageResolutionResult{
 				Usage: domain.TokenUsage{
 					InputTokens:  10,
 					OutputTokens: 5,
@@ -69,11 +67,7 @@ func TestLLMRequestFinalizerCommitsResolvedUsage(t *testing.T) {
 		ledger.commitInput.ClientAmountCents != 11 ||
 		ledger.commitInput.ActualUpstreamCostCents != 7 ||
 		ledger.commitInput.ProviderRequestID != "provider-request-1" {
-		t.Fatalf(
-			"result=%+v input=%+v",
-			result,
-			ledger.commitInput,
-		)
+		t.Fatalf("result=%+v input=%+v", result, ledger.commitInput)
 	}
 }
 
@@ -85,7 +79,7 @@ func TestLLMRequestFinalizerMarksPricingFailure(t *testing.T) {
 	}
 	result, err := finalizer.MarkPricingFailed(
 		context.Background(),
-		llmrequest.PricingFailureInput{
+		PricingFailureInput{
 			Reserved:      finalizerReservedRequest(),
 			FailureReason: "usage_resolution_failed",
 		},
@@ -95,39 +89,25 @@ func TestLLMRequestFinalizerMarksPricingFailure(t *testing.T) {
 	}
 	if result.Usage.Status != domain.UsageStatusPricingFailed ||
 		ledger.failureInput.LocalRequestID != "llmreq_finalizer_1" ||
-		ledger.failureInput.FailureReason !=
-			"usage_resolution_failed" ||
+		ledger.failureInput.FailureReason != "usage_resolution_failed" ||
 		ledger.failureInput.Usage.InputTokens != 20 {
-		t.Fatalf(
-			"result=%+v input=%+v",
-			result,
-			ledger.failureInput,
-		)
+		t.Fatalf("result=%+v input=%+v", result, ledger.failureInput)
 	}
 }
 
-func finalizerReservedRequest() llmrequest.ReservedRequest {
-	now := time.Date(
-		2026,
-		time.June,
-		14,
-		12,
-		0,
-		0,
-		0,
-		time.UTC,
-	)
-	return llmrequest.ReservedRequest{
-		Prepared: llmrequest.PreparedRequest{
+func finalizerReservedRequest() ReservedRequest {
+	now := time.Date(2026, time.June, 14, 12, 0, 0, 0, time.UTC)
+	return ReservedRequest{
+		Prepared: PreparedRequest{
 			LocalRequestID: "llmreq_finalizer_1",
-			Plan: llmrequest.RoutePlan{
+			Plan: RoutePlan{
 				EstimatedUsage: domain.TokenUsage{
 					InputTokens:  20,
 					OutputTokens: 10,
 				},
 			},
 		},
-		Reservation: llmrequest.ReservationResult{
+		Reservation: ReservationResult{
 			Usage: domain.UsageRecord{
 				LocalRequestID: "llmreq_finalizer_1",
 				Status:         domain.UsageStatusReserved,

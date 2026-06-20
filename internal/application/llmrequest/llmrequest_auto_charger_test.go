@@ -1,38 +1,36 @@
-package app
+package llmrequest
 
 import (
 	"context"
 	"errors"
 	"testing"
 
-	billingapp "github.com/bogachenko/tokenio-gateway/internal/application/billing"
-	"github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 )
 
 type autoChargeServiceFunc func(
 	context.Context,
-	billingapp.AutoChargeInput,
-) (billingapp.AutoChargeResult, error)
+	AutoChargeServiceInput,
+) (AutoChargeServiceResult, error)
 
 func (f autoChargeServiceFunc) Run(
 	ctx context.Context,
-	input billingapp.AutoChargeInput,
-) (billingapp.AutoChargeResult, error) {
+	input AutoChargeServiceInput,
+) (AutoChargeServiceResult, error) {
 	return f(ctx, input)
 }
 
 func TestLLMRequestAutoChargerMapsProcessedResult(t *testing.T) {
 	balance := int64(777)
-	var got billingapp.AutoChargeInput
+	var got AutoChargeServiceInput
 	adapter, err := NewLLMRequestAutoCharger(
 		autoChargeServiceFunc(
 			func(
 				_ context.Context,
-				input billingapp.AutoChargeInput,
-			) (billingapp.AutoChargeResult, error) {
+				input AutoChargeServiceInput,
+			) (AutoChargeServiceResult, error) {
 				got = input
-				return billingapp.AutoChargeResult{
+				return AutoChargeServiceResult{
 					ProcessedBatchIDs:   []string{"batch-1"},
 					ChargedAmountCents:  15,
 					BillingBalanceCents: &balance,
@@ -46,8 +44,8 @@ func TestLLMRequestAutoChargerMapsProcessedResult(t *testing.T) {
 
 	result := adapter.Run(
 		context.Background(),
-		llmrequest.AutoChargeInput{
-			Principal: llmrequest.Principal{
+		AutoChargeInput{
+			Principal: Principal{
 				UserID:               "user-1",
 				BillingSubjectUserID: "billing-1",
 			},
@@ -62,7 +60,7 @@ func TestLLMRequestAutoChargerMapsProcessedResult(t *testing.T) {
 		got.Currency != "RUB" {
 		t.Fatalf("input=%+v", got)
 	}
-	if result.Status != llmrequest.AutoChargeStatusProcessed ||
+	if result.Status != AutoChargeStatusProcessed ||
 		result.ChargedAmountCents != 15 ||
 		result.BillingBalanceCents == nil ||
 		*result.BillingBalanceCents != 777 ||
@@ -71,17 +69,11 @@ func TestLLMRequestAutoChargerMapsProcessedResult(t *testing.T) {
 	}
 }
 
-func TestLLMRequestAutoChargerDoesNotEscalateBillingFailure(
-	t *testing.T,
-) {
+func TestLLMRequestAutoChargerDoesNotEscalateServiceFailure(t *testing.T) {
 	adapter, err := NewLLMRequestAutoCharger(
 		autoChargeServiceFunc(
-			func(
-				context.Context,
-				billingapp.AutoChargeInput,
-			) (billingapp.AutoChargeResult, error) {
-				return billingapp.AutoChargeResult{},
-					errors.New("billing unavailable")
+			func(context.Context, AutoChargeServiceInput) (AutoChargeServiceResult, error) {
+				return AutoChargeServiceResult{}, errors.New("service unavailable")
 			},
 		),
 	)
@@ -89,11 +81,8 @@ func TestLLMRequestAutoChargerDoesNotEscalateBillingFailure(
 		t.Fatal(err)
 	}
 
-	result := adapter.Run(
-		context.Background(),
-		llmrequest.AutoChargeInput{},
-	)
-	if result.Status != llmrequest.AutoChargeStatusFailed {
+	result := adapter.Run(context.Background(), AutoChargeInput{})
+	if result.Status != AutoChargeStatusFailed {
 		t.Fatalf("result=%+v", result)
 	}
 }
@@ -101,12 +90,8 @@ func TestLLMRequestAutoChargerDoesNotEscalateBillingFailure(
 func TestLLMRequestAutoChargerMapsDeferred(t *testing.T) {
 	adapter, err := NewLLMRequestAutoCharger(
 		autoChargeServiceFunc(
-			func(
-				context.Context,
-				billingapp.AutoChargeInput,
-			) (billingapp.AutoChargeResult, error) {
-				return billingapp.AutoChargeResult{},
-					billingapp.ErrChargeDeferred
+			func(context.Context, AutoChargeServiceInput) (AutoChargeServiceResult, error) {
+				return AutoChargeServiceResult{Deferred: true}, nil
 			},
 		),
 	)
@@ -114,11 +99,8 @@ func TestLLMRequestAutoChargerMapsDeferred(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	result := adapter.Run(
-		context.Background(),
-		llmrequest.AutoChargeInput{},
-	)
-	if result.Status != llmrequest.AutoChargeStatusDeferred {
+	result := adapter.Run(context.Background(), AutoChargeInput{})
+	if result.Status != AutoChargeStatusDeferred {
 		t.Fatalf("result=%+v", result)
 	}
 }

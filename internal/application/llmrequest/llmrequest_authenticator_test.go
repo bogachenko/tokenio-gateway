@@ -1,25 +1,21 @@
-package app
+package llmrequest
 
 import (
 	"context"
 	"errors"
 	"testing"
-
-	authenticateapp "github.com/bogachenko/tokenio-gateway/internal/application/authenticate"
-	"github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
-	"github.com/bogachenko/tokenio-gateway/internal/auth"
 )
 
 type publicRequestAuthenticatorFunc func(
 	context.Context,
-	authenticateapp.Input,
-) (authenticateapp.Result, error)
+	string,
+) (Principal, error)
 
 func (function publicRequestAuthenticatorFunc) AuthenticatePublicRequest(
 	ctx context.Context,
-	input authenticateapp.Input,
-) (authenticateapp.Result, error) {
-	return function(ctx, input)
+	rawAPIKey string,
+) (Principal, error) {
+	return function(ctx, rawAPIKey)
 }
 
 func TestLLMRequestAuthenticatorMapsPublicPrincipal(t *testing.T) {
@@ -28,15 +24,13 @@ func TestLLMRequestAuthenticatorMapsPublicPrincipal(t *testing.T) {
 		publicRequestAuthenticatorFunc(
 			func(
 				_ context.Context,
-				input authenticateapp.Input,
-			) (authenticateapp.Result, error) {
-				gotRawAPIKey = input.RawAPIKey
-				return authenticateapp.Result{
-					Principal: auth.APIKeyPrincipal{
-						UserID:               "user-1",
-						APIKeyID:             "key-1",
-						BillingSubjectUserID: "billing-1",
-					},
+				rawAPIKey string,
+			) (Principal, error) {
+				gotRawAPIKey = rawAPIKey
+				return Principal{
+					UserID:               "user-1",
+					APIKeyID:             "key-1",
+					BillingSubjectUserID: "billing-1",
 				}, nil
 			},
 		),
@@ -55,7 +49,7 @@ func TestLLMRequestAuthenticatorMapsPublicPrincipal(t *testing.T) {
 	if gotRawAPIKey != "  exact-api-key  " {
 		t.Fatalf("raw API key = %q", gotRawAPIKey)
 	}
-	if principal != (llmrequest.Principal{
+	if principal != (Principal{
 		UserID:               "user-1",
 		APIKeyID:             "key-1",
 		BillingSubjectUserID: "billing-1",
@@ -64,17 +58,15 @@ func TestLLMRequestAuthenticatorMapsPublicPrincipal(t *testing.T) {
 	}
 }
 
-func TestLLMRequestAuthenticatorPreservesAuthenticationError(
-	t *testing.T,
-) {
+func TestLLMRequestAuthenticatorPreservesAuthenticationError(t *testing.T) {
 	stageError := errors.New("authentication failed")
 	adapter, err := NewLLMRequestAuthenticator(
 		publicRequestAuthenticatorFunc(
 			func(
 				context.Context,
-				authenticateapp.Input,
-			) (authenticateapp.Result, error) {
-				return authenticateapp.Result{}, stageError
+				string,
+			) (Principal, error) {
+				return Principal{}, stageError
 			},
 		),
 	)
@@ -82,27 +74,19 @@ func TestLLMRequestAuthenticatorPreservesAuthenticationError(
 		t.Fatalf("NewLLMRequestAuthenticator: %v", err)
 	}
 
-	_, err = adapter.Authenticate(
-		context.Background(),
-		"api-key",
-	)
+	_, err = adapter.Authenticate(context.Background(), "api-key")
 	if !errors.Is(err, stageError) {
 		t.Fatalf("error = %v", err)
 	}
 }
 
-func TestLLMRequestAuthenticatorRejectsNilContextBeforeDependency(
-	t *testing.T,
-) {
+func TestLLMRequestAuthenticatorRejectsNilContextBeforeDependency(t *testing.T) {
 	called := false
 	adapter, err := NewLLMRequestAuthenticator(
 		publicRequestAuthenticatorFunc(
-			func(
-				context.Context,
-				authenticateapp.Input,
-			) (authenticateapp.Result, error) {
+			func(context.Context, string) (Principal, error) {
 				called = true
-				return authenticateapp.Result{}, nil
+				return Principal{}, nil
 			},
 		),
 	)
@@ -111,7 +95,7 @@ func TestLLMRequestAuthenticatorRejectsNilContextBeforeDependency(
 	}
 
 	_, err = adapter.Authenticate(nil, "api-key")
-	if !errors.Is(err, llmrequest.ErrInvalidInput) {
+	if !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("error = %v", err)
 	}
 	if called {
@@ -119,18 +103,13 @@ func TestLLMRequestAuthenticatorRejectsNilContextBeforeDependency(
 	}
 }
 
-func TestLLMRequestAuthenticatorPropagatesCanceledContext(
-	t *testing.T,
-) {
+func TestLLMRequestAuthenticatorPropagatesCanceledContext(t *testing.T) {
 	called := false
 	adapter, err := NewLLMRequestAuthenticator(
 		publicRequestAuthenticatorFunc(
-			func(
-				context.Context,
-				authenticateapp.Input,
-			) (authenticateapp.Result, error) {
+			func(context.Context, string) (Principal, error) {
 				called = true
-				return authenticateapp.Result{}, nil
+				return Principal{}, nil
 			},
 		),
 	)
@@ -150,11 +129,9 @@ func TestLLMRequestAuthenticatorPropagatesCanceledContext(
 	}
 }
 
-func TestNewLLMRequestAuthenticatorRequiresDependency(
-	t *testing.T,
-) {
+func TestNewLLMRequestAuthenticatorRequiresDependency(t *testing.T) {
 	_, err := NewLLMRequestAuthenticator(nil)
-	if !errors.Is(err, llmrequest.ErrDependencyRequired) {
+	if !errors.Is(err, ErrDependencyRequired) {
 		t.Fatalf("error = %v", err)
 	}
 }

@@ -1,26 +1,60 @@
-package app
+package llmrequest
 
 import (
 	"context"
 	"fmt"
 
-	"github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
-	pricingapp "github.com/bogachenko/tokenio-gateway/internal/application/pricing"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
 
-type LLMRequestUsageResolver struct {
-	pricing *pricingapp.UsageResolver
+type UsagePricingInput struct {
+	Route        domain.Route
+	Price        domain.RoutePrice
+	RequestBody  []byte
+	ResponseBody []byte
+	ActualUsage  *domain.TokenUsage
+
+	RequestedCapabilities domain.CapabilitySet
+	Modalities            UsagePricingInputModalities
+	ZeroUsageAllowed      bool
 }
 
-var _ llmrequest.UsageResolver = (*LLMRequestUsageResolver)(nil)
+type UsagePricingInputModalities struct {
+	Image bool
+	Audio bool
+	File  bool
+	Video bool
+}
+
+type UsagePricingResult struct {
+	Usage        domain.TokenUsage
+	Completeness domain.UsageCompleteness
+	Estimated    bool
+
+	UpstreamCostCents int64
+	ClientAmountCents int64
+	Currency          string
+
+	ProviderRequestID     string
+	ProviderResponseModel string
+}
+
+type UsagePricingResolver interface {
+	Resolve(context.Context, UsagePricingInput) (UsagePricingResult, error)
+}
+
+type LLMRequestUsageResolver struct {
+	pricing UsagePricingResolver
+}
+
+var _ UsageResolver = (*LLMRequestUsageResolver)(nil)
 
 func NewLLMRequestUsageResolver(
-	pricing *pricingapp.UsageResolver,
+	pricing UsagePricingResolver,
 ) (*LLMRequestUsageResolver, error) {
 	if pricing == nil {
-		return nil, llmrequest.ErrDependencyRequired
+		return nil, ErrDependencyRequired
 	}
 	return &LLMRequestUsageResolver{pricing: pricing}, nil
 }
@@ -39,26 +73,25 @@ func forwardUsageToTokenUsage(
 
 func (r *LLMRequestUsageResolver) Resolve(
 	ctx context.Context,
-	input llmrequest.UsageResolutionInput,
-) (llmrequest.UsageResolutionResult, error) {
+	input UsageResolutionInput,
+) (UsageResolutionResult, error) {
 	if r == nil || r.pricing == nil {
-		return llmrequest.UsageResolutionResult{},
-			llmrequest.ErrDependencyRequired
+		return UsageResolutionResult{}, ErrDependencyRequired
 	}
 	if ctx == nil {
-		return llmrequest.UsageResolutionResult{}, fmt.Errorf(
+		return UsageResolutionResult{}, fmt.Errorf(
 			"%w: nil usage resolution context",
-			llmrequest.ErrInvalidInput,
+			ErrInvalidInput,
 		)
 	}
 	if err := ctx.Err(); err != nil {
-		return llmrequest.UsageResolutionResult{}, err
+		return UsageResolutionResult{}, err
 	}
 
 	prepared := input.Reserved.Prepared
 	result, err := r.pricing.Resolve(
 		ctx,
-		pricingapp.ResolveUsageInput{
+		UsagePricingInput{
 			Route:        prepared.Plan.Route,
 			Price:        prepared.Plan.Price,
 			RequestBody:  append([]byte(nil), prepared.Payload...),
@@ -66,7 +99,7 @@ func (r *LLMRequestUsageResolver) Resolve(
 			ActualUsage:  forwardUsageToTokenUsage(input.Response.Usage),
 			RequestedCapabilities: prepared.
 				RequestedCapabilities,
-			Modalities: pricingapp.InputModalities{
+			Modalities: UsagePricingInputModalities{
 				Image: prepared.RequestedCapabilities.ImageInput,
 				Audio: prepared.RequestedCapabilities.AudioInput,
 				File:  prepared.RequestedCapabilities.FileInput,
@@ -76,13 +109,13 @@ func (r *LLMRequestUsageResolver) Resolve(
 		},
 	)
 	if err != nil {
-		return llmrequest.UsageResolutionResult{}, fmt.Errorf(
+		return UsageResolutionResult{}, fmt.Errorf(
 			"resolve LLM-request usage and pricing: %w",
 			err,
 		)
 	}
 
-	return llmrequest.UsageResolutionResult{
+	return UsageResolutionResult{
 		Usage:                 result.Usage,
 		Completeness:          string(result.Completeness),
 		Estimated:             result.Estimated,
