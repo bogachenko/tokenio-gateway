@@ -184,4 +184,9 @@ usage handling and response passthrough.
 `integration/openai_embeddings_test.go` verifies the fake OpenAI-compatible
 embeddings happy path and repository evidence for the public route, forwarding,
 usage handling and response passthrough.
+## OpenAI image generation scenario
+
+`integration/openai_image_generation_test.go` verifies the fake OpenAI-compatible
+image generation happy path and repository evidence for the public route, forwarding,
+model/endpoint handling and response passthrough.
 

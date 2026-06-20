@@ -114,3 +114,4 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Model catalog integration evidence exists at `integration/model_catalog_test.go`.
 - [x] OpenAI chat completion integration scenario exists at `integration/openai_chat_completion_test.go`.
 - [x] OpenAI embeddings integration scenario exists at `integration/openai_embeddings_test.go`.
+- [x] OpenAI image generation integration scenario exists at `integration/openai_image_generation_test.go`.

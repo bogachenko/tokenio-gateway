@@ -316,7 +316,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add integration OpenAI chat completion scenario covering fake happy path and repository evidence for route, forwarding, usage and passthrough.
 * [x] OpenAI embeddings.
 * [x] Add integration OpenAI embeddings scenario covering fake happy path and repository evidence for route, forwarding, usage and passthrough.
-* [ ] OpenAI image generation.
+* [x] OpenAI image generation.
+* [x] Add integration OpenAI image generation scenario covering fake happy path and repository evidence for route, forwarding, endpoint handling and passthrough.
 * [ ] Anthropic messages.
 * [ ] Gemini generate/embed/models.
 * [ ] Ollama chat/generate/embeddings/tags.
