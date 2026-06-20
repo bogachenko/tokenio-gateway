@@ -323,7 +323,7 @@ func TestModelsEndpointAuthorizationSyntax(
 	}{
 		{
 			name:    "missing",
-			message: "Authorization header is required",
+			message: "API key is required",
 		},
 		{
 			name:          "wrong scheme",

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"net/url"
 	"strings"
 	"unicode/utf8"
 
@@ -13,6 +12,7 @@ import (
 	modelcatalogapp "github.com/bogachenko/tokenio-gateway/internal/application/modelcatalog"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
+	"github.com/bogachenko/tokenio-gateway/internal/transport/http/nativeapi"
 	"github.com/bogachenko/tokenio-gateway/internal/transport/httptransport"
 )
 
@@ -96,26 +96,19 @@ func (h *Router) ServeHTTP(
 		return
 	}
 
-	if queryCredentialPresent(request.URL.Query()) {
-		writeError(
-			writer,
-			requestID,
-			http.StatusUnauthorized,
-			domain.ErrorCodeUnauthorized,
-			"query-string API keys are not allowed",
-		)
-		return
-	}
-
 	apiFamily := modelCatalogFamily(request.URL.Path)
-	rawAPIKey, authFailure := parseCatalogCredential(apiFamily, request.Header)
-	if authFailure != nil {
+	credential, credentialFailure := nativeapi.ExtractCredential(
+		apiFamily,
+		request.Header,
+		request.URL.Query(),
+	)
+	if credentialFailure != nil {
 		writeError(
 			writer,
 			requestID,
-			authFailure.status,
-			authFailure.code,
-			authFailure.message,
+			credentialFailure.Status,
+			domain.ErrorCodeUnauthorized,
+			credentialFailure.Reason,
 		)
 		return
 	}
@@ -123,7 +116,7 @@ func (h *Router) ServeHTTP(
 	_, err = h.authentication.AuthenticatePublicRequest(
 		request.Context(),
 		authenticateapp.Input{
-			RawAPIKey: rawAPIKey,
+			RawAPIKey: credential.RawAPIKey,
 		},
 	)
 	if err != nil {
@@ -175,106 +168,6 @@ func modelCatalogFamily(path string) domain.APIFamily {
 		return domain.APIFamilyOllamaNative
 	default:
 		return domain.APIFamilyOpenAICompatible
-	}
-}
-
-func queryCredentialPresent(query url.Values) bool {
-	for key, values := range query {
-		if len(values) == 0 {
-			continue
-		}
-		switch strings.ToLower(key) {
-		case "key",
-			"api_key",
-			"api-key",
-			"access_token",
-			"token",
-			"authorization",
-			"x-api-key",
-			"x-goog-api-key",
-			"openai_api_key",
-			"anthropic_api_key",
-			"google_api_key":
-			return true
-		}
-	}
-	return false
-}
-
-type authorizationFailure struct {
-	status  int
-	code    domain.ErrorCode
-	message string
-}
-
-func parseCatalogCredential(apiFamily domain.APIFamily, headers http.Header) (string, *authorizationFailure) {
-	if apiFamily == domain.APIFamilyGeminiNative {
-		return parseGeminiAPIKey(headers)
-	}
-	return parseAuthorization(headers.Get("Authorization"))
-}
-
-func parseGeminiAPIKey(headers http.Header) (string, *authorizationFailure) {
-	if headers.Get("Authorization") != "" {
-		return "", invalidAuthorizationFormat()
-	}
-	value := headers.Get("x-goog-api-key")
-	if value == "" {
-		return "", &authorizationFailure{
-			status:  http.StatusUnauthorized,
-			code:    domain.ErrorCodeUnauthorized,
-			message: "x-goog-api-key header is required",
-		}
-	}
-	if value != strings.TrimSpace(value) || containsControlOrSpace(value) {
-		return "", invalidAuthorizationFormat()
-	}
-	if !strings.HasPrefix(value, "sk_") {
-		return "", &authorizationFailure{
-			status:  http.StatusUnauthorized,
-			code:    domain.ErrorCodeUnauthorized,
-			message: "API key must start with sk_",
-		}
-	}
-	return value, nil
-}
-
-func parseAuthorization(
-	value string,
-) (string, *authorizationFailure) {
-	if value == "" {
-		return "", &authorizationFailure{
-			status:  http.StatusUnauthorized,
-			code:    domain.ErrorCodeUnauthorized,
-			message: "Authorization header is required",
-		}
-	}
-	if value != strings.TrimSpace(value) {
-		return "", invalidAuthorizationFormat()
-	}
-
-	parts := strings.Split(value, " ")
-	if len(parts) != 2 ||
-		parts[0] != "Bearer" ||
-		parts[1] == "" ||
-		containsControlOrSpace(parts[1]) {
-		return "", invalidAuthorizationFormat()
-	}
-	if !strings.HasPrefix(parts[1], "sk_") {
-		return "", &authorizationFailure{
-			status:  http.StatusUnauthorized,
-			code:    domain.ErrorCodeUnauthorized,
-			message: "API key must start with sk_",
-		}
-	}
-	return parts[1], nil
-}
-
-func invalidAuthorizationFormat() *authorizationFailure {
-	return &authorizationFailure{
-		status:  http.StatusUnauthorized,
-		code:    domain.ErrorCodeUnauthorized,
-		message: "Authorization header format must be Bearer {api_key}",
 	}
 }
 
