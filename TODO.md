@@ -314,7 +314,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add integration model catalog evidence covering public route, catalog implementation, capabilities, pricing and automated coverage.
 * [x] OpenAI chat completion.
 * [x] Add integration OpenAI chat completion scenario covering fake happy path and repository evidence for route, forwarding, usage and passthrough.
-* [ ] OpenAI embeddings.
+* [x] OpenAI embeddings.
+* [x] Add integration OpenAI embeddings scenario covering fake happy path and repository evidence for route, forwarding, usage and passthrough.
 * [ ] OpenAI image generation.
 * [ ] Anthropic messages.
 * [ ] Gemini generate/embed/models.

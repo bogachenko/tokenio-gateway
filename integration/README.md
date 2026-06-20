@@ -179,4 +179,9 @@ and model catalog test coverage.
 `integration/openai_chat_completion_test.go` verifies the fake OpenAI-compatible
 chat completion happy path and repository evidence for the public route, forwarding,
 usage handling and response passthrough.
+## OpenAI embeddings scenario
+
+`integration/openai_embeddings_test.go` verifies the fake OpenAI-compatible
+embeddings happy path and repository evidence for the public route, forwarding,
+usage handling and response passthrough.
 
