@@ -308,7 +308,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 
 * [x] Clean migration lifecycle.
 * [x] Add opt-in integration clean migration lifecycle test that starts clean Compose Postgres, runs migrations and always cleans up local state.
-* [ ] Public authentication.
+* [x] Public authentication.
+* [x] Add integration public authentication evidence covering public routes, bearer auth carrier and unauthenticated rejection.
 * [ ] Model catalog.
 * [ ] OpenAI chat completion.
 * [ ] OpenAI embeddings.

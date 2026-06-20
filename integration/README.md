@@ -164,4 +164,9 @@ so it does not require port `5432` to be free. The compose migration mount can b
 ```bash
 TOKENIO_RUN_DOCKER_INTEGRATION_LIFECYCLE=1 go test -tags=integration ./integration -run TestCleanMigrationLifecycle
 ```
+## Public authentication scenario
+
+`integration/public_authentication_test.go` verifies automated repository evidence for
+public OpenAI-compatible route authentication: public routes, bearer authorization
+carrier and unauthenticated rejection evidence must be present in checked-in source.
 

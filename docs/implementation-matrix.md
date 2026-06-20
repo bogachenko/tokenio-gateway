@@ -110,3 +110,4 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Fake Telegram temporary failure scenario exists at `integration/fake_telegram_temporary_failure_test.go`.
 - [x] Fake Telegram permanent failure scenario exists at `integration/fake_telegram_permanent_failure_test.go`.
 - [x] Clean migration lifecycle scenario exists at `integration/clean_migration_lifecycle_test.go`.
+- [x] Public authentication integration evidence exists at `integration/public_authentication_test.go`.
