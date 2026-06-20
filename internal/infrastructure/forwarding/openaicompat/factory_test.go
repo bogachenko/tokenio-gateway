@@ -18,7 +18,7 @@ func TestFactoryBuildsOpenAICompatibleClient(t *testing.T) {
 	input := ports.ForwardingAdapterFactoryInput{Route: baseRoute(domain.EndpointChat), Reseller: baseReseller(), ResellerAPIKey: resellerSecret, MaxResponseBodyBytes: 64}
 	client, err := factory.Build(input)
 	if err != nil { t.Fatalf("Build: %v", err) }
-	result, err := client.Forward(t.Context(), ports.ForwardingClientRequest{Route: input.Route, Path: "/api/v1/chat/completions", Body: []byte(`{"model":"client-model"}`)})
+	result, err := client.Forward(t.Context(), ports.ForwardingClientRequest{Route: input.Route, Path: "/v1/chat/completions", Body: []byte(`{"model":"client-model"}`)})
 	if err != nil { t.Fatalf("Forward: %v", err) }
 	if result.StatusCode != 200 || gotMethod != http.MethodPost || gotPath != "/api/v1/chat/completions" { t.Fatalf("result=%+v method=%q path=%q", result, gotMethod, gotPath) }
 }
@@ -34,15 +34,10 @@ func TestFactoryRejectsWrongAPIFamily(t *testing.T) {
 
 type providerClassifier struct{ kind forwarding.FailureKind }
 
-func (classifier providerClassifier) Classify(int, map[string][]string, []byte, bool) forwarding.Classification {
-	return forwarding.Classification{Kind: classifier.kind}
-}
+func (classifier providerClassifier) Classify(int, map[string][]string, []byte, bool) forwarding.Classification { return forwarding.Classification{Kind: classifier.kind} }
 
 func TestFactoryResolvesClassifierByProviderType(t *testing.T) {
-	classifiers, err := NewClassifierRegistry(
-		ClassifierRegistration{ProviderType: domain.ProviderOpenAI, Classifier: providerClassifier{kind: forwarding.FailureKindAuthError}},
-		ClassifierRegistration{ProviderType: domain.ProviderOpenRouter, Classifier: providerClassifier{kind: forwarding.FailureKindRateLimited}},
-	)
+	classifiers, err := NewClassifierRegistry(ClassifierRegistration{ProviderType: domain.ProviderOpenAI, Classifier: providerClassifier{kind: forwarding.FailureKindAuthError}}, ClassifierRegistration{ProviderType: domain.ProviderOpenRouter, Classifier: providerClassifier{kind: forwarding.FailureKindRateLimited}})
 	if err != nil { t.Fatalf("NewClassifierRegistry: %v", err) }
 	factory, err := NewFactory(roundTripFunc(func(*http.Request) (*http.Response, error) { return response(http.StatusBadRequest, "classified"), nil }), classifiers)
 	if err != nil { t.Fatalf("NewFactory: %v", err) }
@@ -51,7 +46,7 @@ func TestFactoryResolvesClassifierByProviderType(t *testing.T) {
 	input.Reseller.ProviderType = domain.ProviderOpenRouter
 	client, err := factory.Build(input)
 	if err != nil { t.Fatalf("Build: %v", err) }
-	_, err = client.Forward(t.Context(), ports.ForwardingClientRequest{Route: input.Route, Path: "/api/v1/chat/completions", Body: []byte(`{"model":"client-model"}`)})
+	_, err = client.Forward(t.Context(), ports.ForwardingClientRequest{Route: input.Route, Path: "/v1/chat/completions", Body: []byte(`{"model":"client-model"}`)})
 	var failure *forwarding.Failure
 	if !errors.As(err, &failure) || failure.Kind != forwarding.FailureKindRateLimited { t.Fatalf("failure=%#v err=%v", failure, err) }
 }
