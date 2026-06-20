@@ -130,3 +130,4 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Telegram alert lifecycle integration scenario exists at `integration/telegram_alert_lifecycle_test.go`.
 
 - [x] Config missing/invalid/default behavioral tests exist in `internal/config/config_test.go`.
+- [x] Config dead-knob audit exists in `internal/config/config_dead_knobs_test.go`.

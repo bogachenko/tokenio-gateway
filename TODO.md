@@ -176,7 +176,8 @@ For every key in `docs/spec/090-configuration.ru.md` verify:
 * [x] Verify composition-root consumer exists for every documented key.
 * [x] Add behavioral tests for missing/invalid/default values where coverage is still absent.
 * [x] Add config behavioral tests for required-value absence, default loading and invalid value rejection.
-* [ ] Remove unused config fields instead of keeping dead knobs.
+* [x] Remove unused config fields instead of keeping dead knobs.
+* [x] Add automated dead-knob audit that fails if any `config.Config` field is unused outside `internal/config`.
 
 ### 3.2. Structured logging and redaction
 
