@@ -23,10 +23,10 @@ func TestProductionFilesDoNotImportForbiddenLayers(t *testing.T) {
 		"os":       {},
 	}
 	forbiddenPrefixes := []string{
-		modulePath + "/internal/app",
-		modulePath + "/internal/config",
-		modulePath + "/internal/infrastructure",
-		modulePath + "/internal/transport",
+		modulePath + "/internal/app/",
+		modulePath + "/internal/config/",
+		modulePath + "/internal/infrastructure/",
+		modulePath + "/internal/transport/",
 	}
 
 	files := token.NewFileSet()
