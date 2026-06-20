@@ -1,17 +1,27 @@
 package llmrequest
 
-import (
-	"context"
-	"errors"
+import "context"
 
-	billingapp "github.com/bogachenko/tokenio-gateway/internal/application/billing"
-)
+type AutoChargeServiceInput struct {
+	UserID               string
+	BillingSubjectUserID string
+	Currency             string
+}
+
+type AutoChargeServiceResult struct {
+	Deferred bool
+
+	ProcessedBatchIDs  []string
+	ChargedAmountCents int64
+
+	BillingBalanceCents *int64
+}
 
 type llmRequestAutoChargeService interface {
 	Run(
 		context.Context,
-		billingapp.AutoChargeInput,
-	) (billingapp.AutoChargeResult, error)
+		AutoChargeServiceInput,
+	) (AutoChargeServiceResult, error)
 }
 
 type LLMRequestAutoCharger struct {
@@ -39,16 +49,13 @@ func (a *LLMRequestAutoCharger) Run(
 
 	result, err := a.service.Run(
 		ctx,
-		billingapp.AutoChargeInput{
+		AutoChargeServiceInput{
 			UserID:               input.Principal.UserID,
 			BillingSubjectUserID: input.Principal.BillingSubjectUserID,
 			Currency:             input.FinalUsageRecord.Currency,
 		},
 	)
-	switch {
-	case errors.Is(err, billingapp.ErrChargeDeferred):
-		return AutoChargeResult{Status: AutoChargeStatusDeferred}
-	case err != nil:
+	if err != nil {
 		return AutoChargeResult{Status: AutoChargeStatusFailed}
 	}
 
