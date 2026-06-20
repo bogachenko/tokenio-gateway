@@ -112,6 +112,16 @@ func (h *Router) ServeHTTP(
 		)
 		return
 	}
+	if !strings.HasPrefix(credential.RawAPIKey, "sk_") {
+		writeError(
+			writer,
+			requestID,
+			http.StatusUnauthorized,
+			domain.ErrorCodeUnauthorized,
+			"API key must start with sk_",
+		)
+		return
+	}
 
 	_, err = h.authentication.AuthenticatePublicRequest(
 		request.Context(),
