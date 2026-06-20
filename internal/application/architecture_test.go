@@ -10,8 +10,13 @@ import (
 	"testing"
 )
 
-func TestApplicationPackagesDoNotImportSiblingApplicationPackages(t *testing.T) {
-	const prefix = "github.com/bogachenko/tokenio-gateway/internal/application/"
+func TestApplicationPackagesDoNotImportOuterLayers(t *testing.T) {
+	forbiddenPrefixes := []string{
+		"github.com/bogachenko/tokenio-gateway/internal/app",
+		"github.com/bogachenko/tokenio-gateway/internal/infrastructure",
+		"github.com/bogachenko/tokenio-gateway/internal/transport",
+	}
+
 	err := filepath.WalkDir(".", func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -23,18 +28,15 @@ func TestApplicationPackagesDoNotImportSiblingApplicationPackages(t *testing.T) 
 		if err != nil {
 			return err
 		}
-		current := strings.Split(filepath.ToSlash(path), "/")[0]
 		for _, imported := range file.Imports {
 			importPath, err := strconv.Unquote(imported.Path.Value)
 			if err != nil {
 				return err
 			}
-			if !strings.HasPrefix(importPath, prefix) {
-				continue
-			}
-			target := strings.Split(strings.TrimPrefix(importPath, prefix), "/")[0]
-			if target != current {
-				t.Errorf("%s imports sibling application package %s", path, importPath)
+			for _, prefix := range forbiddenPrefixes {
+				if strings.HasPrefix(importPath, prefix) {
+					t.Errorf("%s imports forbidden outer layer %s", path, importPath)
+				}
 			}
 		}
 		return nil
