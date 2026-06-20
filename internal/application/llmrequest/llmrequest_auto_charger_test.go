@@ -5,33 +5,32 @@ import (
 	"errors"
 	"testing"
 
-	billingapp "github.com/bogachenko/tokenio-gateway/internal/application/billing"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 )
 
 type autoChargeServiceFunc func(
 	context.Context,
-	billingapp.AutoChargeInput,
-) (billingapp.AutoChargeResult, error)
+	AutoChargeServiceInput,
+) (AutoChargeServiceResult, error)
 
 func (f autoChargeServiceFunc) Run(
 	ctx context.Context,
-	input billingapp.AutoChargeInput,
-) (billingapp.AutoChargeResult, error) {
+	input AutoChargeServiceInput,
+) (AutoChargeServiceResult, error) {
 	return f(ctx, input)
 }
 
 func TestLLMRequestAutoChargerMapsProcessedResult(t *testing.T) {
 	balance := int64(777)
-	var got billingapp.AutoChargeInput
+	var got AutoChargeServiceInput
 	adapter, err := NewLLMRequestAutoCharger(
 		autoChargeServiceFunc(
 			func(
 				_ context.Context,
-				input billingapp.AutoChargeInput,
-			) (billingapp.AutoChargeResult, error) {
+				input AutoChargeServiceInput,
+			) (AutoChargeServiceResult, error) {
 				got = input
-				return billingapp.AutoChargeResult{
+				return AutoChargeServiceResult{
 					ProcessedBatchIDs:   []string{"batch-1"},
 					ChargedAmountCents:  15,
 					BillingBalanceCents: &balance,
@@ -70,11 +69,11 @@ func TestLLMRequestAutoChargerMapsProcessedResult(t *testing.T) {
 	}
 }
 
-func TestLLMRequestAutoChargerDoesNotEscalateBillingFailure(t *testing.T) {
+func TestLLMRequestAutoChargerDoesNotEscalateServiceFailure(t *testing.T) {
 	adapter, err := NewLLMRequestAutoCharger(
 		autoChargeServiceFunc(
-			func(context.Context, billingapp.AutoChargeInput) (billingapp.AutoChargeResult, error) {
-				return billingapp.AutoChargeResult{}, errors.New("billing unavailable")
+			func(context.Context, AutoChargeServiceInput) (AutoChargeServiceResult, error) {
+				return AutoChargeServiceResult{}, errors.New("service unavailable")
 			},
 		),
 	)
@@ -91,8 +90,8 @@ func TestLLMRequestAutoChargerDoesNotEscalateBillingFailure(t *testing.T) {
 func TestLLMRequestAutoChargerMapsDeferred(t *testing.T) {
 	adapter, err := NewLLMRequestAutoCharger(
 		autoChargeServiceFunc(
-			func(context.Context, billingapp.AutoChargeInput) (billingapp.AutoChargeResult, error) {
-				return billingapp.AutoChargeResult{}, billingapp.ErrChargeDeferred
+			func(context.Context, AutoChargeServiceInput) (AutoChargeServiceResult, error) {
+				return AutoChargeServiceResult{Deferred: true}, nil
 			},
 		),
 	)
