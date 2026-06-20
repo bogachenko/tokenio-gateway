@@ -3,15 +3,10 @@ package llmrequest
 import (
 	"context"
 	"fmt"
-
-	billingapp "github.com/bogachenko/tokenio-gateway/internal/application/billing"
 )
 
 type billingAdmissionService interface {
-	Admit(
-		context.Context,
-		billingapp.AdmissionInput,
-	) (billingapp.AdmissionResult, error)
+	Admit(context.Context, BillingAdmissionInput) (BillingAdmissionResult, error)
 }
 
 type LLMRequestBillingAdmitter struct {
@@ -46,28 +41,10 @@ func (a *LLMRequestBillingAdmitter) Admit(
 		return BillingAdmissionResult{}, err
 	}
 
-	result, err := a.billing.Admit(
-		ctx,
-		billingapp.AdmissionInput{
-			UserID:               input.Principal.UserID,
-			BillingSubjectUserID: input.Principal.BillingSubjectUserID,
-			RequiredReserveCents: input.RequiredReserveCents,
-			Currency:             input.Currency,
-		},
-	)
+	result, err := a.billing.Admit(ctx, input)
 	if err != nil {
-		return BillingAdmissionResult{}, fmt.Errorf(
-			"admit LLM-request billing reserve: %w",
-			err,
-		)
+		return BillingAdmissionResult{}, fmt.Errorf("admit billing: %w", err)
 	}
 
-	return BillingAdmissionResult{
-		Allowed:               result.Allowed,
-		RemoteBalanceCents:    result.RemoteBalanceCents,
-		PendingAmountCents:    result.PendingAmountCents,
-		EffectiveBalanceCents: result.EffectiveBalanceCents,
-		RequiredReserveCents:  result.RequiredReserveCents,
-		Currency:              result.Currency,
-	}, nil
+	return result, nil
 }
