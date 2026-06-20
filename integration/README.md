@@ -132,4 +132,9 @@ responses where provider usage fields are present but malformed.
 `integration/fake_billing_partial_charge_test.go` verifies that the fake Billing
 service can deterministically return a partial charge response while recording the
 charge request body.
+## Fake Billing duplicate request scenario
+
+`integration/fake_billing_duplicate_request_test.go` verifies that the fake Billing
+service can deterministically return a duplicate/idempotent response while recording
+multiple equal charge requests.
 
