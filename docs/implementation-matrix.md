@@ -133,3 +133,4 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Config dead-knob audit exists in `internal/config/config_dead_knobs_test.go`.
 - [x] Logging correlation fields audit exists in `internal/config/logging_correlation_fields_test.go`.
 - [x] Gateway compatible-schema startup audit exists in `internal/config/gateway_schema_startup_test.go`.
+- [x] Gateway no-schema-mutation startup audit exists in `internal/config/gateway_no_schema_mutation_test.go`.
