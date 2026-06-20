@@ -18,6 +18,7 @@ import (
 
 const (
 	modelsPath           = "/v1/models"
+	geminiModelsPath     = "/v1beta/models"
 	ollamaTagsPath       = "/api/tags"
 	localRequestIDHeader = "X-Local-Request-ID"
 	localRequestIDPrefix = "llmreq_"
@@ -83,6 +84,7 @@ func (h *Router) ServeHTTP(
 	)
 
 	if request.URL.Path != modelsPath &&
+		request.URL.Path != geminiModelsPath &&
 		request.URL.Path != ollamaTagsPath {
 		writeError(
 			writer,
@@ -167,10 +169,14 @@ func (h *Router) ServeHTTP(
 }
 
 func modelCatalogFamily(path string) domain.APIFamily {
-	if path == ollamaTagsPath {
+	switch path {
+	case geminiModelsPath:
+		return domain.APIFamilyGeminiNative
+	case ollamaTagsPath:
 		return domain.APIFamilyOllamaNative
+	default:
+		return domain.APIFamilyOpenAICompatible
 	}
-	return domain.APIFamilyOpenAICompatible
 }
 
 func queryCredentialPresent(query url.Values) bool {
