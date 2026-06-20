@@ -267,6 +267,7 @@ type ForwardingAdapter interface {
 
 type ForwardingClientRequest struct {
 	Route domain.Route
+	Path  string
 	Body  []byte
 }
 
@@ -338,100 +339,10 @@ type ForwardingAttemptStore interface {
 	// LoadStartedBefore returns at most limit durable attempts that are
 	// still started and have started_at strictly before cutoff. Results
 	// are ordered by started_at ASC, local_request_id ASC, then
-	// attempt_number ASC so recovery can process bounded deterministic
-	// batches. cutoff must be non-zero UTC and limit must be positive.
+	// attempt_number ASC.
 	LoadStartedBefore(
 		context.Context,
 		time.Time,
 		int,
 	) ([]domain.ForwardingAttempt, error)
-}
-
-type UsageExposureSnapshot struct {
-	Currency string
-
-	ReservedEstimatedAmountCents         int64
-	BillableRemainingAmountCents         int64
-	PartiallyChargedRemainingAmountCents int64
-	PricingFailedCount                   int64
-}
-
-type BillingChargeBatchSnapshot struct {
-	Batch           domain.BillingChargeBatch
-	Allocations     []domain.BillingChargeAllocation
-	ExpectedRecords []domain.UsageRecord
-}
-
-type BillingChargeSubject struct {
-	UserID               string
-	BillingSubjectUserID string
-	Currency             string
-	OldestChargeableAt   time.Time
-}
-
-type UsageChargeBatchPlan struct {
-	Batch           domain.BillingChargeBatch
-	Allocations     []domain.BillingChargeAllocation
-	ExpectedRecords []domain.UsageRecord
-}
-
-type UsageChargeSuccess struct {
-	BatchID             string
-	BillingBalanceCents *int64
-	ChargedAt           time.Time
-	Allocations         []domain.BillingChargeAllocation
-	ExpectedRecords     []domain.UsageRecord
-}
-
-type BillingRecoveryStore interface {
-	// ListOpenChargeBatchesForRecovery returns at most limit durable pending or
-	// failed charge commands. Repository order is unspecified; application code
-	// must process snapshots by batch.created_at ASC, then batch.id ASC.
-	ListOpenChargeBatchesForRecovery(
-		ctx context.Context,
-		limit int,
-	) ([]BillingChargeBatchSnapshot, error)
-
-	ListChargeableBillingSubjects(
-		ctx context.Context,
-		limit int,
-	) ([]BillingChargeSubject, error)
-}
-
-type UsageLedger interface {
-	// CreateReserved atomically checks unresolved user pricing failures, local_request_id
-	// uniqueness, optional client idempotency scope (user_id + endpoint_kind +
-	// idempotency_key), and inserts the reserved usage record in one persistence
-	// transaction. Callers must not emulate this with a Find-then-Insert sequence.
-	CreateReserved(ctx context.Context, record domain.UsageRecord) (UsageReserveResult, error)
-	FindByLocalRequestID(ctx context.Context, localRequestID string) (*domain.UsageRecord, error)
-	// CompareAndSwap persists next only when the current record identified by
-	// localRequestID is still in expectedStatus; when Applied is false Current
-	// contains the actual current record.
-	CompareAndSwap(ctx context.Context, localRequestID string, expectedStatus domain.UsageStatus, next domain.UsageRecord) (UsageTransitionResult, error)
-	LoadExposure(ctx context.Context, userID string, currency string) (UsageExposureSnapshot, error)
-	// LoadOpenChargeBatches returns durable pending/failed batches that must be
-	// retried before creating new charge batches. Succeeded batches are not open.
-	// Repository order is unspecified; application code must process snapshots by
-	// batch.created_at ASC, then batch.id ASC.
-	LoadOpenChargeBatches(ctx context.Context, userID string, billingSubjectUserID string, currency string) ([]BillingChargeBatchSnapshot, error)
-	// LoadChargeCandidates returns chargeable billable or partially_charged records
-	// with positive remaining amount. Billable records must be unclaimed. Partially
-	// charged records must reference a succeeded historical charge batch and must
-	// not be owned by any pending/failed active charge batch; PrepareChargeBatch
-	// must atomically re-check this before replacing the claim for remaining amount.
-	LoadChargeCandidates(ctx context.Context, userID string, currency string) ([]domain.UsageRecord, error)
-	// PrepareChargeBatch atomically verifies ExpectedRecords, creates the pending
-	// batch and allocations, and claims all records with BillingChargeRequestID.
-	PrepareChargeBatch(ctx context.Context, plan UsageChargeBatchPlan) (BillingChargeBatchSnapshot, error)
-	// MarkChargeBatchFailed atomically transitions pending -> failed only when
-	// the current batch status matches expectedStatus. Succeeded is terminal;
-	// an identical already-terminal succeeded batch must not be overwritten.
-	MarkChargeBatchFailed(ctx context.Context, batchID string, expectedStatus domain.BillingChargeStatus, billingErrorCode string, failedAt time.Time) error
-	// ApplyChargeSuccess atomically loads the persisted immutable batch command,
-	// verifies caller metadata against persisted allocations/expected records,
-	// transitions pending|failed -> succeeded, applies allocation deltas to usage
-	// records, sets charged/partially_charged record status, clears any failed
-	// metadata, and treats identical already-succeeded batches as idempotent success.
-	ApplyChargeSuccess(ctx context.Context, success UsageChargeSuccess) error
 }
