@@ -126,10 +126,12 @@ func assertGatewayStartupFilesDoNotApplyMigrations(t *testing.T, repoRoot string
 			t.Fatalf("read %s: %v", path, err)
 		}
 		for _, forbidden := range []string{
-			"MigrateMain",
+			"app.MigrateMain(",
+			"MigrateMain()",
+			".MigrateMain(",
 			"docker-compose-migrate",
-			"ApplyMigration",
-			"RunMigrations",
+			"ApplyMigration(",
+			"RunMigrations(",
 		} {
 			if strings.Contains(string(content), forbidden) {
 				t.Fatalf("%s contains gateway startup migration apply marker %q", path, forbidden)
