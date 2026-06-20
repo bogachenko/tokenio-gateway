@@ -312,7 +312,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add integration public authentication evidence covering public routes, bearer auth carrier and unauthenticated rejection.
 * [x] Model catalog.
 * [x] Add integration model catalog evidence covering public route, catalog implementation, capabilities, pricing and automated coverage.
-* [ ] OpenAI chat completion.
+* [x] OpenAI chat completion.
+* [x] Add integration OpenAI chat completion scenario covering fake happy path and repository evidence for route, forwarding, usage and passthrough.
 * [ ] OpenAI embeddings.
 * [ ] OpenAI image generation.
 * [ ] Anthropic messages.

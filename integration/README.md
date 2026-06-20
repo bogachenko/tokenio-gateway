@@ -174,4 +174,9 @@ carrier and unauthenticated rejection evidence must be present in checked-in sou
 `integration/model_catalog_test.go` verifies automated repository evidence for the
 public model catalog route, model catalog implementation, capabilities, public pricing
 and model catalog test coverage.
+## OpenAI chat completion scenario
+
+`integration/openai_chat_completion_test.go` verifies the fake OpenAI-compatible
+chat completion happy path and repository evidence for the public route, forwarding,
+usage handling and response passthrough.
 
