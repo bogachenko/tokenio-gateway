@@ -372,7 +372,8 @@ go build ./cmd/migrate
 
 Additional production checks:
 
-* [ ] Gateway starts only against compatible schema.
+* [x] Gateway starts only against compatible schema.
+* [x] Add automated production-gate audit for gateway compatible-schema startup evidence.
 * [ ] Gateway does not mutate schema at startup.
 * [ ] SIGTERM closes HTTP server, workers and PostgreSQL pool.
 * [ ] Worker cycles are bounded.
