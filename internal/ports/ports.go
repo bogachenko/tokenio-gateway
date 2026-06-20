@@ -27,11 +27,7 @@ type APIKeyRepository interface {
 }
 
 type APIKeyUsageRecorder interface {
-	RecordLastUsedAt(
-		context.Context,
-		string,
-		time.Time,
-	) error
+	RecordLastUsedAt(context.Context, string, time.Time) error
 }
 
 type UserRepository interface {
@@ -53,10 +49,7 @@ type RouteRepository interface {
 }
 
 type ModelCatalogRouteRepository interface {
-	ListModelCatalogRoutes(
-		context.Context,
-		domain.APIFamily,
-	) ([]domain.Route, error)
+	ListModelCatalogRoutes(context.Context, domain.APIFamily) ([]domain.Route, error)
 }
 
 type RoutePriceRepository interface {
@@ -75,10 +68,7 @@ type RouteCapacityResult struct {
 }
 
 type RouteCapacityChecker interface {
-	Check(
-		context.Context,
-		RouteCapacityCheckInput,
-	) (RouteCapacityResult, error)
+	Check(context.Context, RouteCapacityCheckInput) (RouteCapacityResult, error)
 }
 
 type RouteCapacityAcquireInput struct {
@@ -95,29 +85,10 @@ type RouteCapacityReservation struct {
 	RouteID        string
 }
 
-// RouteCapacityManager implementations must return
-// ErrRouteCapacityUnavailable when a valid route cannot accept this
-// attempt because of RPM, TPM, or concurrency limits. Contract and
-// identity violations must not be reported as capacity exhaustion.
 type RouteCapacityManager interface {
 	RouteCapacityChecker
-
-	// Acquire atomically re-checks route limits and records one route attempt
-	// against RPM, TPM, and concurrency. Repeated acquisition for the same
-	// ReservationID must be idempotent. LocalRequestID is correlation only and
-	// may be shared by multiple sequential attempt reservations.
-	Acquire(
-		context.Context,
-		RouteCapacityAcquireInput,
-	) (RouteCapacityReservation, error)
-
-	// Release removes only the in-flight concurrency slot. RPM and TPM usage
-	// remain accounted for until their limiter window expires. Repeated release
-	// of the same reservation must be idempotent.
-	Release(
-		context.Context,
-		RouteCapacityReservation,
-	) error
+	Acquire(context.Context, RouteCapacityAcquireInput) (RouteCapacityReservation, error)
+	Release(context.Context, RouteCapacityReservation) error
 }
 
 type SecretResolver interface {
@@ -125,24 +96,15 @@ type SecretResolver interface {
 }
 
 type ForwardingAdapterEndpointSupport interface {
-	SupportsForwardingEndpoint(
-		domain.EndpointKind,
-	) bool
+	SupportsForwardingEndpoint(domain.EndpointKind) bool
 }
 
 type ForwardingAdapterSupport interface {
-	SupportsForwardingAdapter(
-		domain.APIFamily,
-		domain.ProviderType,
-		domain.EndpointKind,
-	) bool
+	SupportsForwardingAdapter(domain.APIFamily, domain.ProviderType, domain.EndpointKind) bool
 }
 
 type ModelIdentifierRewriteSupport interface {
-	SupportsModelIdentifierRewrite(
-		domain.APIFamily,
-		domain.ProviderType,
-	) bool
+	SupportsModelIdentifierRewrite(domain.APIFamily, domain.ProviderType) bool
 }
 
 type Clock interface {
@@ -272,10 +234,7 @@ type ForwardingClientRequest struct {
 }
 
 type ForwardingClient interface {
-	Forward(
-		context.Context,
-		ForwardingClientRequest,
-	) (ForwardResponse, error)
+	Forward(context.Context, ForwardingClientRequest) (ForwardResponse, error)
 }
 
 type ForwardingAdapterFactoryInput struct {
@@ -287,9 +246,7 @@ type ForwardingAdapterFactoryInput struct {
 }
 
 type ForwardingAdapterFactory interface {
-	Build(
-		ForwardingAdapterFactoryInput,
-	) (ForwardingClient, error)
+	Build(ForwardingAdapterFactoryInput) (ForwardingClient, error)
 }
 
 type UsageReserveOutcome string
@@ -312,37 +269,61 @@ type UsageTransitionResult struct {
 }
 
 type ForwardingAttemptStore interface {
-	// StartAttempt durably inserts exactly one started attempt before any
-	// upstream network write. The pair local_request_id + attempt_number is
-	// unique. Repeating an identical command is idempotent; conflicting facts
-	// must return ErrStoreConflict or ErrStoreContractViolation.
-	StartAttempt(
-		context.Context,
-		domain.ForwardingAttempt,
-	) (domain.ForwardingAttempt, error)
+	StartAttempt(context.Context, domain.ForwardingAttempt) (domain.ForwardingAttempt, error)
+	CompleteAttempt(context.Context, domain.ForwardingAttempt) (domain.ForwardingAttempt, error)
+	LoadAttempts(context.Context, string) ([]domain.ForwardingAttempt, error)
+	LoadStartedBefore(context.Context, time.Time, int) ([]domain.ForwardingAttempt, error)
+}
 
-	// CompleteAttempt atomically transitions the exact persisted started
-	// attempt to succeeded or failed. Terminal attempts are immutable.
-	// Repeating the identical completion is idempotent.
-	CompleteAttempt(
-		context.Context,
-		domain.ForwardingAttempt,
-	) (domain.ForwardingAttempt, error)
+type UsageExposureSnapshot struct {
+	Currency string
 
-	// LoadAttempts returns every persisted attempt for one request ordered by
-	// attempt_number ASC. Missing requests return an empty slice.
-	LoadAttempts(
-		context.Context,
-		string,
-	) ([]domain.ForwardingAttempt, error)
+	ReservedEstimatedAmountCents         int64
+	BillableRemainingAmountCents         int64
+	PartiallyChargedRemainingAmountCents int64
+	PricingFailedCount                   int64
+}
 
-	// LoadStartedBefore returns at most limit durable attempts that are
-	// still started and have started_at strictly before cutoff. Results
-	// are ordered by started_at ASC, local_request_id ASC, then
-	// attempt_number ASC.
-	LoadStartedBefore(
-		context.Context,
-		time.Time,
-		int,
-	) ([]domain.ForwardingAttempt, error)
+type BillingChargeBatchSnapshot struct {
+	Batch           domain.BillingChargeBatch
+	Allocations     []domain.BillingChargeAllocation
+	ExpectedRecords []domain.UsageRecord
+}
+
+type BillingChargeSubject struct {
+	UserID               string
+	BillingSubjectUserID string
+	Currency             string
+	OldestChargeableAt   time.Time
+}
+
+type UsageChargeBatchPlan struct {
+	Batch           domain.BillingChargeBatch
+	Allocations     []domain.BillingChargeAllocation
+	ExpectedRecords []domain.UsageRecord
+}
+
+type UsageChargeSuccess struct {
+	BatchID             string
+	BillingBalanceCents *int64
+	ChargedAt           time.Time
+	Allocations         []domain.BillingChargeAllocation
+	ExpectedRecords     []domain.UsageRecord
+}
+
+type BillingRecoveryStore interface {
+	ListOpenChargeBatchesForRecovery(ctx context.Context, limit int) ([]BillingChargeBatchSnapshot, error)
+	ListChargeableBillingSubjects(ctx context.Context, limit int) ([]BillingChargeSubject, error)
+}
+
+type UsageLedger interface {
+	CreateReserved(ctx context.Context, record domain.UsageRecord) (UsageReserveResult, error)
+	FindByLocalRequestID(ctx context.Context, localRequestID string) (*domain.UsageRecord, error)
+	CompareAndSwap(ctx context.Context, localRequestID string, expectedStatus domain.UsageStatus, next domain.UsageRecord) (UsageTransitionResult, error)
+	LoadExposure(ctx context.Context, userID string, currency string) (UsageExposureSnapshot, error)
+	LoadOpenChargeBatches(ctx context.Context, userID string, billingSubjectUserID string, currency string) ([]BillingChargeBatchSnapshot, error)
+	LoadChargeCandidates(ctx context.Context, userID string, currency string) ([]domain.UsageRecord, error)
+	PrepareChargeBatch(ctx context.Context, plan UsageChargeBatchPlan) (BillingChargeBatchSnapshot, error)
+	MarkChargeBatchFailed(ctx context.Context, batchID string, expectedStatus domain.BillingChargeStatus, billingErrorCode string, failedAt time.Time) error
+	ApplyChargeSuccess(ctx context.Context, success UsageChargeSuccess) error
 }
