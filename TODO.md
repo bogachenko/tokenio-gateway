@@ -336,7 +336,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add integration request-triggered charge evidence covering request path, usage handoff, billing charge request, idempotency and persistence.
 * [x] Recovery worker charge.
 * [x] Add integration recovery worker charge evidence covering worker entrypoint, candidate loading, batch preparation, billing handoff, retry/recovery and finalization behavior.
-* [ ] Gateway restart.
+* [x] Gateway restart.
+* [x] Add integration gateway restart evidence covering lifecycle commands, readiness, persisted state and idempotent recovery behavior.
 * [ ] Provisioning lifecycle.
 * [ ] Admin mutation/audit.
 * [ ] Telegram alert lifecycle.

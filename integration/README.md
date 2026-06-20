@@ -234,4 +234,9 @@ idempotency and charge result persistence.
 `integration/recovery_worker_charge_test.go` verifies repository evidence for the
 recovery worker charge path, candidate loading, batch preparation, Billing handoff,
 retry/recovery and finalization behavior.
+## Gateway restart scenario
+
+`integration/gateway_restart_test.go` verifies repository evidence for gateway
+lifecycle commands, readiness after start, persisted state across restart and
+idempotent recovery behavior.
 
