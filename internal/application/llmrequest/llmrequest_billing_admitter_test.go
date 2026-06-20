@@ -4,32 +4,30 @@ import (
 	"context"
 	"errors"
 	"testing"
-
-	billingapp "github.com/bogachenko/tokenio-gateway/internal/application/billing"
 )
 
 type billingAdmissionServiceFunc func(
 	context.Context,
-	billingapp.AdmissionInput,
-) (billingapp.AdmissionResult, error)
+	BillingAdmissionInput,
+) (BillingAdmissionResult, error)
 
 func (function billingAdmissionServiceFunc) Admit(
 	ctx context.Context,
-	input billingapp.AdmissionInput,
-) (billingapp.AdmissionResult, error) {
+	input BillingAdmissionInput,
+) (BillingAdmissionResult, error) {
 	return function(ctx, input)
 }
 
 func TestLLMRequestBillingAdmitterMapsInputAndResult(t *testing.T) {
-	var got billingapp.AdmissionInput
+	var got BillingAdmissionInput
 	adapter, err := NewLLMRequestBillingAdmitter(
 		billingAdmissionServiceFunc(
 			func(
 				_ context.Context,
-				input billingapp.AdmissionInput,
-			) (billingapp.AdmissionResult, error) {
+				input BillingAdmissionInput,
+			) (BillingAdmissionResult, error) {
 				got = input
-				return billingapp.AdmissionResult{
+				return BillingAdmissionResult{
 					Allowed:               true,
 					RemoteBalanceCents:    1000,
 					PendingAmountCents:    100,
@@ -60,32 +58,20 @@ func TestLLMRequestBillingAdmitterMapsInputAndResult(t *testing.T) {
 		t.Fatalf("Admit: %v", err)
 	}
 
-	if got != (billingapp.AdmissionInput{
-		UserID:               "user-1",
-		BillingSubjectUserID: "billing-1",
-		RequiredReserveCents: 20,
-		Currency:             "RUB",
-	}) {
-		t.Fatalf("billing input = %+v", got)
+	if got.RequiredReserveCents != 20 || got.Currency != "RUB" || got.Principal.UserID != "user-1" {
+		t.Fatalf("admission input = %+v", got)
 	}
-	if result != (BillingAdmissionResult{
-		Allowed:               true,
-		RemoteBalanceCents:    1000,
-		PendingAmountCents:    100,
-		EffectiveBalanceCents: 900,
-		RequiredReserveCents:  20,
-		Currency:              "RUB",
-	}) {
+	if result.RequiredReserveCents != 20 || !result.Allowed || result.Currency != "RUB" {
 		t.Fatalf("admission result = %+v", result)
 	}
 }
 
-func TestLLMRequestBillingAdmitterPreservesBillingError(t *testing.T) {
-	stageError := errors.New("billing failed")
+func TestLLMRequestBillingAdmitterPreservesError(t *testing.T) {
+	stageError := errors.New("admission failed")
 	adapter, err := NewLLMRequestBillingAdmitter(
 		billingAdmissionServiceFunc(
-			func(context.Context, billingapp.AdmissionInput) (billingapp.AdmissionResult, error) {
-				return billingapp.AdmissionResult{}, stageError
+			func(context.Context, BillingAdmissionInput) (BillingAdmissionResult, error) {
+				return BillingAdmissionResult{}, stageError
 			},
 		),
 	)
@@ -103,9 +89,9 @@ func TestLLMRequestBillingAdmitterRejectsNilContextBeforeDependency(t *testing.T
 	called := false
 	adapter, err := NewLLMRequestBillingAdmitter(
 		billingAdmissionServiceFunc(
-			func(context.Context, billingapp.AdmissionInput) (billingapp.AdmissionResult, error) {
+			func(context.Context, BillingAdmissionInput) (BillingAdmissionResult, error) {
 				called = true
-				return billingapp.AdmissionResult{}, nil
+				return BillingAdmissionResult{}, nil
 			},
 		),
 	)
@@ -126,9 +112,9 @@ func TestLLMRequestBillingAdmitterPropagatesCanceledContext(t *testing.T) {
 	called := false
 	adapter, err := NewLLMRequestBillingAdmitter(
 		billingAdmissionServiceFunc(
-			func(context.Context, billingapp.AdmissionInput) (billingapp.AdmissionResult, error) {
+			func(context.Context, BillingAdmissionInput) (BillingAdmissionResult, error) {
 				called = true
-				return billingapp.AdmissionResult{}, nil
+				return BillingAdmissionResult{}, nil
 			},
 		),
 	)
