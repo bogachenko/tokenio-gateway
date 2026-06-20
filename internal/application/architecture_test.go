@@ -12,9 +12,9 @@ import (
 
 func TestApplicationPackagesDoNotImportOuterLayers(t *testing.T) {
 	forbiddenPrefixes := []string{
-		"github.com/bogachenko/tokenio-gateway/internal/app",
-		"github.com/bogachenko/tokenio-gateway/internal/infrastructure",
-		"github.com/bogachenko/tokenio-gateway/internal/transport",
+		"github.com/bogachenko/tokenio-gateway/internal/app/",
+		"github.com/bogachenko/tokenio-gateway/internal/infrastructure/",
+		"github.com/bogachenko/tokenio-gateway/internal/transport/",
 	}
 
 	err := filepath.WalkDir(".", func(path string, entry fs.DirEntry, walkErr error) error {
