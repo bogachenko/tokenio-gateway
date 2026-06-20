@@ -169,4 +169,9 @@ TOKENIO_RUN_DOCKER_INTEGRATION_LIFECYCLE=1 go test -tags=integration ./integrati
 `integration/public_authentication_test.go` verifies automated repository evidence for
 public OpenAI-compatible route authentication: public routes, bearer authorization
 carrier and unauthenticated rejection evidence must be present in checked-in source.
+## Model catalog scenario
+
+`integration/model_catalog_test.go` verifies automated repository evidence for the
+public model catalog route, model catalog implementation, capabilities, public pricing
+and model catalog test coverage.
 
