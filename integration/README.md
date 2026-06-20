@@ -73,6 +73,7 @@ Run a local lifecycle smoke using the checked-in Docker Compose stack:
 The script starts Postgres, applies migrations, starts the gateway smoke path and
 then removes local integration state.
 Migration scripts apply `*.up.sql` first and never apply `*.down.sql` during the forward lifecycle.
+The migration command connects to Postgres over container-local TCP to avoid Unix socket readiness ambiguity.
 ## External service rule
 
 Integration tests must not call external real services. Use only:

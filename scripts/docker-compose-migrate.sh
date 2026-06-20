@@ -17,7 +17,7 @@ docker compose exec -T postgres sh -eu -c '
     [ -e "$file" ] || continue
     found=1
     echo "applying $(basename "$file")"
-    psql -v ON_ERROR_STOP=1 -U "$db_user" -d "$db_name" -f "$file"
+    psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 5432 -U "$db_user" -d "$db_name" -f "$file"
   done
 
   if [ "$found" -eq 0 ]; then
@@ -28,7 +28,7 @@ docker compose exec -T postgres sh -eu -c '
       esac
       found=1
       echo "applying $(basename "$file")"
-      psql -v ON_ERROR_STOP=1 -U "$db_user" -d "$db_name" -f "$file"
+      psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 5432 -U "$db_user" -d "$db_name" -f "$file"
     done
   fi
 
