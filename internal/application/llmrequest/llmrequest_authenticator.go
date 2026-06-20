@@ -3,15 +3,10 @@ package llmrequest
 import (
 	"context"
 	"fmt"
-
-	authenticateapp "github.com/bogachenko/tokenio-gateway/internal/application/authenticate"
 )
 
 type publicRequestAuthenticator interface {
-	AuthenticatePublicRequest(
-		context.Context,
-		authenticateapp.Input,
-	) (authenticateapp.Result, error)
+	AuthenticatePublicRequest(context.Context, string) (Principal, error)
 }
 
 type LLMRequestAuthenticator struct {
@@ -46,10 +41,7 @@ func (a *LLMRequestAuthenticator) Authenticate(
 		return Principal{}, err
 	}
 
-	result, err := a.public.AuthenticatePublicRequest(
-		ctx,
-		authenticateapp.Input{RawAPIKey: rawAPIKey},
-	)
+	principal, err := a.public.AuthenticatePublicRequest(ctx, rawAPIKey)
 	if err != nil {
 		return Principal{}, fmt.Errorf(
 			"authenticate public LLM request: %w",
@@ -57,9 +49,5 @@ func (a *LLMRequestAuthenticator) Authenticate(
 		)
 	}
 
-	return Principal{
-		UserID:               result.Principal.UserID,
-		APIKeyID:             result.Principal.APIKeyID,
-		BillingSubjectUserID: result.Principal.BillingSubjectUserID,
-	}, nil
+	return principal, nil
 }
