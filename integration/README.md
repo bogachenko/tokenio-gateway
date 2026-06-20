@@ -14,7 +14,7 @@ Rules:
 - every added scenario must document the exact fake dependency it uses.
 ## PostgreSQL dependency
 
-Start local Postgres with the checked-in Docker Compose stack:
+Start local Postgres with the checked-in Docker Compose stack. The script waits for `pg_isready` before returning:
 
 ```bash
 ./scripts/integration-postgres-up.sh
@@ -72,6 +72,7 @@ Run a local lifecycle smoke using the checked-in Docker Compose stack:
 
 The script starts Postgres, applies migrations, starts the gateway smoke path and
 then removes local integration state.
+Migration scripts apply `*.up.sql` first and never apply `*.down.sql` during the forward lifecycle.
 ## External service rule
 
 Integration tests must not call external real services. Use only:
@@ -155,7 +156,9 @@ Telegram API can deterministically return a permanent 403 failure without
 ## Clean migration lifecycle scenario
 
 `integration/clean_migration_lifecycle_test.go` verifies the clean Docker Compose
-Postgres migration lifecycle. It is opt-in because it starts local containers:
+Postgres migration lifecycle. It is opt-in because it starts local containers.
+The test allocates a free localhost Postgres port through `TOKENIO_POSTGRES_PORT`
+so it does not require port `5432` to be free. The compose migration mount can be overridden with `TOKENIO_MIGRATIONS_HOST_DIR`:
 
 ```bash
 TOKENIO_RUN_DOCKER_INTEGRATION_LIFECYCLE=1 go test -tags=integration ./integration -run TestCleanMigrationLifecycle
