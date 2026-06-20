@@ -137,3 +137,4 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] SIGTERM shutdown audit exists in `internal/config/sigterm_shutdown_test.go`.
 - [x] Worker bounded-cycle audit exists in `internal/config/worker_bounded_cycles_test.go`.
 - [x] Goroutine leak start/stop audit exists in `internal/config/goroutine_leak_start_stop_test.go`.
+- [x] Concurrent gateway idempotency audit exists in `internal/config/concurrent_gateway_idempotency_test.go`.

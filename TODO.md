@@ -382,7 +382,8 @@ Additional production checks:
 * [x] Add production-gate audit that worker cycles have interval, batch-size/limit and context-cancellation evidence.
 * [x] No goroutine leaks in start/stop tests.
 * [x] Add production-gate audit for start/stop goroutine leak evidence, cancellation and cleanup paths.
-* [ ] Concurrent gateway replicas preserve idempotency and no duplicate external charges.
+* [x] Concurrent gateway replicas preserve idempotency and no duplicate external charges.
+* [x] Add production-gate audit for concurrent gateway replica idempotency and no duplicate external charge evidence.
 * [ ] Concurrent workers preserve durable command invariants.
 * [ ] Logs do not contain secrets.
 * [ ] All supported SDK-compatible requests pass for every API family.
