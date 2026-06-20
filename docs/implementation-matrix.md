@@ -117,3 +117,4 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] OpenAI image generation integration scenario exists at `integration/openai_image_generation_test.go`.
 - [x] Anthropic messages integration scenario exists at `integration/anthropic_messages_test.go`.
 - [x] Gemini generate/embed/models integration scenario exists at `integration/gemini_generate_embed_models_test.go`.
+- [x] Ollama chat/generate/embeddings/tags integration scenario exists at `integration/ollama_chat_generate_embeddings_tags_test.go`.

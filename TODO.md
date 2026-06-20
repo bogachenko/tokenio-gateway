@@ -322,7 +322,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add integration Anthropic messages scenario covering fake happy path and repository evidence for route, forwarding, usage and passthrough.
 * [x] Gemini generate/embed/models.
 * [x] Add integration Gemini generate/embed/models scenario covering fake models, generateContent, embedContent, batchEmbedContents, usage and passthrough evidence.
-* [ ] Ollama chat/generate/embeddings/tags.
+* [x] Ollama chat/generate/embeddings/tags.
+* [x] Add integration Ollama chat/generate/embeddings/tags scenario covering fake tags, chat, generate, embeddings, usage and passthrough evidence.
 * [ ] Route fallback.
 * [ ] Cooldown.
 * [ ] Capacity rejection.

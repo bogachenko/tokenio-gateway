@@ -199,4 +199,9 @@ and response passthrough.
 `integration/gemini_generate_embed_models_test.go` verifies fake Gemini models,
 generateContent, embedContent and batchEmbedContents happy paths plus repository
 evidence for public routes, usage handling and response passthrough.
+## Ollama chat/generate/embeddings/tags scenario
+
+`integration/ollama_chat_generate_embeddings_tags_test.go` verifies fake Ollama tags,
+chat, generate and embeddings happy paths plus repository evidence for public routes,
+usage handling and response passthrough.
 
