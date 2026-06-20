@@ -6,7 +6,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/bogachenko/tokenio-gateway/internal/application/pricing"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
@@ -55,16 +54,16 @@ func (function llmRequestRewriteSupportFunc) SupportsModelIdentifierRewrite(
 	return function(apiFamily, providerType)
 }
 
-type llmRequestTokenEstimatorFunc func(
+type llmRequestPreflightPricerFunc func(
 	context.Context,
-	ports.TokenEstimateRequest,
-) (ports.TokenEstimate, error)
+	PreflightPricingInput,
+) (PreflightPricingResult, error)
 
-func (function llmRequestTokenEstimatorFunc) Estimate(
+func (function llmRequestPreflightPricerFunc) Price(
 	ctx context.Context,
-	request ports.TokenEstimateRequest,
-) (ports.TokenEstimate, error) {
-	return function(ctx, request)
+	input PreflightPricingInput,
+) (PreflightPricingResult, error) {
+	return function(ctx, input)
 }
 
 func TestLLMRequestRoutePreflighterBuildsCompleteFacts(t *testing.T) {
@@ -73,8 +72,8 @@ func TestLLMRequestRoutePreflighterBuildsCompleteFacts(t *testing.T) {
 
 	var gotSecretName string
 	var gotCapacity ports.RouteCapacityCheckInput
-	var gotEstimateClientModel string
-	var gotEstimateBody []byte
+	var gotPriceRouteID string
+	var gotPriceBody []byte
 	var gotRewriteAPI domain.APIFamily
 	var gotRewriteProvider domain.ProviderType
 
@@ -86,19 +85,19 @@ func TestLLMRequestRoutePreflighterBuildsCompleteFacts(t *testing.T) {
 				return true, nil
 			},
 		),
-		mustLLMRequestPreflightPricer(
-			t,
-			llmRequestTokenEstimatorFunc(
-				func(_ context.Context, request ports.TokenEstimateRequest) (ports.TokenEstimate, error) {
-					gotEstimateClientModel = request.ClientModel
-					gotEstimateBody = append([]byte(nil), request.RequestBody...)
-					request.RequestBody[0] = 'X'
-					return ports.TokenEstimate{
-						Usage: domain.TokenUsage{InputTokens: 10, OutputTokens: 5},
-						Confidence: "conservative",
-					}, nil
-				},
-			),
+		llmRequestPreflightPricerFunc(
+			func(_ context.Context, request PreflightPricingInput) (PreflightPricingResult, error) {
+				gotPriceRouteID = request.Route.ID
+				gotPriceBody = append([]byte(nil), request.RequestBody...)
+				request.RequestBody[0] = 'X'
+				return PreflightPricingResult{
+					EstimatedUsage:             domain.TokenUsage{InputTokens: 10, OutputTokens: 5},
+					EstimatedUpstreamCostCents: 20,
+					EstimatedClientAmountCents: 30,
+					Currency:                   "RUB",
+					Confidence:                 "conservative",
+				}, nil
+			},
 		),
 		llmRequestRouteCapacityFunc(
 			func(_ context.Context, value ports.RouteCapacityCheckInput) (ports.RouteCapacityResult, error) {
@@ -128,9 +127,8 @@ func TestLLMRequestRoutePreflighterBuildsCompleteFacts(t *testing.T) {
 		gotCapacity.EstimatedUsage != (domain.TokenUsage{InputTokens: 10, OutputTokens: 5}) {
 		t.Fatalf("capacity input = %+v", gotCapacity)
 	}
-	if gotEstimateClientModel != input.Route.ClientModel ||
-		!bytes.Equal(gotEstimateBody, originalPayload) {
-		t.Fatalf("estimate request model/body = %q/%q", gotEstimateClientModel, gotEstimateBody)
+	if gotPriceRouteID != input.Route.ID || !bytes.Equal(gotPriceBody, originalPayload) {
+		t.Fatalf("price request route/body = %q/%q", gotPriceRouteID, gotPriceBody)
 	}
 	if gotRewriteAPI != input.Route.APIFamily || gotRewriteProvider != input.Route.ProviderType {
 		t.Fatalf("rewrite lookup = %q/%q", gotRewriteAPI, gotRewriteProvider)
@@ -149,20 +147,17 @@ func TestLLMRequestRoutePreflighterBuildsCompleteFacts(t *testing.T) {
 func TestLLMRequestRoutePreflighterMissingPriceIsUnavailable(t *testing.T) {
 	input := validLLMRequestRoutePreflightInput()
 	input.Price = nil
-	estimatorCalled := false
+	pricerCalled := false
 	capacityCalled := false
 
 	preflighter := mustLLMRequestRoutePreflighter(
 		t,
 		alwaysPresentLLMRequestSecret(),
-		mustLLMRequestPreflightPricer(
-			t,
-			llmRequestTokenEstimatorFunc(
-				func(context.Context, ports.TokenEstimateRequest) (ports.TokenEstimate, error) {
-					estimatorCalled = true
-					return ports.TokenEstimate{}, nil
-				},
-			),
+		llmRequestPreflightPricerFunc(
+			func(context.Context, PreflightPricingInput) (PreflightPricingResult, error) {
+				pricerCalled = true
+				return PreflightPricingResult{}, nil
+			},
 		),
 		llmRequestRouteCapacityFunc(
 			func(context.Context, ports.RouteCapacityCheckInput) (ports.RouteCapacityResult, error) {
@@ -177,13 +172,13 @@ func TestLLMRequestRoutePreflighterMissingPriceIsUnavailable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Evaluate: %v", err)
 	}
-	if result.CostAvailable || estimatorCalled || capacityCalled {
-		t.Fatalf("result = %+v, estimator called = %v, capacity called = %v", result, estimatorCalled, capacityCalled)
+	if result.CostAvailable || pricerCalled || capacityCalled {
+		t.Fatalf("result = %+v, pricer called = %v, capacity called = %v", result, pricerCalled, capacityCalled)
 	}
 }
 
 func TestNewLLMRequestRoutePreflighterRequiresDependencies(t *testing.T) {
-	pricer := mustLLMRequestPreflightPricer(t, staticLLMRequestEstimator())
+	pricer := staticLLMRequestPreflightPricer()
 	validSecrets := alwaysPresentLLMRequestSecret()
 	validCapacity := allowedLLMRequestCapacity()
 	validAdapter := allowedLLMRequestAdapterSupport()
@@ -192,7 +187,7 @@ func TestNewLLMRequestRoutePreflighterRequiresDependencies(t *testing.T) {
 	tests := []struct {
 		name     string
 		secrets  ports.SecretPresenceChecker
-		pricer   *pricing.PreflightPricer
+		pricer   PreflightPricer
 		capacity ports.RouteCapacityChecker
 		adapter  ports.ForwardingAdapterSupport
 		rewrite  ports.ModelIdentifierRewriteSupport
@@ -223,7 +218,7 @@ func TestNewLLMRequestRoutePreflighterRequiresDependencies(t *testing.T) {
 func mustLLMRequestRoutePreflighter(
 	t *testing.T,
 	secrets ports.SecretPresenceChecker,
-	pricer *pricing.PreflightPricer,
+	pricer PreflightPricer,
 	capacity ports.RouteCapacityChecker,
 	rewrite ports.ModelIdentifierRewriteSupport,
 ) *LLMRequestRoutePreflighter {
@@ -238,23 +233,6 @@ func mustLLMRequestRoutePreflighter(
 	)
 	if err != nil {
 		t.Fatalf("NewLLMRequestRoutePreflighter: %v", err)
-	}
-	return value
-}
-
-func mustLLMRequestPreflightPricer(
-	t *testing.T,
-	estimator ports.TokenEstimator,
-) *pricing.PreflightPricer {
-	t.Helper()
-
-	calculator, err := pricing.NewCalculator(1, 1)
-	if err != nil {
-		t.Fatalf("NewCalculator: %v", err)
-	}
-	value, err := pricing.NewPreflightPricer(estimator, calculator)
-	if err != nil {
-		t.Fatalf("NewPreflightPricer: %v", err)
 	}
 	return value
 }
@@ -320,12 +298,15 @@ func allowedLLMRequestRewrite() ports.ModelIdentifierRewriteSupport {
 	)
 }
 
-func staticLLMRequestEstimator() ports.TokenEstimator {
-	return llmRequestTokenEstimatorFunc(
-		func(context.Context, ports.TokenEstimateRequest) (ports.TokenEstimate, error) {
-			return ports.TokenEstimate{
-				Usage:      domain.TokenUsage{InputTokens: 10, OutputTokens: 5},
-				Confidence: "conservative",
+func staticLLMRequestPreflightPricer() PreflightPricer {
+	return llmRequestPreflightPricerFunc(
+		func(context.Context, PreflightPricingInput) (PreflightPricingResult, error) {
+			return PreflightPricingResult{
+				EstimatedUsage:             domain.TokenUsage{InputTokens: 10, OutputTokens: 5},
+				EstimatedUpstreamCostCents: 20,
+				EstimatedClientAmountCents: 30,
+				Currency:                   "RUB",
+				Confidence:                 "conservative",
 			}, nil
 		},
 	)
