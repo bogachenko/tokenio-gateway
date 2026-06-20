@@ -229,4 +229,9 @@ when upstream usage is missing or malformed.
 `integration/request_triggered_charge_test.go` verifies repository evidence for the
 request-triggered charge path, usage-to-charge handoff, Billing charge request,
 idempotency and charge result persistence.
+## Recovery worker charge scenario
+
+`integration/recovery_worker_charge_test.go` verifies repository evidence for the
+recovery worker charge path, candidate loading, batch preparation, Billing handoff,
+retry/recovery and finalization behavior.
 
