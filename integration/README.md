@@ -152,4 +152,12 @@ recording the outbound request body.
 `integration/fake_telegram_permanent_failure_test.go` verifies that the fake
 Telegram API can deterministically return a permanent 403 failure without
 `retry_after` while recording the outbound request body.
+## Clean migration lifecycle scenario
+
+`integration/clean_migration_lifecycle_test.go` verifies the clean Docker Compose
+Postgres migration lifecycle. It is opt-in because it starts local containers:
+
+```bash
+TOKENIO_RUN_DOCKER_INTEGRATION_LIFECYCLE=1 go test -tags=integration ./integration -run TestCleanMigrationLifecycle
+```
 

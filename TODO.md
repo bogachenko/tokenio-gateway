@@ -306,7 +306,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 
 ### 4.3. End-to-end scenarios
 
-* [ ] Clean migration lifecycle.
+* [x] Clean migration lifecycle.
+* [x] Add opt-in integration clean migration lifecycle test that starts clean Compose Postgres, runs migrations and always cleans up local state.
 * [ ] Public authentication.
 * [ ] Model catalog.
 * [ ] OpenAI chat completion.
