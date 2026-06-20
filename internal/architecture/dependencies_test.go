@@ -19,37 +19,10 @@ const modulePath = "github.com/bogachenko/tokenio-gateway"
 func TestInternalDependencyDirection(t *testing.T) {
 	root := repositoryRoot(t)
 	fileSet := token.NewFileSet()
-
 	var violations []string
-	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.IsDir() {
-			switch entry.Name() {
-			case ".git", "vendor":
-				return filepath.SkipDir
-			default:
-				return nil
-			}
-		}
-		if !strings.HasSuffix(entry.Name(), ".go") ||
-			strings.HasSuffix(entry.Name(), "_test.go") {
-			return nil
-		}
 
-		relative, err := filepath.Rel(root, path)
-		if err != nil {
-			return fmt.Errorf("relative path for %s: %w", path, err)
-		}
-		relative = filepath.ToSlash(relative)
-
-		file, err := parser.ParseFile(
-			fileSet,
-			path,
-			nil,
-			parser.ImportsOnly,
-		)
+	walkProductionGoFiles(t, root, func(path string, relative string) error {
+		file, err := parser.ParseFile(fileSet, path, nil, parser.ImportsOnly)
 		if err != nil {
 			return fmt.Errorf("parse %s: %w", relative, err)
 		}
@@ -58,73 +31,36 @@ func TestInternalDependencyDirection(t *testing.T) {
 		for _, importSpec := range file.Imports {
 			importPath, err := strconv.Unquote(importSpec.Path.Value)
 			if err != nil {
-				return fmt.Errorf(
-					"decode import %s in %s: %w",
-					importSpec.Path.Value,
-					relative,
-					err,
-				)
+				return fmt.Errorf("decode import %s in %s: %w", importSpec.Path.Value, relative, err)
 			}
 			targetPackage := projectInternalPackage(importPath)
 			if targetPackage == "" {
 				continue
 			}
 			if reason := forbiddenDependency(sourcePackage, targetPackage); reason != "" {
-				position := fileSet.Position(importSpec.Pos())
-				violations = append(
-					violations,
-					fmt.Sprintf(
-						"%s imports %s: %s",
-						position,
-						importPath,
-						reason,
-					),
-				)
+				violations = append(violations, fmt.Sprintf(
+					"%s imports %s: %s",
+					fileSet.Position(importSpec.Pos()),
+					importPath,
+					reason,
+				))
 			}
 		}
 		return nil
 	})
-	if err != nil {
-		t.Fatalf("inspect repository imports: %v", err)
-	}
 
 	sort.Strings(violations)
 	if len(violations) != 0 {
-		t.Fatalf(
-			"forbidden internal dependency directions:\n%s",
-			strings.Join(violations, "\n"),
-		)
+		t.Fatalf("forbidden internal dependency directions:\n%s", strings.Join(violations, "\n"))
 	}
 }
 
 func TestDirectEnvironmentAccessBoundary(t *testing.T) {
 	root := repositoryRoot(t)
 	fileSet := token.NewFileSet()
-
 	var violations []string
-	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.IsDir() {
-			switch entry.Name() {
-			case ".git", "vendor":
-				return filepath.SkipDir
-			default:
-				return nil
-			}
-		}
-		if !strings.HasSuffix(entry.Name(), ".go") ||
-			strings.HasSuffix(entry.Name(), "_test.go") {
-			return nil
-		}
 
-		relative, err := filepath.Rel(root, path)
-		if err != nil {
-			return fmt.Errorf("relative path for %s: %w", path, err)
-		}
-		relative = filepath.ToSlash(relative)
-
+	walkProductionGoFiles(t, root, func(path string, relative string) error {
 		file, err := parser.ParseFile(fileSet, path, nil, parser.ImportsOnly)
 		if err != nil {
 			return fmt.Errorf("parse imports in %s: %w", relative, err)
@@ -134,12 +70,7 @@ func TestDirectEnvironmentAccessBoundary(t *testing.T) {
 		for _, importSpec := range file.Imports {
 			importPath, err := strconv.Unquote(importSpec.Path.Value)
 			if err != nil {
-				return fmt.Errorf(
-					"decode import %s in %s: %w",
-					importSpec.Path.Value,
-					relative,
-					err,
-				)
+				return fmt.Errorf("decode import %s in %s: %w", importSpec.Path.Value, relative, err)
 			}
 			if importPath != "os" {
 				continue
@@ -148,13 +79,10 @@ func TestDirectEnvironmentAccessBoundary(t *testing.T) {
 			case importSpec.Name == nil:
 				osImportName = "os"
 			case importSpec.Name.Name == ".":
-				violations = append(
-					violations,
-					fmt.Sprintf(
-						"%s: dot import of os bypasses environment access enforcement",
-						fileSet.Position(importSpec.Pos()),
-					),
-				)
+				violations = append(violations, fmt.Sprintf(
+					"%s: dot import of os bypasses environment access enforcement",
+					fileSet.Position(importSpec.Pos()),
+				))
 			case importSpec.Name.Name != "_":
 				osImportName = importSpec.Name.Name
 			}
@@ -167,7 +95,6 @@ func TestDirectEnvironmentAccessBoundary(t *testing.T) {
 		if err != nil {
 			return fmt.Errorf("parse declarations in %s: %w", relative, err)
 		}
-
 		ast.Inspect(fullFile, func(node ast.Node) bool {
 			selector, ok := node.(*ast.SelectorExpr)
 			if !ok {
@@ -177,57 +104,68 @@ func TestDirectEnvironmentAccessBoundary(t *testing.T) {
 			if !ok || receiver.Name != osImportName {
 				return true
 			}
-			if selector.Sel.Name != "Getenv" &&
-				selector.Sel.Name != "LookupEnv" {
+			if selector.Sel.Name != "Getenv" && selector.Sel.Name != "LookupEnv" {
 				return true
 			}
 			if directEnvironmentAccessAllowed(relative) {
 				return true
 			}
-			violations = append(
-				violations,
-				fmt.Sprintf(
-					"%s: direct os.%s is forbidden outside approved boundaries",
-					fileSet.Position(selector.Pos()),
-					selector.Sel.Name,
-				),
-			)
+			violations = append(violations, fmt.Sprintf(
+				"%s: direct os.%s is forbidden outside approved boundaries",
+				fileSet.Position(selector.Pos()),
+				selector.Sel.Name,
+			))
 			return true
 		})
 		return nil
 	})
-	if err != nil {
-		t.Fatalf("inspect direct environment access: %v", err)
-	}
 
 	sort.Strings(violations)
 	if len(violations) != 0 {
-		t.Fatalf(
-			"forbidden direct environment access:\n%s",
-			strings.Join(violations, "\n"),
-		)
+		t.Fatalf("forbidden direct environment access:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
+func walkProductionGoFiles(t *testing.T, root string, visit func(path string, relative string) error) {
+	t.Helper()
+
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			switch entry.Name() {
+			case ".git", "vendor":
+				return filepath.SkipDir
+			default:
+				return nil
+			}
+		}
+		if !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
+			return nil
+		}
+		relative, err := filepath.Rel(root, path)
+		if err != nil {
+			return fmt.Errorf("relative path for %s: %w", path, err)
+		}
+		return visit(path, filepath.ToSlash(relative))
+	})
+	if err != nil {
+		t.Fatalf("inspect repository files: %v", err)
 	}
 }
 
 func directEnvironmentAccessAllowed(relative string) bool {
 	relative = filepath.ToSlash(relative)
-	return strings.HasPrefix(relative, "cmd/") ||
-		strings.HasPrefix(relative, "internal/app/") ||
+	return strings.HasPrefix(relative, "internal/app/") ||
 		strings.HasPrefix(relative, "internal/config/") ||
-		strings.HasPrefix(
-			relative,
-			"internal/infrastructure/secrets/envresolver/",
-		)
+		strings.HasPrefix(relative, "internal/infrastructure/secrets/envresolver/")
 }
 
 func forbiddenDependency(source string, target string) string {
 	switch {
 	case source == "domain":
-		if target == "ports" ||
-			target == "infrastructure" ||
-			target == "transport" ||
-			target == "app" ||
-			strings.HasPrefix(target, "application/") {
+		if target == "ports" || target == "infrastructure" || target == "transport" || target == "app" || strings.HasPrefix(target, "application/") {
 			return "domain must not depend on outer layers"
 		}
 	case strings.HasPrefix(source, "application/"):
@@ -235,8 +173,7 @@ func forbiddenDependency(source string, target string) string {
 		case "infrastructure", "transport", "app":
 			return "application may depend only on domain and ports"
 		}
-		if strings.HasPrefix(target, "application/") &&
-			source != target {
+		if strings.HasPrefix(target, "application/") && source != target {
 			return "sibling application packages must not import each other"
 		}
 	case source == "ports":

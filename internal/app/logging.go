@@ -92,8 +92,12 @@ func GatewayMain() int {
 	return 0
 }
 
-func MigrateMain(ctx context.Context, databaseDSN string) int {
-	if err := RunMigrations(ctx, databaseDSN); err != nil {
+func MigrateMain(ctx context.Context) int {
+	migrationConfig, err := config.LoadMigration()
+	if err != nil {
+		return logProcessError("migration error", err)
+	}
+	if err := RunMigrations(ctx, migrationConfig.DatabaseDSN); err != nil {
 		return logProcessError("migration error", err)
 	}
 	return 0

@@ -17,8 +17,5 @@ func main() {
 	)
 	defer stop()
 
-	os.Exit(app.MigrateMain(
-		ctx,
-		os.Getenv("TOKENIO_DATABASE_DSN"),
-	))
+	os.Exit(app.MigrateMain(ctx))
 }
