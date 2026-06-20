@@ -4,19 +4,38 @@ import (
 	"context"
 	"fmt"
 
-	ledgerapp "github.com/bogachenko/tokenio-gateway/internal/application/ledger"
-	pricingapp "github.com/bogachenko/tokenio-gateway/internal/application/pricing"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 )
+
+type CommitBillableInput struct {
+	LocalRequestID string
+
+	Usage             domain.TokenUsage
+	UsageCompleteness domain.UsageCompleteness
+
+	ClientAmountCents       int64
+	ActualUpstreamCostCents int64
+
+	ProviderRequestID     string
+	ProviderResponseModel string
+}
+
+type MarkPricingFailedInput struct {
+	LocalRequestID string
+
+	Usage             domain.TokenUsage
+	UsageCompleteness domain.UsageCompleteness
+	FailureReason     string
+}
 
 type llmRequestLedger interface {
 	CommitBillable(
 		context.Context,
-		ledgerapp.CommitBillableInput,
+		CommitBillableInput,
 	) (domain.UsageRecord, error)
 	MarkPricingFailed(
 		context.Context,
-		ledgerapp.MarkPricingFailedInput,
+		MarkPricingFailedInput,
 	) (domain.UsageRecord, error)
 }
 
@@ -42,7 +61,7 @@ func (f *LLMRequestFinalizer) Commit(
 	if f == nil || f.ledger == nil {
 		return FinalizationResult{}, ErrDependencyRequired
 	}
-	completeness, err := pricingapp.ParseUsageCompleteness(
+	completeness, err := domain.ParseUsageCompleteness(
 		input.ResolvedUsage.Completeness,
 	)
 	if err != nil {
@@ -53,7 +72,7 @@ func (f *LLMRequestFinalizer) Commit(
 	}
 	record, err := f.ledger.CommitBillable(
 		ctx,
-		ledgerapp.CommitBillableInput{
+		CommitBillableInput{
 			LocalRequestID:          input.Reserved.Prepared.LocalRequestID,
 			Usage:                   input.ResolvedUsage.Usage,
 			UsageCompleteness:       completeness,
@@ -81,10 +100,10 @@ func (f *LLMRequestFinalizer) MarkPricingFailed(
 	}
 	record, err := f.ledger.MarkPricingFailed(
 		ctx,
-		ledgerapp.MarkPricingFailedInput{
+		MarkPricingFailedInput{
 			LocalRequestID:    input.Reserved.Prepared.LocalRequestID,
 			Usage:             input.Reserved.Prepared.Plan.EstimatedUsage,
-			UsageCompleteness: pricingapp.UsageCompletenessFailed,
+			UsageCompleteness: domain.UsageCompletenessFailed,
 			FailureReason:     input.FailureReason,
 		},
 	)
