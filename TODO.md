@@ -384,7 +384,8 @@ Additional production checks:
 * [x] Add production-gate audit for start/stop goroutine leak evidence, cancellation and cleanup paths.
 * [x] Concurrent gateway replicas preserve idempotency and no duplicate external charges.
 * [x] Add production-gate audit for concurrent gateway replica idempotency and no duplicate external charge evidence.
-* [ ] Concurrent workers preserve durable command invariants.
+* [x] Concurrent workers preserve durable command invariants.
+* [x] Add production-gate audit for concurrent worker durable-command invariants, claim/idempotency and duplicate-prevention evidence.
 * [ ] Logs do not contain secrets.
 * [ ] All supported SDK-compatible requests pass for every API family.
 * [ ] `docs/implementation-matrix.md` records exact final evidence.
