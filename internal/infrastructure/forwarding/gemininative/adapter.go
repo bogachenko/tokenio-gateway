@@ -48,7 +48,7 @@ func (a *Adapter) Forward(ctx context.Context, request ports.ForwardRequest) (po
 	req.Header = buildUpstreamHeaders(request.Headers, a.resellerAPIKey)
 	req.ContentLength = int64(len(body))
 	resp, err := a.transport.RoundTrip(req); if err != nil { return ports.ForwardResponse{}, err }
-	if resp == nil { return ports.ForForwardResponse{}, ErrInvalidForwardRequest }
+	if resp == nil { return ports.ForwardResponse{}, ErrInvalidForwardRequest }
 	return handleResponse(resp, a.maxResponseBodyBytes)
 }
 
