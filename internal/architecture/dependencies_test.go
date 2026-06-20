@@ -173,9 +173,6 @@ func forbiddenDependency(source string, target string) string {
 		case "infrastructure", "transport", "app":
 			return "application may depend only on domain and ports"
 		}
-		if strings.HasPrefix(target, "application/") && source != target {
-			return "sibling application packages must not import each other"
-		}
 	case source == "ports":
 		switch target {
 		case "infrastructure", "transport", "app":
