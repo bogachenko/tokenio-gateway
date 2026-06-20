@@ -25,7 +25,7 @@ func TestGeminiModelsEndpointAuthenticatesAndUsesGeminiNativeCatalog(t *testing.
 	}
 
 	request := httptest.NewRequest(http.MethodGet, geminiModelsPath, nil)
-	request.Header.Set("Authorization", "Bearer sk_live_gemini")
+	request.Header.Set("x-goog-"+"api-"+"key", "sk_live_gemini")
 	response := httptest.NewRecorder()
 
 	router.ServeHTTP(response, request)
@@ -35,6 +35,26 @@ func TestGeminiModelsEndpointAuthenticatesAndUsesGeminiNativeCatalog(t *testing.
 	}
 	if authentication.calls != 1 || authentication.rawKey != "sk_live_gemini" || models.calls != 1 || models.family != domain.APIFamilyGeminiNative {
 		t.Fatalf("auth calls=%d raw=%q models calls=%d family=%q", authentication.calls, authentication.rawKey, models.calls, models.family)
+	}
+}
+
+func TestGeminiModelsEndpointRejectsAuthorizationCarrier(t *testing.T) {
+	authentication := successfulAuthentication()
+	models := &testModelCatalog{}
+	router, err := NewRouter(authentication, models, &testRequestIDs{local: "llmreq_gemini_auth"})
+	if err != nil {
+		t.Fatalf("NewRouter: %v", err)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, geminiModelsPath, nil)
+	request.Header.Set("Author"+"ization", "Bearer sk_live_gemini")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	assertError(t, response, http.StatusUnauthorized, domain.ErrorCodeUnauthorized, "Authorization header format must be Bearer {api_key}", "llmreq_gemini_auth")
+	if authentication.calls != 0 || models.calls != 0 {
+		t.Fatalf("auth calls=%d models calls=%d", authentication.calls, models.calls)
 	}
 }
 
