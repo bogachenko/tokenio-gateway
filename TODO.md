@@ -390,4 +390,5 @@ Additional production checks:
 * [x] Add production-gate audit that logging/redaction paths do not expose known secret literals and have redaction evidence.
 * [x] All supported SDK-compatible requests pass for every API family.
 * [x] Add production-gate audit for SDK-compatible request evidence across OpenAI-compatible, Anthropic, Gemini and Ollama API families.
-* [ ] `docs/implementation-matrix.md` records exact final evidence.
+* [x] `docs/implementation-matrix.md` records exact final evidence.
+* [x] Add final production-gate audit that implementation matrix evidence paths exist and include all final production checks.
