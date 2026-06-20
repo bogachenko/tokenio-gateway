@@ -378,7 +378,8 @@ Additional production checks:
 * [x] Add automated production-gate audit that gateway startup does not apply migrations and schema mutation stays in the migrate command.
 * [x] SIGTERM closes HTTP server, workers and PostgreSQL pool.
 * [x] Add production-gate SIGTERM shutdown audit covering HTTP server shutdown, worker stop path and PostgreSQL pool close evidence.
-* [ ] Worker cycles are bounded.
+* [x] Worker cycles are bounded.
+* [x] Add production-gate audit that worker cycles have interval, batch-size/limit and context-cancellation evidence.
 * [ ] No goroutine leaks in start/stop tests.
 * [ ] Concurrent gateway replicas preserve idempotency and no duplicate external charges.
 * [ ] Concurrent workers preserve durable command invariants.

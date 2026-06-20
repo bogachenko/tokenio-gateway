@@ -135,3 +135,4 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Gateway compatible-schema startup audit exists in `internal/config/gateway_schema_startup_test.go`.
 - [x] Gateway no-schema-mutation startup audit exists in `internal/config/gateway_no_schema_mutation_test.go`.
 - [x] SIGTERM shutdown audit exists in `internal/config/sigterm_shutdown_test.go`.
+- [x] Worker bounded-cycle audit exists in `internal/config/worker_bounded_cycles_test.go`.
