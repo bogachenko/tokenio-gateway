@@ -1,0 +1,72 @@
+package llmrequest
+
+import (
+	"context"
+	"errors"
+
+	billingapp "github.com/bogachenko/tokenio-gateway/internal/application/billing"
+)
+
+type llmRequestAutoChargeService interface {
+	Run(
+		context.Context,
+		billingapp.AutoChargeInput,
+	) (billingapp.AutoChargeResult, error)
+}
+
+type LLMRequestAutoCharger struct {
+	service llmRequestAutoChargeService
+}
+
+var _ AutoCharger = (*LLMRequestAutoCharger)(nil)
+
+func NewLLMRequestAutoCharger(
+	service llmRequestAutoChargeService,
+) (*LLMRequestAutoCharger, error) {
+	if service == nil {
+		return nil, ErrDependencyRequired
+	}
+	return &LLMRequestAutoCharger{service: service}, nil
+}
+
+func (a *LLMRequestAutoCharger) Run(
+	ctx context.Context,
+	input AutoChargeInput,
+) AutoChargeResult {
+	if a == nil || a.service == nil {
+		return AutoChargeResult{Status: AutoChargeStatusFailed}
+	}
+
+	result, err := a.service.Run(
+		ctx,
+		billingapp.AutoChargeInput{
+			UserID:               input.Principal.UserID,
+			BillingSubjectUserID: input.Principal.BillingSubjectUserID,
+			Currency:             input.FinalUsageRecord.Currency,
+		},
+	)
+	switch {
+	case errors.Is(err, billingapp.ErrChargeDeferred):
+		return AutoChargeResult{Status: AutoChargeStatusDeferred}
+	case err != nil:
+		return AutoChargeResult{Status: AutoChargeStatusFailed}
+	}
+
+	status := AutoChargeStatusProcessed
+	if result.Deferred && len(result.ProcessedBatchIDs) == 0 {
+		status = AutoChargeStatusDeferred
+	}
+
+	var balance *int64
+	if result.BillingBalanceCents != nil {
+		copied := *result.BillingBalanceCents
+		balance = &copied
+	}
+
+	return AutoChargeResult{
+		Status:              status,
+		ProcessedBatchIDs:   append([]string(nil), result.ProcessedBatchIDs...),
+		ChargedAmountCents:  result.ChargedAmountCents,
+		BillingBalanceCents: balance,
+	}
+}
