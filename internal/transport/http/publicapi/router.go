@@ -97,10 +97,6 @@ func (h *Router) ServeHTTP(
 	}
 
 	apiFamily := modelCatalogFamily(request.URL.Path)
-	if reason := nonCanonicalCatalogCredentialCarrier(apiFamily, request.Header); reason != "" {
-		writeError(writer, requestID, http.StatusUnauthorized, domain.ErrorCodeUnauthorized, reason)
-		return
-	}
 	credential, credentialFailure := nativeapi.ExtractCredential(
 		apiFamily,
 		request.Header,
@@ -113,16 +109,6 @@ func (h *Router) ServeHTTP(
 			credentialFailure.Status,
 			domain.ErrorCodeUnauthorized,
 			credentialFailure.Reason,
-		)
-		return
-	}
-	if !strings.HasPrefix(credential.RawAPIKey, "sk_") {
-		writeError(
-			writer,
-			requestID,
-			http.StatusUnauthorized,
-			domain.ErrorCodeUnauthorized,
-			"API key must start with sk_",
 		)
 		return
 	}
@@ -183,25 +169,6 @@ func modelCatalogFamily(path string) domain.APIFamily {
 	default:
 		return domain.APIFamilyOpenAICompatible
 	}
-}
-
-func nonCanonicalCatalogCredentialCarrier(apiFamily domain.APIFamily, headers http.Header) string {
-	authorizationValues := headers.Values("Author" + "ization")
-	xAPIKeyValues := headers.Values("x-" + "api-" + "key")
-	xGoogAPIKeyValues := headers.Values("x-goog-" + "api-" + "key")
-	if len(authorizationValues) > 1 || len(xAPIKeyValues) > 1 || len(xGoogAPIKeyValues) > 1 {
-		return "duplicate credential headers are not allowed"
-	}
-	if apiFamily == domain.APIFamilyGeminiNative {
-		if len(authorizationValues) > 0 || len(xAPIKeyValues) > 0 {
-			return "credential carrier is not allowed for this API family"
-		}
-		return ""
-	}
-	if len(xAPIKeyValues) > 0 || len(xGoogAPIKeyValues) > 0 {
-		return "credential carrier is not allowed for this API family"
-	}
-	return ""
 }
 
 func writeAuthenticationError(
