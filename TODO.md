@@ -380,7 +380,8 @@ Additional production checks:
 * [x] Add production-gate SIGTERM shutdown audit covering HTTP server shutdown, worker stop path and PostgreSQL pool close evidence.
 * [x] Worker cycles are bounded.
 * [x] Add production-gate audit that worker cycles have interval, batch-size/limit and context-cancellation evidence.
-* [ ] No goroutine leaks in start/stop tests.
+* [x] No goroutine leaks in start/stop tests.
+* [x] Add production-gate audit for start/stop goroutine leak evidence, cancellation and cleanup paths.
 * [ ] Concurrent gateway replicas preserve idempotency and no duplicate external charges.
 * [ ] Concurrent workers preserve durable command invariants.
 * [ ] Logs do not contain secrets.
