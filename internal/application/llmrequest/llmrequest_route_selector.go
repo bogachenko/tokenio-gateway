@@ -2,10 +2,13 @@ package llmrequest
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"math"
+	"sort"
+	"strings"
+	"time"
 
-	"github.com/bogachenko/tokenio-gateway/internal/application/routing"
+	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
 
@@ -54,45 +57,12 @@ func (s *LLMRequestRouteSelector) Select(
 		)
 	}
 
-	candidates := make(
-		[]routing.Candidate,
-		len(input.Candidates),
-	)
-	for index, candidate := range input.Candidates {
-		candidates[index] = routing.Candidate{
-			Route:                         candidate.Route,
-			Reseller:                      candidate.Reseller,
-			SecretAvailable:               candidate.Preflight.SecretAvailable,
-			CostAvailable:                 candidate.Preflight.CostAvailable,
-			ForwardingAdapterAvailable:    candidate.Preflight.ForwardingAdapterAvailable,
-			EstimatedUpstreamCostCents:    candidate.Preflight.EstimatedUpstreamCostCents,
-			RateLimitAllowed:              candidate.Preflight.RateLimitAllowed,
-			ConcurrencyAllowed:            candidate.Preflight.ConcurrencyAllowed,
-			ModelIdentifierRewriteAllowed: candidate.Preflight.ModelIdentifierRewriteAllowed,
-		}
-	}
-
-	selected, err := routing.Select(
-		routing.SelectionInput{
-			Query: ports.RouteQuery{
-				APIFamily:    input.APIFamily,
-				EndpointKind: input.EndpointKind,
-				ClientModel:  input.ClientModel,
-			},
-			RequestedCapabilities: input.RequestedCapabilities,
-			Candidates:            candidates,
-			Now:                   now,
-		},
-	)
+	selected, err := selectLLMRequestRouteCandidate(input, now)
 	if err != nil {
-		return RouteSelectionResult{},
-			mapLLMRequestRouteSelectionError(selected, err)
+		return RouteSelectionResult{}, err
 	}
 
-	fallbackRouteIDs := make(
-		[]string,
-		len(selected.Fallbacks),
-	)
+	fallbackRouteIDs := make([]string, len(selected.Fallbacks))
 	for index, fallback := range selected.Fallbacks {
 		fallbackRouteIDs[index] = fallback.Route.ID
 	}
@@ -102,41 +72,240 @@ func (s *LLMRequestRouteSelector) Select(
 	}, nil
 }
 
-func mapLLMRequestRouteSelectionError(
-	result routing.SelectionResult,
-	err error,
-) error {
-	switch {
-	case errors.Is(err, routing.ErrUnknownModel):
-		return ErrUnknownModel
-	case errors.Is(err, routing.ErrUnsupportedCapability):
-		return ErrUnsupportedCapability
-	case errors.Is(err, routing.ErrNoRouteAvailable):
-		if compatibleRoutesOnlyLackPricing(result.Skipped) {
-			return ErrPricingUnavailable
-		}
-		return ErrNoRouteAvailable
-	case errors.Is(err, routing.ErrInvalidSelectionInput),
-		errors.Is(err, routing.ErrInvalidRouteData):
-		return fmt.Errorf(
-			"%w: %v",
+type llmRequestSelectionResult struct {
+	Selected  RouteSelectionCandidate
+	Fallbacks []RouteSelectionCandidate
+	Skipped   []llmRequestSkippedRoute
+}
+
+type llmRequestSkippedRoute struct {
+	RouteID    string
+	ResellerID string
+	Reason     llmRequestSkipReason
+}
+
+type llmRequestSkipReason string
+
+const (
+	llmRequestSkipReasonMissingCapability             llmRequestSkipReason = "missing_capability"
+	llmRequestSkipReasonManualDisabled                llmRequestSkipReason = "manual_disabled"
+	llmRequestSkipReasonForwardingAdapterUnavailable  llmRequestSkipReason = "forwarding_adapter_unavailable"
+	llmRequestSkipReasonMissingResellerAPIKey         llmRequestSkipReason = "missing_reseller_api_key"
+	llmRequestSkipReasonCooldownActive                llmRequestSkipReason = "cooldown_active"
+	llmRequestSkipReasonPricingUnavailable            llmRequestSkipReason = "pricing_unavailable"
+	llmRequestSkipReasonInvalidRoutePrice             llmRequestSkipReason = "invalid_route_price"
+	llmRequestSkipReasonInvalidResellerBalance        llmRequestSkipReason = "invalid_reseller_balance"
+	llmRequestSkipReasonInsufficientResellerBalance   llmRequestSkipReason = "insufficient_reseller_balance"
+	llmRequestSkipReasonRateLimitExceeded             llmRequestSkipReason = "rate_limit_exceeded"
+	llmRequestSkipReasonConcurrencyLimitExceeded      llmRequestSkipReason = "concurrency_limit_exceeded"
+	llmRequestSkipReasonUnsupportedModelRewritePolicy llmRequestSkipReason = "unsupported_model_rewrite_policy"
+)
+
+func selectLLMRequestRouteCandidate(
+	input RouteSelectionInput,
+	now time.Time,
+) (llmRequestSelectionResult, error) {
+	if input.APIFamily == "" || input.EndpointKind == "" || strings.TrimSpace(input.ClientModel) == "" || now.IsZero() {
+		return llmRequestSelectionResult{}, fmt.Errorf(
+			"%w: invalid route selection input",
 			ErrStageContractViolation,
-			err,
 		)
+	}
+
+	structural := make([]RouteSelectionCandidate, 0, len(input.Candidates))
+	for _, candidate := range input.Candidates {
+		if candidate.Route.APIFamily == input.APIFamily &&
+			candidate.Route.EndpointKind == input.EndpointKind &&
+			candidate.Route.ClientModel == input.ClientModel {
+			structural = append(structural, candidate)
+		}
+	}
+	if len(structural) == 0 {
+		return llmRequestSelectionResult{}, ErrUnknownModel
+	}
+	if err := validateStructuralRouteSelectionCandidates(structural); err != nil {
+		return llmRequestSelectionResult{}, err
+	}
+
+	skipped := make([]llmRequestSkippedRoute, 0, len(structural))
+	compatible := make([]RouteSelectionCandidate, 0, len(structural))
+	for _, candidate := range structural {
+		if !supportsRouteCapabilities(candidate.Route.Capabilities, input.RequestedCapabilities) {
+			skipped = append(skipped, skipLLMRequestRoute(candidate, llmRequestSkipReasonMissingCapability))
+			continue
+		}
+		compatible = append(compatible, candidate)
+	}
+	if len(compatible) == 0 {
+		return llmRequestSelectionResult{Skipped: skipped}, ErrUnsupportedCapability
+	}
+
+	eligible := make([]RouteSelectionCandidate, 0, len(compatible))
+	for _, candidate := range compatible {
+		if reason, ok := primaryLLMRequestOperationalSkipReason(candidate, now); ok {
+			skipped = append(skipped, skipLLMRequestRoute(candidate, reason))
+			continue
+		}
+		eligible = append(eligible, candidate)
+	}
+	if len(eligible) == 0 {
+		if compatibleRoutesOnlyLackPricing(skipped) {
+			return llmRequestSelectionResult{Skipped: skipped}, ErrPricingUnavailable
+		}
+		return llmRequestSelectionResult{Skipped: skipped}, ErrNoRouteAvailable
+	}
+
+	sort.Slice(eligible, func(i, j int) bool {
+		left := eligible[i]
+		right := eligible[j]
+		if left.Preflight.EstimatedUpstreamCostCents != right.Preflight.EstimatedUpstreamCostCents {
+			return left.Preflight.EstimatedUpstreamCostCents < right.Preflight.EstimatedUpstreamCostCents
+		}
+		if left.Route.Priority != right.Route.Priority {
+			return left.Route.Priority < right.Route.Priority
+		}
+		return left.Route.ID < right.Route.ID
+	})
+
+	fallbacks := make([]RouteSelectionCandidate, len(eligible)-1)
+	copy(fallbacks, eligible[1:])
+	return llmRequestSelectionResult{
+		Selected:  eligible[0],
+		Fallbacks: fallbacks,
+		Skipped:   skipped,
+	}, nil
+}
+
+func validateStructuralRouteSelectionCandidates(
+	candidates []RouteSelectionCandidate,
+) error {
+	seenRouteIDs := make(map[string]struct{}, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.Route.ID == "" || candidate.Route.ResellerID == "" || candidate.Reseller.ID == "" {
+			return fmt.Errorf("%w: invalid route data", ErrStageContractViolation)
+		}
+		if candidate.Route.ResellerID != candidate.Reseller.ID {
+			return fmt.Errorf("%w: invalid route data", ErrStageContractViolation)
+		}
+		if candidate.Route.ProviderType != candidate.Reseller.ProviderType {
+			return fmt.Errorf("%w: invalid route data", ErrStageContractViolation)
+		}
+		if _, exists := seenRouteIDs[candidate.Route.ID]; exists {
+			return fmt.Errorf("%w: invalid route data", ErrStageContractViolation)
+		}
+		seenRouteIDs[candidate.Route.ID] = struct{}{}
+	}
+	return nil
+}
+
+func supportsRouteCapabilities(
+	available domain.CapabilitySet,
+	requested domain.CapabilitySet,
+) bool {
+	return (!requested.Chat || available.Chat) &&
+		(!requested.Embeddings || available.Embeddings) &&
+		(!requested.ImagesGeneration || available.ImagesGeneration) &&
+		(!requested.Tools || available.Tools) &&
+		(!requested.ToolChoice || available.ToolChoice) &&
+		(!requested.ResponseFormat || available.ResponseFormat) &&
+		(!requested.JSONSchema || available.JSONSchema) &&
+		(!requested.ImageInput || available.ImageInput) &&
+		(!requested.AudioInput || available.AudioInput) &&
+		(!requested.FileInput || available.FileInput) &&
+		(!requested.VideoInput || available.VideoInput) &&
+		(!requested.Reasoning || available.Reasoning)
+}
+
+func primaryLLMRequestOperationalSkipReason(
+	candidate RouteSelectionCandidate,
+	now time.Time,
+) (llmRequestSkipReason, bool) {
+	if !candidate.Route.Enabled || !candidate.Reseller.Enabled {
+		return llmRequestSkipReasonManualDisabled, true
+	}
+	if !candidate.Preflight.ForwardingAdapterAvailable {
+		return llmRequestSkipReasonForwardingAdapterUnavailable, true
+	}
+	if !candidate.Preflight.SecretAvailable {
+		return llmRequestSkipReasonMissingResellerAPIKey, true
+	}
+	if candidate.Route.CooldownUntil != nil && candidate.Route.CooldownUntil.After(now) {
+		return llmRequestSkipReasonCooldownActive, true
+	}
+	if !candidate.Preflight.CostAvailable {
+		return llmRequestSkipReasonPricingUnavailable, true
+	}
+	if candidate.Preflight.EstimatedUpstreamCostCents < 0 {
+		return llmRequestSkipReasonInvalidRoutePrice, true
+	}
+	available, err := availableResellerBalanceCents(candidate.Reseller)
+	if err != nil {
+		return llmRequestSkipReasonInvalidResellerBalance, true
+	}
+	if available < candidate.Preflight.EstimatedUpstreamCostCents {
+		return llmRequestSkipReasonInsufficientResellerBalance, true
+	}
+	if !candidate.Preflight.RateLimitAllowed {
+		return llmRequestSkipReasonRateLimitExceeded, true
+	}
+	if !candidate.Preflight.ConcurrencyAllowed {
+		return llmRequestSkipReasonConcurrencyLimitExceeded, true
+	}
+	if !modelRewritePolicyAllowed(candidate) {
+		return llmRequestSkipReasonUnsupportedModelRewritePolicy, true
+	}
+	return "", false
+}
+
+func availableResellerBalanceCents(reseller domain.Reseller) (int64, error) {
+	available, err := checkedSubInt64(reseller.BalanceCents, reseller.ReservedCents)
+	if err != nil {
+		return 0, err
+	}
+	return checkedSubInt64(available, reseller.MinimumBalanceCents)
+}
+
+func checkedSubInt64(left, right int64) (int64, error) {
+	if right > 0 && left < math.MinInt64+right {
+		return 0, ErrStageContractViolation
+	}
+	if right < 0 && left > math.MaxInt64+right {
+		return 0, ErrStageContractViolation
+	}
+	return left - right, nil
+}
+
+func modelRewritePolicyAllowed(candidate RouteSelectionCandidate) bool {
+	switch candidate.Route.ModelRewritePolicy {
+	case domain.ModelRewritePolicyNone:
+		return candidate.Route.ProviderModel == candidate.Route.ClientModel
+	case domain.ModelRewritePolicyProviderModel:
+		return strings.TrimSpace(candidate.Route.ProviderModel) != "" && candidate.Preflight.ModelIdentifierRewriteAllowed
 	default:
-		return fmt.Errorf("select route candidate: %w", err)
+		return false
+	}
+}
+
+func skipLLMRequestRoute(
+	candidate RouteSelectionCandidate,
+	reason llmRequestSkipReason,
+) llmRequestSkippedRoute {
+	return llmRequestSkippedRoute{
+		RouteID:    candidate.Route.ID,
+		ResellerID: candidate.Reseller.ID,
+		Reason:     reason,
 	}
 }
 
 func compatibleRoutesOnlyLackPricing(
-	skipped []routing.SkippedRoute,
+	skipped []llmRequestSkippedRoute,
 ) bool {
 	pricingUnavailable := 0
 	for _, skippedRoute := range skipped {
 		switch skippedRoute.Reason {
-		case routing.SkipReasonMissingCapability:
+		case llmRequestSkipReasonMissingCapability:
 			continue
-		case routing.SkipReasonPricingUnavailable:
+		case llmRequestSkipReasonPricingUnavailable:
 			pricingUnavailable++
 		default:
 			return false
