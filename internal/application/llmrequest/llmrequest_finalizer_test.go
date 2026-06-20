@@ -5,18 +5,17 @@ import (
 	"testing"
 	"time"
 
-	ledgerapp "github.com/bogachenko/tokenio-gateway/internal/application/ledger"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 )
 
 type finalizerLedger struct {
-	commitInput  ledgerapp.CommitBillableInput
-	failureInput ledgerapp.MarkPricingFailedInput
+	commitInput  CommitBillableInput
+	failureInput MarkPricingFailedInput
 }
 
 func (l *finalizerLedger) CommitBillable(
 	_ context.Context,
-	input ledgerapp.CommitBillableInput,
+	input CommitBillableInput,
 ) (domain.UsageRecord, error) {
 	l.commitInput = input
 	return domain.UsageRecord{
@@ -27,7 +26,7 @@ func (l *finalizerLedger) CommitBillable(
 
 func (l *finalizerLedger) MarkPricingFailed(
 	_ context.Context,
-	input ledgerapp.MarkPricingFailedInput,
+	input MarkPricingFailedInput,
 ) (domain.UsageRecord, error) {
 	l.failureInput = input
 	return domain.UsageRecord{
