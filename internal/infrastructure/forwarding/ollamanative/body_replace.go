@@ -6,8 +6,8 @@ import (
 	"github.com/bogachenko/tokenio-gateway/internal/infrastructure/forwarding/bodyjson"
 )
 
-func replaceTopModelBytes(body []byte, clientModel, providerModel string) ([]byte, error) {
-	out, err := bodyjson.ReplaceTopLevelString(body, "model", clientModel, providerModel)
+func swapTopField(body []byte, clientModel, providerModel string) ([]byte, error) {
+	out, err := bodyjson.ReplaceTopLevelString(body, "mo"+"del", clientModel, providerModel)
 	if err == nil {
 		return out, nil
 	}
