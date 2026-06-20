@@ -142,4 +142,9 @@ multiple equal charge requests.
 `integration/fake_billing_unknown_result_test.go` verifies that the fake Billing
 service can deterministically return a successful HTTP response with an unknown
 business result while recording the charge request body.
+## Fake Telegram temporary failure scenario
+
+`integration/fake_telegram_temporary_failure_test.go` verifies that the fake Telegram
+API can deterministically return a temporary 429 failure with `retry_after` while
+recording the outbound request body.
 

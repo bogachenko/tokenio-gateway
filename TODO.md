@@ -299,7 +299,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add integration duplicate Billing request scenario with deterministic duplicate response and two recorded equal requests.
 * [x] Unknown Billing result.
 * [x] Add integration unknown Billing result scenario with deterministic unknown business-status response and recorded request.
-* [ ] Telegram temporary failure.
+* [x] Telegram temporary failure.
+* [x] Add integration Telegram temporary failure scenario with deterministic 429 `retry_after` response and recorded request.
 * [ ] Telegram permanent failure.
 
 ### 4.3. End-to-end scenarios
