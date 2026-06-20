@@ -186,7 +186,8 @@ For every key in `docs/spec/090-configuration.ru.md` verify:
 * [x] Wire log level and log format from config.
 * [x] Route gateway and migration process startup errors through the central logger/redactor.
 * [x] Wire worker observer factories through the central logging graph stdlib bridge.
-* [ ] Add correlation fields where available:
+* [x] Add correlation fields where available:
+* [x] Add automated audit that required correlation fields are present in logging/audit code or specs.
 
   ```text
   local_request_id
