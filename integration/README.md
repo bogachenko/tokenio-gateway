@@ -147,4 +147,9 @@ business result while recording the charge request body.
 `integration/fake_telegram_temporary_failure_test.go` verifies that the fake Telegram
 API can deterministically return a temporary 429 failure with `retry_after` while
 recording the outbound request body.
+## Fake Telegram permanent failure scenario
+
+`integration/fake_telegram_permanent_failure_test.go` verifies that the fake
+Telegram API can deterministically return a permanent 403 failure without
+`retry_after` while recording the outbound request body.
 

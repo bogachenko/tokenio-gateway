@@ -301,7 +301,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add integration unknown Billing result scenario with deterministic unknown business-status response and recorded request.
 * [x] Telegram temporary failure.
 * [x] Add integration Telegram temporary failure scenario with deterministic 429 `retry_after` response and recorded request.
-* [ ] Telegram permanent failure.
+* [x] Telegram permanent failure.
+* [x] Add integration Telegram permanent failure scenario with deterministic 403 response, no `retry_after`, and recorded request.
 
 ### 4.3. End-to-end scenarios
 

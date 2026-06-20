@@ -108,3 +108,4 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Fake Billing duplicate request scenario exists at `integration/fake_billing_duplicate_request_test.go`.
 - [x] Fake Billing unknown result scenario exists at `integration/fake_billing_unknown_result_test.go`.
 - [x] Fake Telegram temporary failure scenario exists at `integration/fake_telegram_temporary_failure_test.go`.
+- [x] Fake Telegram permanent failure scenario exists at `integration/fake_telegram_permanent_failure_test.go`.
