@@ -4,21 +4,18 @@ import (
 	"context"
 	"errors"
 	"testing"
-
-	authenticateapp "github.com/bogachenko/tokenio-gateway/internal/application/authenticate"
-	"github.com/bogachenko/tokenio-gateway/internal/auth"
 )
 
 type publicRequestAuthenticatorFunc func(
 	context.Context,
-	authenticateapp.Input,
-) (authenticateapp.Result, error)
+	string,
+) (Principal, error)
 
 func (function publicRequestAuthenticatorFunc) AuthenticatePublicRequest(
 	ctx context.Context,
-	input authenticateapp.Input,
-) (authenticateapp.Result, error) {
-	return function(ctx, input)
+	rawAPIKey string,
+) (Principal, error) {
+	return function(ctx, rawAPIKey)
 }
 
 func TestLLMRequestAuthenticatorMapsPublicPrincipal(t *testing.T) {
@@ -27,15 +24,13 @@ func TestLLMRequestAuthenticatorMapsPublicPrincipal(t *testing.T) {
 		publicRequestAuthenticatorFunc(
 			func(
 				_ context.Context,
-				input authenticateapp.Input,
-			) (authenticateapp.Result, error) {
-				gotRawAPIKey = input.RawAPIKey
-				return authenticateapp.Result{
-					Principal: auth.APIKeyPrincipal{
-						UserID:               "user-1",
-						APIKeyID:             "key-1",
-						BillingSubjectUserID: "billing-1",
-					},
+				rawAPIKey string,
+			) (Principal, error) {
+				gotRawAPIKey = rawAPIKey
+				return Principal{
+					UserID:               "user-1",
+					APIKeyID:             "key-1",
+					BillingSubjectUserID: "billing-1",
 				}, nil
 			},
 		),
@@ -69,9 +64,9 @@ func TestLLMRequestAuthenticatorPreservesAuthenticationError(t *testing.T) {
 		publicRequestAuthenticatorFunc(
 			func(
 				context.Context,
-				authenticateapp.Input,
-			) (authenticateapp.Result, error) {
-				return authenticateapp.Result{}, stageError
+				string,
+			) (Principal, error) {
+				return Principal{}, stageError
 			},
 		),
 	)
@@ -89,9 +84,9 @@ func TestLLMRequestAuthenticatorRejectsNilContextBeforeDependency(t *testing.T) 
 	called := false
 	adapter, err := NewLLMRequestAuthenticator(
 		publicRequestAuthenticatorFunc(
-			func(context.Context, authenticateapp.Input) (authenticateapp.Result, error) {
+			func(context.Context, string) (Principal, error) {
 				called = true
-				return authenticateapp.Result{}, nil
+				return Principal{}, nil
 			},
 		),
 	)
@@ -112,9 +107,9 @@ func TestLLMRequestAuthenticatorPropagatesCanceledContext(t *testing.T) {
 	called := false
 	adapter, err := NewLLMRequestAuthenticator(
 		publicRequestAuthenticatorFunc(
-			func(context.Context, authenticateapp.Input) (authenticateapp.Result, error) {
+			func(context.Context, string) (Principal, error) {
 				called = true
-				return authenticateapp.Result{}, nil
+				return Principal{}, nil
 			},
 		),
 	)
