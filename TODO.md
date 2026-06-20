@@ -330,7 +330,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add integration cooldown evidence covering policy/state, rejection behavior, retry-after/window semantics, scope and automated coverage.
 * [x] Capacity rejection.
 * [x] Add integration capacity rejection evidence covering capacity policy/state, rejection reason/status, scope and terminal no-fallback behavior.
-* [ ] Usage finalization.
+* [x] Usage finalization.
+* [x] Add integration usage finalization evidence covering usage extraction, finalization state, persistence, billing handoff and failure-safe behavior.
 * [ ] Request-triggered charge.
 * [ ] Recovery worker charge.
 * [ ] Gateway restart.

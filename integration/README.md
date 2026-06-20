@@ -219,4 +219,9 @@ coverage.
 `integration/capacity_rejection_test.go` verifies repository evidence for capacity
 policy/state, rejection reason/status, provider/route/model scope and terminal
 no-fallback behavior.
+## Usage finalization scenario
+
+`integration/usage_finalization_test.go` verifies repository evidence for usage
+extraction, finalization state, persistence, billing handoff and failure-safe behavior
+when upstream usage is missing or malformed.
 
