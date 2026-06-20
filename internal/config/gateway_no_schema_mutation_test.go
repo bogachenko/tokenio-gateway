@@ -24,7 +24,7 @@ func TestGatewayDoesNotMutateSchemaAtStartupEvidence(t *testing.T) {
 		"no automatic migrations",
 	})
 
-	assertGatewayStartupFilesDoNotApplyMigrations(t, repoRoot)
+	assertGatewayStartupFilesDoNotCallMigrations(t, repoRoot)
 }
 
 func gatewayNoSchemaMutationRepoRoot(t *testing.T) string {
@@ -109,34 +109,70 @@ func assertGatewayNoSchemaMutationEvidence(t *testing.T, files map[string]string
 	t.Fatalf("missing %s evidence; checked %d files for any of %q", label, len(files), needles)
 }
 
-func assertGatewayStartupFilesDoNotApplyMigrations(t *testing.T, repoRoot string) {
+func assertGatewayStartupFilesDoNotCallMigrations(t *testing.T, repoRoot string) {
 	t.Helper()
 
 	startupFiles := []string{
 		filepath.Join(repoRoot, "cmd/gateway/main.go"),
-	}
-	gatewayMainFile := findGatewayMainFile(t, repoRoot)
-	if gatewayMainFile != "" {
-		startupFiles = append(startupFiles, gatewayMainFile)
+		findGatewayMainFile(t, repoRoot),
 	}
 
 	for _, path := range startupFiles {
-		content, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read %s: %v", path, err)
+		assertFileDoesNotCallFunctions(t, path, map[string]struct{}{
+			"MigrateMain":     {},
+			"ApplyMigration":  {},
+			"RunMigrations":   {},
+			"RunMigration":    {},
+			"ApplyMigrations": {},
+		})
+	}
+}
+
+func assertFileDoesNotCallFunctions(t *testing.T, path string, forbidden map[string]struct{}) {
+	t.Helper()
+
+	fileSet := token.NewFileSet()
+	parsed, err := parser.ParseFile(fileSet, path, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+
+	checked := false
+	for _, declaration := range parsed.Decls {
+		function, ok := declaration.(*ast.FuncDecl)
+		if !ok {
+			continue
 		}
-		for _, forbidden := range []string{
-			"app.MigrateMain(",
-			"MigrateMain()",
-			".MigrateMain(",
-			"docker-compose-migrate",
-			"ApplyMigration(",
-			"RunMigrations(",
-		} {
-			if strings.Contains(string(content), forbidden) {
-				t.Fatalf("%s contains gateway startup migration apply marker %q", path, forbidden)
+		if path != filepath.Join(gatewayNoSchemaMutationRepoRoot(t), "cmd/gateway/main.go") &&
+			function.Name.Name != "GatewayMain" {
+			continue
+		}
+		checked = true
+		ast.Inspect(function.Body, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
 			}
-		}
+
+			var name string
+			switch fun := call.Fun.(type) {
+			case *ast.Ident:
+				name = fun.Name
+			case *ast.SelectorExpr:
+				name = fun.Sel.Name
+			default:
+				return true
+			}
+
+			if _, exists := forbidden[name]; exists {
+				position := fileSet.Position(call.Pos())
+				t.Fatalf("%s calls migration function %s at %s", path, name, position)
+			}
+			return true
+		})
+	}
+	if !checked {
+		t.Fatalf("no gateway startup function checked in %s", path)
 	}
 }
 
