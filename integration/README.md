@@ -194,4 +194,9 @@ model/endpoint handling and response passthrough.
 `integration/anthropic_messages_test.go` verifies the fake Anthropic messages
 happy path and repository evidence for the public route, forwarding, usage handling
 and response passthrough.
+## Gemini generate/embed/models scenario
+
+`integration/gemini_generate_embed_models_test.go` verifies fake Gemini models,
+generateContent, embedContent and batchEmbedContents happy paths plus repository
+evidence for public routes, usage handling and response passthrough.
 

@@ -320,7 +320,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add integration OpenAI image generation scenario covering fake happy path and repository evidence for route, forwarding, endpoint handling and passthrough.
 * [x] Anthropic messages.
 * [x] Add integration Anthropic messages scenario covering fake happy path and repository evidence for route, forwarding, usage and passthrough.
-* [ ] Gemini generate/embed/models.
+* [x] Gemini generate/embed/models.
+* [x] Add integration Gemini generate/embed/models scenario covering fake models, generateContent, embedContent, batchEmbedContents, usage and passthrough evidence.
 * [ ] Ollama chat/generate/embeddings/tags.
 * [ ] Route fallback.
 * [ ] Cooldown.
