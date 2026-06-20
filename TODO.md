@@ -332,7 +332,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add integration capacity rejection evidence covering capacity policy/state, rejection reason/status, scope and terminal no-fallback behavior.
 * [x] Usage finalization.
 * [x] Add integration usage finalization evidence covering usage extraction, finalization state, persistence, billing handoff and failure-safe behavior.
-* [ ] Request-triggered charge.
+* [x] Request-triggered charge.
+* [x] Add integration request-triggered charge evidence covering request path, usage handoff, billing charge request, idempotency and persistence.
 * [ ] Recovery worker charge.
 * [ ] Gateway restart.
 * [ ] Provisioning lifecycle.

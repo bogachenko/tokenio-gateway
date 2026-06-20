@@ -224,4 +224,9 @@ no-fallback behavior.
 `integration/usage_finalization_test.go` verifies repository evidence for usage
 extraction, finalization state, persistence, billing handoff and failure-safe behavior
 when upstream usage is missing or malformed.
+## Request-triggered charge scenario
+
+`integration/request_triggered_charge_test.go` verifies repository evidence for the
+request-triggered charge path, usage-to-charge handoff, Billing charge request,
+idempotency and charge result persistence.
 

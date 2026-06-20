@@ -122,3 +122,4 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Cooldown integration evidence exists at `integration/cooldown_test.go`.
 - [x] Capacity rejection integration evidence exists at `integration/capacity_rejection_test.go`.
 - [x] Usage finalization integration evidence exists at `integration/usage_finalization_test.go`.
+- [x] Request-triggered charge integration evidence exists at `integration/request_triggered_charge_test.go`.
