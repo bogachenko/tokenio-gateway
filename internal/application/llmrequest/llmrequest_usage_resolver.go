@@ -4,19 +4,54 @@ import (
 	"context"
 	"fmt"
 
-	pricingapp "github.com/bogachenko/tokenio-gateway/internal/application/pricing"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
 
+type UsagePricingInput struct {
+	Route        domain.Route
+	Price        domain.RoutePrice
+	RequestBody  []byte
+	ResponseBody []byte
+	ActualUsage  *domain.TokenUsage
+
+	RequestedCapabilities domain.CapabilitySet
+	Modalities            UsagePricingInputModalities
+	ZeroUsageAllowed      bool
+}
+
+type UsagePricingInputModalities struct {
+	Image bool
+	Audio bool
+	File  bool
+	Video bool
+}
+
+type UsagePricingResult struct {
+	Usage        domain.TokenUsage
+	Completeness domain.UsageCompleteness
+	Estimated    bool
+
+	UpstreamCostCents int64
+	ClientAmountCents int64
+	Currency          string
+
+	ProviderRequestID     string
+	ProviderResponseModel string
+}
+
+type UsagePricingResolver interface {
+	Resolve(context.Context, UsagePricingInput) (UsagePricingResult, error)
+}
+
 type LLMRequestUsageResolver struct {
-	pricing *pricingapp.UsageResolver
+	pricing UsagePricingResolver
 }
 
 var _ UsageResolver = (*LLMRequestUsageResolver)(nil)
 
 func NewLLMRequestUsageResolver(
-	pricing *pricingapp.UsageResolver,
+	pricing UsagePricingResolver,
 ) (*LLMRequestUsageResolver, error) {
 	if pricing == nil {
 		return nil, ErrDependencyRequired
@@ -56,7 +91,7 @@ func (r *LLMRequestUsageResolver) Resolve(
 	prepared := input.Reserved.Prepared
 	result, err := r.pricing.Resolve(
 		ctx,
-		pricingapp.ResolveUsageInput{
+		UsagePricingInput{
 			Route:        prepared.Plan.Route,
 			Price:        prepared.Plan.Price,
 			RequestBody:  append([]byte(nil), prepared.Payload...),
@@ -64,7 +99,7 @@ func (r *LLMRequestUsageResolver) Resolve(
 			ActualUsage:  forwardUsageToTokenUsage(input.Response.Usage),
 			RequestedCapabilities: prepared.
 				RequestedCapabilities,
-			Modalities: pricingapp.InputModalities{
+			Modalities: UsagePricingInputModalities{
 				Image: prepared.RequestedCapabilities.ImageInput,
 				Audio: prepared.RequestedCapabilities.AudioInput,
 				File:  prepared.RequestedCapabilities.FileInput,
