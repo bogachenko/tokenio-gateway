@@ -318,7 +318,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add integration OpenAI embeddings scenario covering fake happy path and repository evidence for route, forwarding, usage and passthrough.
 * [x] OpenAI image generation.
 * [x] Add integration OpenAI image generation scenario covering fake happy path and repository evidence for route, forwarding, endpoint handling and passthrough.
-* [ ] Anthropic messages.
+* [x] Anthropic messages.
+* [x] Add integration Anthropic messages scenario covering fake happy path and repository evidence for route, forwarding, usage and passthrough.
 * [ ] Gemini generate/embed/models.
 * [ ] Ollama chat/generate/embeddings/tags.
 * [ ] Route fallback.

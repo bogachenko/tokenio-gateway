@@ -189,4 +189,9 @@ usage handling and response passthrough.
 `integration/openai_image_generation_test.go` verifies the fake OpenAI-compatible
 image generation happy path and repository evidence for the public route, forwarding,
 model/endpoint handling and response passthrough.
+## Anthropic messages scenario
+
+`integration/anthropic_messages_test.go` verifies the fake Anthropic messages
+happy path and repository evidence for the public route, forwarding, usage handling
+and response passthrough.
 
