@@ -249,4 +249,9 @@ and duplicate handling.
 `integration/admin_mutation_audit_test.go` verifies repository evidence for admin
 mutation endpoints, admin authorization, non-admin rejection, audit event persistence
 and actor/resource metadata.
+## Telegram alert lifecycle scenario
+
+`integration/telegram_alert_lifecycle_test.go` verifies the fake Telegram sendMessage
+happy path and repository evidence for alert enqueue/send lifecycle, temporary retry,
+permanent terminal failure and delivery-state persistence.
 

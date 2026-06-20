@@ -342,7 +342,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add integration provisioning lifecycle evidence covering endpoint, service auth, idempotency, API key creation and duplicate handling.
 * [x] Admin mutation/audit.
 * [x] Add integration admin mutation/audit evidence covering admin mutation endpoints, authorization, non-admin rejection, audit persistence and actor/resource metadata.
-* [ ] Telegram alert lifecycle.
+* [x] Telegram alert lifecycle.
+* [x] Add integration Telegram alert lifecycle scenario covering fake sendMessage, retryable temporary failure, permanent terminal failure and delivery-state evidence.
 
 ### Verification command
 
