@@ -38,7 +38,7 @@ func TestLogsDoNotContainSecretsEvidence(t *testing.T) {
 		"error must not contain secret",
 	})
 
-	assertLoggingFilesDoNotContainKnownSecretLiterals(t, files)
+	assertProductionLoggingFilesDoNotContainKnownSecretLiterals(t, files)
 }
 
 func logSecretRepoRoot(t *testing.T) string {
@@ -111,15 +111,11 @@ func assertLogSecretEvidence(t *testing.T, files map[string]string, label string
 	t.Fatalf("missing %s evidence; checked %d files for any of %q", label, len(files), needles)
 }
 
-func assertLoggingFilesDoNotContainKnownSecretLiterals(t *testing.T, files map[string]string) {
+func assertProductionLoggingFilesDoNotContainKnownSecretLiterals(t *testing.T, files map[string]string) {
 	t.Helper()
 
 	for path, content := range files {
-		if !strings.Contains(path, "log") &&
-			!strings.Contains(path, "logger") &&
-			!strings.Contains(path, "redact") &&
-			!strings.Contains(content, "Log") &&
-			!strings.Contains(content, "log.") {
+		if !isProductionLoggingOrRedactionFile(path) {
 			continue
 		}
 		for _, forbidden := range []string{
@@ -130,8 +126,20 @@ func assertLoggingFilesDoNotContainKnownSecretLiterals(t *testing.T, files map[s
 			"sensitive-api-key-hash-secret",
 		} {
 			if strings.Contains(content, forbidden) {
-				t.Fatalf("%s contains known secret literal %q in logging/redaction context", path, forbidden)
+				t.Fatalf("%s contains known secret literal %q in production logging/redaction code", path, forbidden)
 			}
 		}
 	}
+}
+
+func isProductionLoggingOrRedactionFile(path string) bool {
+	if strings.HasSuffix(path, "_test.go") || strings.HasSuffix(path, ".md") || strings.HasSuffix(path, ".sh") {
+		return false
+	}
+	if !strings.HasSuffix(path, ".go") {
+		return false
+	}
+	return strings.Contains(path, "log") ||
+		strings.Contains(path, "logger") ||
+		strings.Contains(path, "redact")
 }

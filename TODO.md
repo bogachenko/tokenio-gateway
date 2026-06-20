@@ -388,5 +388,6 @@ Additional production checks:
 * [x] Add production-gate audit for concurrent worker durable-command invariants, claim/idempotency and duplicate-prevention evidence.
 * [x] Logs do not contain secrets.
 * [x] Add production-gate audit that logging/redaction paths do not expose known secret literals and have redaction evidence.
-* [ ] All supported SDK-compatible requests pass for every API family.
+* [x] All supported SDK-compatible requests pass for every API family.
+* [x] Add production-gate audit for SDK-compatible request evidence across OpenAI-compatible, Anthropic, Gemini and Ollama API families.
 * [ ] `docs/implementation-matrix.md` records exact final evidence.

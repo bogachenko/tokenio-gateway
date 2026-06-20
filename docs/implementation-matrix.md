@@ -140,3 +140,4 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Concurrent gateway idempotency audit exists in `internal/config/concurrent_gateway_idempotency_test.go`.
 - [x] Concurrent worker durable-command audit exists in `internal/config/concurrent_workers_durable_commands_test.go`.
 - [x] Logs-no-secrets audit exists in `internal/config/logs_no_secrets_test.go`.
+- [x] SDK-compatible request coverage audit exists in `internal/config/sdk_compatible_requests_test.go`.
