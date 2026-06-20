@@ -214,4 +214,9 @@ terminal no-route/no-capacity failures.
 `integration/cooldown_test.go` verifies repository evidence for cooldown policy/state,
 rejection behavior, retry-after/window semantics, route/provider scope and automated
 coverage.
+## Capacity rejection scenario
+
+`integration/capacity_rejection_test.go` verifies repository evidence for capacity
+policy/state, rejection reason/status, provider/route/model scope and terminal
+no-fallback behavior.
 

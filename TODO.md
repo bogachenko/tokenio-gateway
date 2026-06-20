@@ -328,7 +328,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add integration route fallback evidence covering fallback policy, retryable failures, attempt ordering and terminal no-route/no-capacity failure.
 * [x] Cooldown.
 * [x] Add integration cooldown evidence covering policy/state, rejection behavior, retry-after/window semantics, scope and automated coverage.
-* [ ] Capacity rejection.
+* [x] Capacity rejection.
+* [x] Add integration capacity rejection evidence covering capacity policy/state, rejection reason/status, scope and terminal no-fallback behavior.
 * [ ] Usage finalization.
 * [ ] Request-triggered charge.
 * [ ] Recovery worker charge.
