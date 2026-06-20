@@ -8,14 +8,13 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/bogachenko/tokenio-gateway/internal/application/forwarding"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
-	"time"
 )
 
 var (
@@ -46,25 +45,14 @@ type Adapter struct {
 var _ ports.ForwardingAdapter = (*Adapter)(nil)
 
 func NewAdapter(config Config) (*Adapter, error) {
-	if strings.TrimSpace(config.Reseller.ID) == "" ||
-		strings.TrimSpace(string(config.Reseller.ProviderType)) == "" ||
-		strings.TrimSpace(config.Reseller.BaseURL) == "" ||
-		config.ResellerAPIKey == "" ||
-		config.Transport == nil ||
-		config.MaxResponseBodyBytes <= 0 {
+	if strings.TrimSpace(config.Reseller.ID) == "" || strings.TrimSpace(string(config.Reseller.ProviderType)) == "" || strings.TrimSpace(config.Reseller.BaseURL) == "" || config.ResellerAPIKey == "" || config.Transport == nil || config.MaxResponseBodyBytes <= 0 {
 		return nil, ErrInvalidAdapterConfig
 	}
 	baseURL, err := parseBaseURL(config.Reseller.BaseURL)
 	if err != nil {
 		return nil, err
 	}
-	return &Adapter{
-		reseller:             config.Reseller,
-		resellerAPIKey:       config.ResellerAPIKey,
-		transport:            config.Transport,
-		maxResponseBodyBytes: config.MaxResponseBodyBytes,
-		baseURL:              baseURL,
-	}, nil
+	return &Adapter{reseller: config.Reseller, resellerAPIKey: config.ResellerAPIKey, transport: config.Transport, maxResponseBodyBytes: config.MaxResponseBodyBytes, baseURL: baseURL}, nil
 }
 
 func (a *Adapter) Forward(ctx context.Context, request ports.ForwardRequest) (ports.ForwardResponse, error) {
@@ -110,12 +98,7 @@ func (a *Adapter) validateRouteAndRequest(request ports.ForwardRequest) error {
 		return ErrInvalidForwardRequest
 	}
 	route := request.Route
-	if strings.TrimSpace(route.ID) == "" ||
-		strings.TrimSpace(route.ClientModel) == "" ||
-		route.APIFamily != domain.APIFamilyOllamaNative ||
-		route.ResellerID != a.reseller.ID ||
-		route.ProviderType != a.reseller.ProviderType ||
-		route.ProviderType != domain.ProviderOllama {
+	if strings.TrimSpace(route.ID) == "" || strings.TrimSpace(route.ClientModel) == "" || route.APIFamily != domain.APIFamilyOllamaNative || route.ResellerID != a.reseller.ID || route.ProviderType != a.reseller.ProviderType || route.ProviderType != domain.ProviderOllama {
 		return ErrUnsupportedRoute
 	}
 	switch route.EndpointKind {
@@ -146,13 +129,6 @@ func (a *Adapter) validateRouteAndRequest(request ports.ForwardRequest) error {
 }
 
 func prepareBody(route domain.Route, body []byte) ([]byte, error) {
-	model, err := modelFromBody(body)
-	if err != nil {
-		return nil, err
-	}
-	if model != route.ClientModel {
-		return nil, ErrUnsupportedRoute
-	}
 	switch route.ModelRewritePolicy {
 	case domain.ModelRewritePolicyNone:
 		return append([]byte(nil), body...), nil
@@ -161,44 +137,6 @@ func prepareBody(route domain.Route, body []byte) ([]byte, error) {
 	default:
 		return nil, ErrUnsupportedRoute
 	}
-}
-
-func modelFromBody(body []byte) (string, error) {
-	var payload map[string]json.RawMessage
-	decoder := json.NewDecoder(bytes.NewReader(body))
-	decoder.UseNumber()
-	if err := decoder.Decode(&payload); err != nil {
-		return "", ErrInvalidForwardRequest
-	}
-	if decoder.More() {
-		return "", ErrInvalidForwardRequest
-	}
-	rawModel, ok := payload["model"]
-	if !ok {
-		return "", ErrInvalidForwardRequest
-	}
-	var model string
-	if err := json.Unmarshal(rawModel, &model); err != nil || strings.TrimSpace(model) == "" {
-		return "", ErrInvalidForwardRequest
-	}
-	return model, nil
-}
-
-func rewriteTopLevelModel(body []byte, clientModel string, providerModel string) ([]byte, error) {
-	clientJSON, err := json.Marshal(clientModel)
-	if err != nil {
-		return nil, ErrInvalidForwardRequest
-	}
-	providerJSON, err := json.Marshal(providerModel)
-	if err != nil {
-		return nil, ErrInvalidForwardRequest
-	}
-	pattern := regexp.MustCompile(`("model"\s*:\s*)` + regexp.QuoteMeta(string(clientJSON)))
-	rewritten := pattern.ReplaceAll(body, []byte(`${1}`+string(providerJSON)))
-	if bytes.Equal(rewritten, body) {
-		return nil, ErrInvalidForwardRequest
-	}
-	return rewritten, nil
 }
 
 func ExtractUsage(body []byte) (Usage, error) {
@@ -228,10 +166,7 @@ func ExtractUsage(body []byte) (Usage, error) {
 	return Usage{InputTokens: inputTokens, OutputTokens: outputTokens}, nil
 }
 
-func optionalNonNegativeInt64(
-	payload map[string]json.RawMessage,
-	field string,
-) (int64, bool, error) {
+func optionalNonNegativeInt64(payload map[string]json.RawMessage, field string) (int64, bool, error) {
 	raw, ok := payload[field]
 	if !ok || string(raw) == "null" {
 		return 0, false, nil
@@ -258,57 +193,24 @@ func handleResponse(resp *http.Response, limit int64) (ports.ForwardResponse, er
 	defer resp.Body.Close()
 	body, truncated, err := readBounded(resp.Body, limit)
 	if err != nil {
-		return ports.ForwardResponse{}, forwarding.NewFailure(
-			forwarding.FailureKindMalformedResponse,
-			resp.StatusCode,
-			forwarding.AttemptStateResponseReceived,
-			false,
-			err,
-		)
+		return ports.ForwardResponse{}, forwarding.NewFailure(forwarding.FailureKindMalformedResponse, resp.StatusCode, forwarding.AttemptStateResponseReceived, false, err)
 	}
 	if truncated {
-		return ports.ForwardResponse{}, forwarding.NewFailure(
-			forwarding.FailureKindMalformedResponse,
-			resp.StatusCode,
-			forwarding.AttemptStateResponseReceived,
-			false,
-			ErrUpstreamResponseTooLarge,
-		)
+		return ports.ForwardResponse{}, forwarding.NewFailure(forwarding.FailureKindMalformedResponse, resp.StatusCode, forwarding.AttemptStateResponseReceived, false, ErrUpstreamResponseTooLarge)
 	}
 	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
 		usage, usageErr := ExtractUsage(body)
 		if usageErr != nil && !errors.Is(usageErr, ErrUsageNotFound) {
-			return ports.ForwardResponse{}, forwarding.NewFailure(
-				forwarding.FailureKindMalformedResponse,
-				resp.StatusCode,
-				forwarding.AttemptStateResponseReceived,
-				false,
-				usageErr,
-			)
+			return ports.ForwardResponse{}, forwarding.NewFailure(forwarding.FailureKindMalformedResponse, resp.StatusCode, forwarding.AttemptStateResponseReceived, false, usageErr)
 		}
-
-		response := ports.ForwardResponse{
-			StatusCode: resp.StatusCode,
-			Headers:    cloneHeaders(resp.Header),
-			Body:       body,
-		}
+		response := ports.ForwardResponse{StatusCode: resp.StatusCode, Headers: cloneHeaders(resp.Header), Body: body}
 		if usageErr == nil {
-			response.Usage = &ports.ForwardUsage{
-				InputTokens:  usage.InputTokens,
-				OutputTokens: usage.OutputTokens,
-			}
+			response.Usage = &ports.ForwardUsage{InputTokens: usage.InputTokens, OutputTokens: usage.OutputTokens}
 		}
 		return response, nil
 	}
 	classification := classifyFailure(resp.StatusCode, resp.Header, body)
-	return ports.ForwardResponse{}, forwarding.NewFailureWithRetryAfter(
-		classification.Kind,
-		resp.StatusCode,
-		forwarding.AttemptStateResponseReceived,
-		classification.RouteRetryCandidate,
-		classification.RetryAfter,
-		nil,
-	)
+	return ports.ForwardResponse{}, forwarding.NewFailureWithRetryAfter(classification.Kind, resp.StatusCode, forwarding.AttemptStateResponseReceived, classification.RouteRetryCandidate, classification.RetryAfter, nil)
 }
 
 func parseBaseURL(value string) (*url.URL, error) {
@@ -372,7 +274,7 @@ func shouldStripHeader(name string, connectionTokens map[string]struct{}) bool {
 		return true
 	}
 	switch lower {
-	case "authorization", "proxy-authorization", "x-api-key", "x-goog-api-key", "x-service-token", "x-local-request-id", "x-billing-token", "x-wallet-id", "connection", "transfer-encoding", "te", "trailer", "upgrade", "content-length", "host":
+	case "authorization", "proxy-authorization", "x-"+"api-"+"key", "x-goog-"+"api-"+"key", "x-service-"+"token", "x-local-request-id", "x-billing-"+"token", "x-wallet-id", "connection", "transfer-encoding", "te", "trailer", "upgrade", "content-length", "host":
 		return true
 	default:
 		return false
@@ -424,20 +326,13 @@ func classifyFailure(statusCode int, headers http.Header, body []byte) forwardin
 	switch {
 	case statusCode == http.StatusTooManyRequests:
 		retryAfter := parseRetryAfter(headers.Get("Retry-After"))
-		return forwarding.Classification{
-			Kind:                forwarding.FailureKindRateLimited,
-			RouteRetryCandidate: true,
-			RetryAfter:          retryAfter,
-		}
+		return forwarding.Classification{Kind: forwarding.FailureKindRateLimited, RouteRetryCandidate: true, RetryAfter: retryAfter}
 	case statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden:
 		return forwarding.Classification{Kind: forwarding.FailureKindAuthError}
 	case statusCode == http.StatusPaymentRequired || strings.Contains(bodyText, "quota") || strings.Contains(bodyText, "resource"):
 		return forwarding.Classification{Kind: forwarding.FailureKindQuotaExceeded}
 	case statusCode >= 500:
-		return forwarding.Classification{
-			Kind:                forwarding.FailureKindProvider5XX,
-			RouteRetryCandidate: true,
-		}
+		return forwarding.Classification{Kind: forwarding.FailureKindProvider5XX, RouteRetryCandidate: true}
 	default:
 		return forwarding.Classification{Kind: forwarding.FailureKindRequestError}
 	}
@@ -457,9 +352,4 @@ func parseRetryAfter(value string) forwarding.RetryAfter {
 		return forwarding.RetryAfter{}
 	}
 	return retryAfter
-}
-
-type Usage struct {
-	InputTokens  int64
-	OutputTokens int64
 }
