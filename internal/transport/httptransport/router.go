@@ -44,6 +44,8 @@ func (h *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		HealthHandler(w, r)
 	case r.URL.Path == "/v1/models":
 		h.public.ServeHTTP(w, r)
+	case r.URL.Path == "/v1beta/models":
+		h.public.ServeHTTP(w, r)
 	case r.URL.Path == "/api/tags":
 		h.public.ServeHTTP(w, r)
 	case isPublicLLMPath(r.URL.Path):

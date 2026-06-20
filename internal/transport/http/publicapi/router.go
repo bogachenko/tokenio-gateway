@@ -18,6 +18,7 @@ import (
 
 const (
 	modelsPath           = "/v1/models"
+	geminiModelsPath     = "/v1beta/models"
 	ollamaTagsPath       = "/api/tags"
 	localRequestIDHeader = "X-Local-Request-ID"
 	localRequestIDPrefix = "llmreq_"
@@ -83,6 +84,7 @@ func (h *Router) ServeHTTP(
 	)
 
 	if request.URL.Path != modelsPath &&
+		request.URL.Path != geminiModelsPath &&
 		request.URL.Path != ollamaTagsPath {
 		writeError(
 			writer,
@@ -105,9 +107,8 @@ func (h *Router) ServeHTTP(
 		return
 	}
 
-	rawAPIKey, authFailure := parseAuthorization(
-		request.Header.Get("Authorization"),
-	)
+	apiFamily := modelCatalogFamily(request.URL.Path)
+	rawAPIKey, authFailure := parseCatalogCredential(apiFamily, request.Header)
 	if authFailure != nil {
 		writeError(
 			writer,
@@ -148,7 +149,7 @@ func (h *Router) ServeHTTP(
 
 	catalog, err := h.models.List(
 		request.Context(),
-		modelCatalogFamily(request.URL.Path),
+		apiFamily,
 	)
 	if err != nil {
 		writeCatalogError(
@@ -167,10 +168,14 @@ func (h *Router) ServeHTTP(
 }
 
 func modelCatalogFamily(path string) domain.APIFamily {
-	if path == ollamaTagsPath {
+	switch path {
+	case geminiModelsPath:
+		return domain.APIFamilyGeminiNative
+	case ollamaTagsPath:
 		return domain.APIFamilyOllamaNative
+	default:
+		return domain.APIFamilyOpenAICompatible
 	}
-	return domain.APIFamilyOpenAICompatible
 }
 
 func queryCredentialPresent(query url.Values) bool {
@@ -200,6 +205,38 @@ type authorizationFailure struct {
 	status  int
 	code    domain.ErrorCode
 	message string
+}
+
+func parseCatalogCredential(apiFamily domain.APIFamily, headers http.Header) (string, *authorizationFailure) {
+	if apiFamily == domain.APIFamilyGeminiNative {
+		return parseGeminiAPIKey(headers)
+	}
+	return parseAuthorization(headers.Get("Authorization"))
+}
+
+func parseGeminiAPIKey(headers http.Header) (string, *authorizationFailure) {
+	if headers.Get("Authorization") != "" {
+		return "", invalidAuthorizationFormat()
+	}
+	value := headers.Get("x-goog-api-key")
+	if value == "" {
+		return "", &authorizationFailure{
+			status:  http.StatusUnauthorized,
+			code:    domain.ErrorCodeUnauthorized,
+			message: "x-goog-api-key header is required",
+		}
+	}
+	if value != strings.TrimSpace(value) || containsControlOrSpace(value) {
+		return "", invalidAuthorizationFormat()
+	}
+	if !strings.HasPrefix(value, "sk_") {
+		return "", &authorizationFailure{
+			status:  http.StatusUnauthorized,
+			code:    domain.ErrorCodeUnauthorized,
+			message: "API key must start with sk_",
+		}
+	}
+	return value, nil
 }
 
 func parseAuthorization(
