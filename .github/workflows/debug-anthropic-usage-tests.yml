@@ -1,0 +1,46 @@
+name: Debug Anthropic Usage Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - codex/preserve-anthropic-missing-usage
+
+jobs:
+  debug-anthropic-usage-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Run required commands and capture output
+        id: checks
+        run: |
+          set +e
+          {
+            echo '$ go test ./internal/infrastructure/forwarding/anthropicnative'
+            go test ./internal/infrastructure/forwarding/anthropicnative
+            echo '$ go test ./internal/infrastructure/forwarding/gemininative'
+            go test ./internal/infrastructure/forwarding/gemininative
+            echo '$ go test ./internal/infrastructure/forwarding/ollamanative'
+            go test ./internal/infrastructure/forwarding/ollamanative
+            echo '$ go test ./internal/application/pricing'
+            go test ./internal/application/pricing
+            echo '$ go test ./...'
+            go test ./...
+            echo '$ go vet ./...'
+            go vet ./...
+          } > anthropic-usage-test-output.txt 2>&1
+          status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: anthropic-usage-test-output
+          path: anthropic-usage-test-output.txt
+      - name: Fail when checks fail
+        if: steps.checks.outputs.status != '0'
+        run: exit 1
