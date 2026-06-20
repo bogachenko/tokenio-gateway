@@ -244,4 +244,9 @@ idempotent recovery behavior.
 `integration/provisioning_lifecycle_test.go` verifies repository evidence for the
 internal provisioning endpoint, service authentication, idempotency, API key creation
 and duplicate handling.
+## Admin mutation/audit scenario
+
+`integration/admin_mutation_audit_test.go` verifies repository evidence for admin
+mutation endpoints, admin authorization, non-admin rejection, audit event persistence
+and actor/resource metadata.
 

@@ -126,3 +126,4 @@ Interface, struct, repository method or constructor alone is not implementation 
 - [x] Recovery worker charge integration evidence exists at `integration/recovery_worker_charge_test.go`.
 - [x] Gateway restart integration evidence exists at `integration/gateway_restart_test.go`.
 - [x] Provisioning lifecycle integration evidence exists at `integration/provisioning_lifecycle_test.go`.
+- [x] Admin mutation/audit integration evidence exists at `integration/admin_mutation_audit_test.go`.

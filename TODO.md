@@ -340,7 +340,8 @@ go test ./internal/config ./internal/app ./internal/auth ./internal/infrastructu
 * [x] Add integration gateway restart evidence covering lifecycle commands, readiness, persisted state and idempotent recovery behavior.
 * [x] Provisioning lifecycle.
 * [x] Add integration provisioning lifecycle evidence covering endpoint, service auth, idempotency, API key creation and duplicate handling.
-* [ ] Admin mutation/audit.
+* [x] Admin mutation/audit.
+* [x] Add integration admin mutation/audit evidence covering admin mutation endpoints, authorization, non-admin rejection, audit persistence and actor/resource metadata.
 * [ ] Telegram alert lifecycle.
 
 ### Verification command
