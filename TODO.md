@@ -386,6 +386,7 @@ Additional production checks:
 * [x] Add production-gate audit for concurrent gateway replica idempotency and no duplicate external charge evidence.
 * [x] Concurrent workers preserve durable command invariants.
 * [x] Add production-gate audit for concurrent worker durable-command invariants, claim/idempotency and duplicate-prevention evidence.
-* [ ] Logs do not contain secrets.
+* [x] Logs do not contain secrets.
+* [x] Add production-gate audit that logging/redaction paths do not expose known secret literals and have redaction evidence.
 * [ ] All supported SDK-compatible requests pass for every API family.
 * [ ] `docs/implementation-matrix.md` records exact final evidence.
