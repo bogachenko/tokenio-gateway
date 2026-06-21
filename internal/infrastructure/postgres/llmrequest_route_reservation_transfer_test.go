@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
+	reservation "github.com/bogachenko/tokenio-gateway/internal/ports/llmrequestreservation"
 )
 
 func TestRouteTransferTargetUsageReplacesOnlyReservedSnapshot(
@@ -59,7 +59,7 @@ func TestRouteTransferAlreadyAppliedIgnoresOnlyUpdateTimestamp(
 }
 
 func TestValidateRouteReservationTransferInput(t *testing.T) {
-	input := llmrequest.RouteReservationTransferInput{
+	input := reservation.RouteReservationTransferInput{
 		ExpectedUsage: validRouteTransferUsage(),
 		Target:        validRouteTransferPlan(),
 	}
@@ -112,8 +112,8 @@ func validRouteTransferUsage() domain.UsageRecord {
 	}
 }
 
-func validRouteTransferPlan() llmrequest.RouteFallbackPlan {
-	return llmrequest.RouteFallbackPlan{
+func validRouteTransferPlan() reservation.RouteFallbackPlan {
+	return reservation.RouteFallbackPlan{
 		Route: domain.Route{
 			ID:            "route-fallback",
 			ResellerID:    "reseller-fallback",
