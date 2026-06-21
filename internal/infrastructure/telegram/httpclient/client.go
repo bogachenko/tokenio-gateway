@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	telegramalert "github.com/bogachenko/tokenio-gateway/internal/application/telegramalert"
+	delivery "github.com/bogachenko/tokenio-gateway/internal/ports/telegramalertdelivery"
 )
 
 const (
@@ -49,7 +49,7 @@ type Client struct {
 	maxResponseBodyBytes int64
 }
 
-var _ telegramalert.MessageSender = (*Client)(nil)
+var _ delivery.MessageSender = (*Client)(nil)
 
 func New(config Config) (*Client, error) {
 	baseURL, err := url.Parse(config.BaseURL)
@@ -90,17 +90,17 @@ func (c *Client) GoString() string {
 func (c *Client) SendMessage(
 	ctx context.Context,
 	message string,
-) (telegramalert.MessageDeliveryResult, error) {
+) (delivery.MessageDeliveryResult, error) {
 	if c == nil ||
 		c.baseURL == nil ||
 		c.roundTripper == nil ||
 		c.timeout <= 0 ||
 		c.maxResponseBodyBytes <= 0 {
-		return telegramalert.MessageDeliveryResult{Outcome: telegramalert.MessageDeliveryOutcomeNotSent},
+		return delivery.MessageDeliveryResult{Outcome: delivery.MessageDeliveryOutcomeNotSent},
 			ErrInvalidConfig
 	}
 	if ctx == nil || strings.TrimSpace(message) == "" {
-		return telegramalert.MessageDeliveryResult{Outcome: telegramalert.MessageDeliveryOutcomeNotSent},
+		return delivery.MessageDeliveryResult{Outcome: delivery.MessageDeliveryOutcomeNotSent},
 			ErrInvalidMessage
 	}
 
@@ -109,7 +109,7 @@ func (c *Client) SendMessage(
 		Text:   message,
 	})
 	if err != nil {
-		return telegramalert.MessageDeliveryResult{Outcome: telegramalert.MessageDeliveryOutcomeNotSent},
+		return delivery.MessageDeliveryResult{Outcome: delivery.MessageDeliveryOutcomeNotSent},
 			fmt.Errorf("%w: encode request", ErrInvalidMessage)
 	}
 
@@ -123,7 +123,7 @@ func (c *Client) SendMessage(
 		bytes.NewReader(requestBody),
 	)
 	if err != nil {
-		return telegramalert.MessageDeliveryResult{Outcome: telegramalert.MessageDeliveryOutcomeNotSent},
+		return delivery.MessageDeliveryResult{Outcome: delivery.MessageDeliveryOutcomeNotSent},
 			fmt.Errorf("%w: construct request", ErrTransport)
 	}
 	request.Header.Set("Content-Type", "application/json")
@@ -132,12 +132,12 @@ func (c *Client) SendMessage(
 	response, err := c.roundTripper.RoundTrip(request)
 	if err != nil {
 		closeResponseBody(response)
-		return telegramalert.MessageDeliveryResult{Outcome: telegramalert.MessageDeliveryOutcomeSentNoResponse},
+		return delivery.MessageDeliveryResult{Outcome: delivery.MessageDeliveryOutcomeSentNoResponse},
 			fmt.Errorf("%w: round trip", ErrTransport)
 	}
 	if response == nil || response.Body == nil {
 		closeResponseBody(response)
-		return telegramalert.MessageDeliveryResult{Outcome: telegramalert.MessageDeliveryOutcomeSentNoResponse},
+		return delivery.MessageDeliveryResult{Outcome: delivery.MessageDeliveryOutcomeSentNoResponse},
 			fmt.Errorf("%w: missing response", ErrInvalidResponse)
 	}
 	defer response.Body.Close()
@@ -147,11 +147,11 @@ func (c *Client) SendMessage(
 		c.maxResponseBodyBytes,
 	)
 	if err != nil {
-		return telegramalert.MessageDeliveryResult{Outcome: telegramalert.MessageDeliveryOutcomeSentNoResponse}, err
+		return delivery.MessageDeliveryResult{Outcome: delivery.MessageDeliveryOutcomeSentNoResponse}, err
 	}
 	if response.StatusCode < http.StatusOK ||
 		response.StatusCode > 299 {
-		return telegramalert.MessageDeliveryResult{Outcome: telegramalert.MessageDeliveryOutcomeResponseReceived},
+		return delivery.MessageDeliveryResult{Outcome: delivery.MessageDeliveryOutcomeResponseReceived},
 			fmt.Errorf(
 				"%w: status %d",
 				ErrHTTPStatus,
@@ -161,19 +161,19 @@ func (c *Client) SendMessage(
 
 	var payload sendMessageResponse
 	if err := decodeSingleJSON(body, &payload); err != nil {
-		return telegramalert.MessageDeliveryResult{Outcome: telegramalert.MessageDeliveryOutcomeSentNoResponse},
+		return delivery.MessageDeliveryResult{Outcome: delivery.MessageDeliveryOutcomeSentNoResponse},
 			fmt.Errorf("%w: decode body", ErrInvalidResponse)
 	}
 	if !payload.OK {
-		return telegramalert.MessageDeliveryResult{Outcome: telegramalert.MessageDeliveryOutcomeResponseReceived},
+		return delivery.MessageDeliveryResult{Outcome: delivery.MessageDeliveryOutcomeResponseReceived},
 			ErrDeliveryRejected
 	}
 	messageID := ""
 	if payload.Result.MessageID > 0 {
 		messageID = strconv.FormatInt(payload.Result.MessageID, 10)
 	}
-	return telegramalert.MessageDeliveryResult{
-		Outcome:           telegramalert.MessageDeliveryOutcomeResponseReceived,
+	return delivery.MessageDeliveryResult{
+		Outcome:           delivery.MessageDeliveryOutcomeResponseReceived,
 		TelegramMessageID: messageID,
 	}, nil
 }
