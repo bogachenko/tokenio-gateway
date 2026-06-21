@@ -195,27 +195,25 @@ func parseAnthropicNative(input llmrequest.ParseInput) (llmrequest.ParsedRequest
 		return llmrequest.ParsedRequest{}, llmrequest.ErrInvalidJSON
 	}
 
-	var request struct {
-		Model string `json:"model"`
+	root, err := decodeRootJSON(input.Payload)
+	if err != nil {
+		return llmrequest.ParsedRequest{}, err
 	}
-	decoder := json.NewDecoder(bytes.NewReader(input.Payload))
-	if err := decoder.Decode(&request); err != nil {
+	modelValue, exists := root.object["model"]
+	if !exists {
+		return llmrequest.ParsedRequest{}, llmrequest.ErrModelRequired
+	}
+	if modelValue.kind != jsonValueString {
 		return llmrequest.ParsedRequest{}, fmt.Errorf(
-			"%w: invalid Anthropic JSON body",
+			"%w: Anthropic model must be a string",
 			llmrequest.ErrInvalidJSON,
 		)
 	}
-	if decoder.Decode(&struct{}{}) == nil {
-		return llmrequest.ParsedRequest{}, fmt.Errorf(
-			"%w: trailing Anthropic JSON value",
-			llmrequest.ErrInvalidJSON,
-		)
-	}
-	if strings.TrimSpace(request.Model) == "" {
+	if strings.TrimSpace(modelValue.text) == "" {
 		return llmrequest.ParsedRequest{}, llmrequest.ErrModelRequired
 	}
 	return llmrequest.ParsedRequest{
-		ClientModel: request.Model,
+		ClientModel: modelValue.text,
 	}, nil
 }
 
