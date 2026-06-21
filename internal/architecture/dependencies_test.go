@@ -232,6 +232,11 @@ func forbiddenDependency(source string, target string) string {
 		if target == "infrastructure" || target == "transport" || target == "app" || (strings.HasPrefix(target, "application/") && target != source) {
 			return "application may depend only on domain, ports, and owned package code"
 		}
+	case source == "composition":
+		switch target {
+		case "infrastructure", "transport", "app":
+			return "composition must not depend on concrete outer layers"
+		}
 	case source == "ports":
 		switch target {
 		case "infrastructure", "transport", "app":
