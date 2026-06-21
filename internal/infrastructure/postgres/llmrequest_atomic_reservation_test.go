@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
+	reservation "github.com/bogachenko/tokenio-gateway/internal/ports/llmrequestreservation"
 )
 
 func TestValidateLLMRequestAtomicReservationInput(t *testing.T) {
@@ -15,7 +15,7 @@ func TestValidateLLMRequestAtomicReservationInput(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		mutate    func(llmrequest.ReservationInput) llmrequest.ReservationInput
+		mutate    func(reservation.ReservationInput) reservation.ReservationInput
 		wantError bool
 	}{
 		{
@@ -25,8 +25,8 @@ func TestValidateLLMRequestAtomicReservationInput(t *testing.T) {
 		{
 			name: "invalid local request id",
 			mutate: func(
-				value llmrequest.ReservationInput,
-			) llmrequest.ReservationInput {
+				value reservation.ReservationInput,
+			) reservation.ReservationInput {
 				value.LocalRequestID = "request-1"
 				return value
 			},
@@ -35,8 +35,8 @@ func TestValidateLLMRequestAtomicReservationInput(t *testing.T) {
 		{
 			name: "blank API key id",
 			mutate: func(
-				value llmrequest.ReservationInput,
-			) llmrequest.ReservationInput {
+				value reservation.ReservationInput,
+			) reservation.ReservationInput {
 				value.Principal.APIKeyID = " "
 				return value
 			},
@@ -45,8 +45,8 @@ func TestValidateLLMRequestAtomicReservationInput(t *testing.T) {
 		{
 			name: "route reseller mismatch",
 			mutate: func(
-				value llmrequest.ReservationInput,
-			) llmrequest.ReservationInput {
+				value reservation.ReservationInput,
+			) reservation.ReservationInput {
 				value.Route.ResellerID = "other-reseller"
 				return value
 			},
@@ -55,8 +55,8 @@ func TestValidateLLMRequestAtomicReservationInput(t *testing.T) {
 		{
 			name: "negative upstream cost",
 			mutate: func(
-				value llmrequest.ReservationInput,
-			) llmrequest.ReservationInput {
+				value reservation.ReservationInput,
+			) reservation.ReservationInput {
 				value.EstimatedUpstreamCostCents = -1
 				return value
 			},
@@ -65,8 +65,8 @@ func TestValidateLLMRequestAtomicReservationInput(t *testing.T) {
 		{
 			name: "negative usage",
 			mutate: func(
-				value llmrequest.ReservationInput,
-			) llmrequest.ReservationInput {
+				value reservation.ReservationInput,
+			) reservation.ReservationInput {
 				value.EstimatedUsage.InputTokens = -1
 				return value
 			},
@@ -75,8 +75,8 @@ func TestValidateLLMRequestAtomicReservationInput(t *testing.T) {
 		{
 			name: "blank idempotency key",
 			mutate: func(
-				value llmrequest.ReservationInput,
-			) llmrequest.ReservationInput {
+				value reservation.ReservationInput,
+			) reservation.ReservationInput {
 				blank := " "
 				value.IdempotencyKey = &blank
 				return value
@@ -116,20 +116,20 @@ func TestClassifyLLMRequestReservationStatus(t *testing.T) {
 	}{
 		{
 			status: domain.UsageStatusReserved,
-			want:   llmrequest.ErrRequestInProgress,
+			want:   reservation.ErrRequestInProgress,
 		},
 		{
 			status: domain.UsageStatusBillable,
-			want: llmrequest.
+			want: reservation.
 				ErrIdempotencyReplayNotAvailable,
 		},
 		{
 			status: domain.UsageStatusReleased,
-			want:   llmrequest.ErrIdempotencyKeyReused,
+			want:   reservation.ErrIdempotencyKeyReused,
 		},
 		{
 			status: domain.UsageStatusPricingFailed,
-			want:   llmrequest.ErrUnresolvedUsage,
+			want:   reservation.ErrUnresolvedUsage,
 		},
 		{
 			status: domain.UsageStatus("unknown"),
@@ -149,12 +149,12 @@ func TestClassifyLLMRequestReservationStatus(t *testing.T) {
 	}
 }
 
-func validLLMRequestAtomicReservationInput() llmrequest.ReservationInput {
+func validLLMRequestAtomicReservationInput() reservation.ReservationInput {
 	idempotencyKey := "idem-1"
-	return llmrequest.ReservationInput{
+	return reservation.ReservationInput{
 		LocalRequestID: "llmreq_atomic_test",
 		IdempotencyKey: &idempotencyKey,
-		Principal: llmrequest.Principal{
+		Principal: reservation.Principal{
 			UserID:               "user-1",
 			APIKeyID:             "key-1",
 			BillingSubjectUserID: "billing-1",
@@ -189,8 +189,8 @@ func validLLMRequestAtomicReservationInput() llmrequest.ReservationInput {
 }
 
 func identityLLMRequestReservationInput(
-	value llmrequest.ReservationInput,
-) llmrequest.ReservationInput {
+	value reservation.ReservationInput,
+) reservation.ReservationInput {
 	return value
 }
 

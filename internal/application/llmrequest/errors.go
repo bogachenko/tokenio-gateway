@@ -6,10 +6,11 @@ import (
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 	"github.com/bogachenko/tokenio-gateway/internal/ports/llmrequestmetadata"
+	"github.com/bogachenko/tokenio-gateway/internal/ports/llmrequestreservation"
 )
 
 var (
-	ErrDependencyRequired = errors.New("llm request dependency is required")
+	ErrDependencyRequired = llmrequestreservation.ErrDependencyRequired
 
 	ErrInvalidInput           = llmrequestmetadata.ErrInvalidInput
 	ErrStageContractViolation = llmrequestmetadata.ErrStageContractViolation
@@ -58,47 +59,12 @@ var (
 		Cause:        errors.New("selected route unavailable"),
 	}
 
-	ErrLocalRequestConflict = &ports.ApplicationError{
-		Code:         domain.ErrorCodeIdempotencyKeyReused,
-		SafeMessage:  "Idempotency key conflicts with an existing request",
-		Category:     ports.FailureCategoryConflict,
-		Retryability: ports.RetryabilityNonRetryable,
-		RequestStage: ports.RequestStagePreForwarding,
-		Cause:        errors.New("local request conflict"),
-	}
-	ErrRequestInProgress = &ports.ApplicationError{
-		Code:         domain.ErrorCodeRequestInProgress,
-		SafeMessage:  "Request is already in progress",
-		Category:     ports.FailureCategoryConflict,
-		Retryability: ports.RetryabilityRetryable,
-		RequestStage: ports.RequestStagePreForwarding,
-		Cause:        errors.New("request in progress"),
-	}
-	ErrIdempotencyReplayNotAvailable = &ports.ApplicationError{
-		Code:         domain.ErrorCodeIdempotencyReplayNotAvailable,
-		SafeMessage:  "Idempotency replay is not available",
-		Category:     ports.FailureCategoryConflict,
-		Retryability: ports.RetryabilityNonRetryable,
-		RequestStage: ports.RequestStagePreForwarding,
-		Cause:        errors.New("idempotency replay not available"),
-	}
-	ErrIdempotencyKeyReused = &ports.ApplicationError{
-		Code:         domain.ErrorCodeIdempotencyKeyReused,
-		SafeMessage:  "Idempotency key conflicts with an existing request",
-		Category:     ports.FailureCategoryConflict,
-		Retryability: ports.RetryabilityNonRetryable,
-		RequestStage: ports.RequestStagePreForwarding,
-		Cause:        errors.New("idempotency key reused"),
-	}
-	ErrUnresolvedUsage = &ports.ApplicationError{
-		Code:         domain.ErrorCodeUnresolvedUsage,
-		SafeMessage:  "Previous usage requires resolution",
-		Category:     ports.FailureCategoryConflict,
-		Retryability: ports.RetryabilityNonRetryable,
-		RequestStage: ports.RequestStagePreForwarding,
-		Cause:        domain.ErrUnresolvedUsage,
-	}
-	ErrResellerReserveUnavailable = errors.New("reseller reserve unavailable")
+	ErrLocalRequestConflict = llmrequestreservation.ErrLocalRequestConflict
+	ErrRequestInProgress = llmrequestreservation.ErrRequestInProgress
+	ErrIdempotencyReplayNotAvailable = llmrequestreservation.ErrIdempotencyReplayNotAvailable
+	ErrIdempotencyKeyReused = llmrequestreservation.ErrIdempotencyKeyReused
+	ErrUnresolvedUsage = llmrequestreservation.ErrUnresolvedUsage
+	ErrResellerReserveUnavailable = llmrequestreservation.ErrResellerReserveUnavailable
 )
 
 func upstreamTimeoutError(cause error) error {

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/bogachenko/tokenio-gateway/internal/ports/llmrequestmetadata"
+	"github.com/bogachenko/tokenio-gateway/internal/ports/llmrequestreservation"
 )
 
 type Authenticator interface {
@@ -22,27 +23,9 @@ type BillingAdmitter interface {
 	Admit(context.Context, BillingAdmissionInput) (BillingAdmissionResult, error)
 }
 
-type AtomicReservation interface {
-	// Reserve must create the usage reserve and increment the selected reseller
-	// reserve in one atomic operation. An error must leave both states unchanged.
-	Reserve(context.Context, ReservationInput) (ReservationResult, error)
-}
+type AtomicReservation = llmrequestreservation.AtomicReservation
 
-type RouteReservationTransfer interface {
-	// Transfer atomically:
-	//   1. verifies ExpectedUsage is still the current reserved usage record;
-	//   2. removes its unused estimated upstream reserve from the previous reseller;
-	//   3. adds Target.EstimatedUpstreamCostCents to the target reseller reserve;
-	//   4. replaces the reserved usage routing, pricing, and estimate snapshot with
-	//      the immutable Target snapshot.
-	//
-	// Any error must leave the usage record and both reseller balances unchanged.
-	// Repeating the identical already-committed transfer is idempotent.
-	Transfer(
-		context.Context,
-		RouteReservationTransferInput,
-	) (RouteReservationTransferResult, error)
-}
+type RouteReservationTransfer = llmrequestreservation.RouteReservationTransfer
 
 type ForwardingStageExecutor interface {
 	Execute(

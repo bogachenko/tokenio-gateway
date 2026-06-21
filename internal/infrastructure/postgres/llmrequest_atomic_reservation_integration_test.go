@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
+	reservation "github.com/bogachenko/tokenio-gateway/internal/ports/llmrequestreservation"
 )
 
 func TestLLMRequestAtomicReservationIntegration(t *testing.T) {
@@ -24,7 +24,7 @@ func TestLLMRequestAtomicReservationIntegration(t *testing.T) {
 		t.Fatalf("Reserve created: %v", err)
 	}
 	if created.Disposition !=
-		llmrequest.ReservationDispositionCreated ||
+		reservation.ReservationDispositionCreated ||
 		created.Reseller == nil ||
 		created.Reseller.ReservedCents != 800 ||
 		created.Usage.Status != domain.UsageStatusReserved ||
@@ -40,7 +40,7 @@ func TestLLMRequestAtomicReservationIntegration(t *testing.T) {
 		t.Fatalf("Reserve replay: %v", err)
 	}
 	if replayed.Disposition !=
-		llmrequest.ReservationDispositionAlreadyReserved ||
+		reservation.ReservationDispositionAlreadyReserved ||
 		replayed.Reseller != nil ||
 		replayed.Usage.LocalRequestID !=
 			fixture.input.LocalRequestID {
@@ -57,7 +57,7 @@ func TestLLMRequestAtomicReservationConcurrentReplayIntegration(
 	fixture := newLLMRequestAtomicReservationFixture(t, 700)
 
 	type callResult struct {
-		value llmrequest.ReservationResult
+		value reservation.ReservationResult
 		err   error
 	}
 
@@ -92,9 +92,9 @@ func TestLLMRequestAtomicReservationConcurrentReplayIntegration(
 			t.Fatalf("concurrent reserve error: %v", call.err)
 		}
 		switch call.value.Disposition {
-		case llmrequest.ReservationDispositionCreated:
+		case reservation.ReservationDispositionCreated:
 			created++
-		case llmrequest.ReservationDispositionAlreadyReserved:
+		case reservation.ReservationDispositionAlreadyReserved:
 			replayed++
 		default:
 			t.Fatalf(
@@ -126,7 +126,7 @@ func TestLLMRequestAtomicReservationInsufficientBalanceRollsBack(
 	)
 	if !errors.Is(
 		err,
-		llmrequest.ErrResellerReserveUnavailable,
+		reservation.ErrResellerReserveUnavailable,
 	) {
 		t.Fatalf(
 			"error = %v, want reseller reserve unavailable",
@@ -175,7 +175,7 @@ func TestLLMRequestAtomicReservationIdempotencyConflict(
 		t.Context(),
 		conflicting,
 	)
-	if !errors.Is(err, llmrequest.ErrRequestInProgress) {
+	if !errors.Is(err, reservation.ErrRequestInProgress) {
 		t.Fatalf("error = %v, want request in progress", err)
 	}
 
@@ -202,7 +202,7 @@ func TestLLMRequestAtomicReservationLocalRequestConflict(
 		t.Context(),
 		conflicting,
 	)
-	if !errors.Is(err, llmrequest.ErrLocalRequestConflict) {
+	if !errors.Is(err, reservation.ErrLocalRequestConflict) {
 		t.Fatalf("error = %v, want local request conflict", err)
 	}
 
@@ -213,7 +213,7 @@ func TestLLMRequestAtomicReservationLocalRequestConflict(
 type llmRequestAtomicReservationFixture struct {
 	db         *DB
 	store      *LLMRequestAtomicReservation
-	input      llmrequest.ReservationInput
+	input      reservation.ReservationInput
 	userID     string
 	apiKeyID   string
 	resellerID string
@@ -403,10 +403,10 @@ VALUES (
 		apiKeyID:   apiKeyID,
 		resellerID: resellerID,
 		routeID:    routeID,
-		input: llmrequest.ReservationInput{
+		input: reservation.ReservationInput{
 			LocalRequestID: localRequestID,
 			IdempotencyKey: &idempotencyKey,
-			Principal: llmrequest.Principal{
+			Principal: reservation.Principal{
 				UserID:               userID,
 				APIKeyID:             apiKeyID,
 				BillingSubjectUserID: "billing-" + suffix,

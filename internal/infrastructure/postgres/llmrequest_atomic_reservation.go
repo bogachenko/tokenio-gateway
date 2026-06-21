@@ -7,9 +7,9 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
+	reservation "github.com/bogachenko/tokenio-gateway/internal/ports/llmrequestreservation"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -18,7 +18,7 @@ type LLMRequestAtomicReservation struct {
 	clock ports.Clock
 }
 
-var _ llmrequest.AtomicReservation = (*LLMRequestAtomicReservation)(nil)
+var _ reservation.AtomicReservation = (*LLMRequestAtomicReservation)(nil)
 
 func NewLLMRequestAtomicReservation(
 	db *DB,
@@ -30,7 +30,7 @@ func NewLLMRequestAtomicReservation(
 	if clock == nil {
 		return nil, fmt.Errorf(
 			"%w: nil atomic reservation clock",
-			llmrequest.ErrDependencyRequired,
+			reservation.ErrDependencyRequired,
 		)
 	}
 	return &LLMRequestAtomicReservation{
@@ -41,24 +41,24 @@ func NewLLMRequestAtomicReservation(
 
 func (s *LLMRequestAtomicReservation) Reserve(
 	ctx context.Context,
-	input llmrequest.ReservationInput,
-) (llmrequest.ReservationResult, error) {
+	input reservation.ReservationInput,
+) (reservation.ReservationResult, error) {
 	if s == nil || s.db == nil || s.db.pool == nil || s.clock == nil {
-		return llmrequest.ReservationResult{}, ErrInvalidDatabaseConfig
+		return reservation.ReservationResult{}, ErrInvalidDatabaseConfig
 	}
 	if ctx == nil {
-		return llmrequest.ReservationResult{}, fmt.Errorf(
+		return reservation.ReservationResult{}, fmt.Errorf(
 			"%w: nil context",
 			ports.ErrStoreContractViolation,
 		)
 	}
 	if err := validateLLMRequestAtomicReservationInput(input); err != nil {
-		return llmrequest.ReservationResult{}, err
+		return reservation.ReservationResult{}, err
 	}
 
 	now := s.clock.Now()
 	if now.IsZero() {
-		return llmrequest.ReservationResult{}, fmt.Errorf(
+		return reservation.ReservationResult{}, fmt.Errorf(
 			"%w: zero atomic reservation clock",
 			ports.ErrStoreContractViolation,
 		)
@@ -66,7 +66,7 @@ func (s *LLMRequestAtomicReservation) Reserve(
 	now = now.UTC().Truncate(time.Microsecond)
 	record := llmRequestReservedUsageRecord(input, now)
 
-	var result llmrequest.ReservationResult
+	var result reservation.ReservationResult
 	err := InTx(
 		ctx,
 		s.db,
@@ -110,7 +110,7 @@ FOR UPDATE
 			)
 			switch {
 			case err == nil:
-				return llmrequest.ErrUnresolvedUsage
+				return reservation.ErrUnresolvedUsage
 			case isStoreNotFound(err):
 			default:
 				return err
@@ -126,15 +126,15 @@ FOR UPDATE
 			switch {
 			case err == nil:
 				if !sameLLMRequestAtomicReservation(existing, input) {
-					return llmrequest.ErrLocalRequestConflict
+					return reservation.ErrLocalRequestConflict
 				}
 				if existing.Status != domain.UsageStatusReserved {
 					return classifyLLMRequestReservationStatus(
 						existing.Status,
 					)
 				}
-				result = llmrequest.ReservationResult{
-					Disposition: llmrequest.
+				result = reservation.ReservationResult{
+					Disposition: reservation.
 						ReservationDispositionAlreadyReserved,
 					Usage: existing,
 				}
@@ -188,7 +188,7 @@ FOR UPDATE
 				persistedReseller,
 				input.EstimatedUpstreamCostCents,
 			) {
-				return llmrequest.ErrResellerReserveUnavailable
+				return reservation.ErrResellerReserveUnavailable
 			}
 
 			expectedReseller := persistedReseller
@@ -226,8 +226,8 @@ FOR UPDATE
 			}
 
 			resellerCopy := persistedReseller
-			result = llmrequest.ReservationResult{
-				Disposition: llmrequest.ReservationDispositionCreated,
+			result = reservation.ReservationResult{
+				Disposition: reservation.ReservationDispositionCreated,
 				Usage:       record,
 				Reseller:    &resellerCopy,
 			}
@@ -235,13 +235,13 @@ FOR UPDATE
 		},
 	)
 	if err != nil {
-		return llmrequest.ReservationResult{}, err
+		return reservation.ReservationResult{}, err
 	}
 	return result, nil
 }
 
 func validateLLMRequestAtomicReservationInput(
-	input llmrequest.ReservationInput,
+	input reservation.ReservationInput,
 ) error {
 	if !validLLMRequestAtomicReservationIdentifier(
 		input.LocalRequestID,
@@ -287,7 +287,7 @@ func validateLLMRequestAtomicReservationInput(
 }
 
 func llmRequestReservedUsageRecord(
-	input llmrequest.ReservationInput,
+	input reservation.ReservationInput,
 	reservedAt time.Time,
 ) domain.UsageRecord {
 	reservedAtCopy := reservedAt
@@ -322,7 +322,7 @@ func llmRequestReservedUsageRecord(
 
 func sameLLMRequestAtomicReservation(
 	existing domain.UsageRecord,
-	input llmrequest.ReservationInput,
+	input reservation.ReservationInput,
 ) bool {
 	return existing.LocalRequestID == input.LocalRequestID &&
 		existing.IdempotencyKey ==
@@ -352,16 +352,16 @@ func classifyLLMRequestReservationStatus(
 ) error {
 	switch status {
 	case domain.UsageStatusReserved:
-		return llmrequest.ErrRequestInProgress
+		return reservation.ErrRequestInProgress
 	case domain.UsageStatusBillable,
 		domain.UsageStatusPartiallyCharged,
 		domain.UsageStatusCharged:
-		return llmrequest.ErrIdempotencyReplayNotAvailable
+		return reservation.ErrIdempotencyReplayNotAvailable
 	case domain.UsageStatusReleased,
 		domain.UsageStatusFailed:
-		return llmrequest.ErrIdempotencyKeyReused
+		return reservation.ErrIdempotencyKeyReused
 	case domain.UsageStatusPricingFailed:
-		return llmrequest.ErrUnresolvedUsage
+		return reservation.ErrUnresolvedUsage
 	default:
 		return ports.ErrStoreContractViolation
 	}

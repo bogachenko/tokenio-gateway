@@ -4,6 +4,7 @@ import (
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 	"github.com/bogachenko/tokenio-gateway/internal/ports/llmrequestmetadata"
+	"github.com/bogachenko/tokenio-gateway/internal/ports/llmrequestreservation"
 )
 
 type Input struct {
@@ -19,11 +20,7 @@ type Input struct {
 	Payload []byte
 }
 
-type Principal struct {
-	UserID               string
-	APIKeyID             string
-	BillingSubjectUserID string
-}
+type Principal = llmrequestreservation.Principal
 
 type ParseInput = llmrequestmetadata.ParseInput
 
@@ -42,20 +39,7 @@ type RoutePlanInput struct {
 	Payload               []byte
 }
 
-type RouteFallbackPlan struct {
-	Route    domain.Route
-	Reseller domain.Reseller
-	Price    domain.RoutePrice
-
-	BillingModel   string
-	EstimatedUsage domain.TokenUsage
-
-	EstimatedClientAmountCents int64
-	EstimatedUpstreamCostCents int64
-
-	Currency   string
-	Confidence string
-}
+type RouteFallbackPlan = llmrequestreservation.RouteFallbackPlan
 
 type RoutePlan struct {
 	Route    domain.Route
@@ -107,62 +91,20 @@ type BillingAdmissionResult struct {
 	Currency              string
 }
 
-type ReservationInput struct {
-	LocalRequestID string
-	IdempotencyKey *string
+type ReservationInput = llmrequestreservation.ReservationInput
 
-	Principal Principal
+type ReservationResult = llmrequestreservation.ReservationResult
 
-	APIFamily    domain.APIFamily
-	EndpointKind domain.EndpointKind
-	ClientModel  string
-	BillingModel string
-
-	Route    domain.Route
-	Reseller domain.Reseller
-
-	EstimatedUsage domain.TokenUsage
-
-	EstimatedClientAmountCents int64
-	EstimatedUpstreamCostCents int64
-	Currency                   string
-}
-
-type RouteReservationTransferInput struct {
-	// ExpectedUsage is the exact currently persisted reserved usage snapshot.
-	// The transfer must fail rather than overwrite a different committed state.
-	ExpectedUsage domain.UsageRecord
-
-	// Target is the immutable fallback snapshot selected during the original
-	// routing decision. The transfer must not re-query or re-price the route.
-	Target RouteFallbackPlan
-}
-
-type RouteReservationTransferResult struct {
-	// Usage is the exact committed reserved usage snapshot after the transfer.
-	Usage domain.UsageRecord
-
-	// ReleasedReseller is the committed previous reseller balance snapshot after
-	// its unused estimated upstream reserve has been removed.
-	ReleasedReseller domain.Reseller
-
-	// ReservedReseller is the committed target reseller balance snapshot after
-	// the target estimated upstream reserve has been added.
-	ReservedReseller domain.Reseller
-}
-
-type ReservationDisposition string
+type ReservationDisposition = llmrequestreservation.ReservationDisposition
 
 const (
-	ReservationDispositionCreated         ReservationDisposition = "created"
-	ReservationDispositionAlreadyReserved ReservationDisposition = "already_reserved"
+	ReservationDispositionCreated         = llmrequestreservation.ReservationDispositionCreated
+	ReservationDispositionAlreadyReserved = llmrequestreservation.ReservationDispositionAlreadyReserved
 )
 
-type ReservationResult struct {
-	Disposition ReservationDisposition
-	Usage       domain.UsageRecord
-	Reseller    *domain.Reseller
-}
+type RouteReservationTransferInput = llmrequestreservation.RouteReservationTransferInput
+
+type RouteReservationTransferResult = llmrequestreservation.RouteReservationTransferResult
 
 type ReservedRequest struct {
 	Prepared    PreparedRequest
