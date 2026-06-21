@@ -29,7 +29,7 @@ func TestLLMRouterPreservesAllowedRawQueryInUpstreamPath(t *testing.T) {
 
 	request := httptest.NewRequest(
 		http.MethodPost,
-		"/v1beta/models/gemini-1.5-pro:streamGenerateContent?alt=sse",
+		"/v1beta/models/gemini-1.5-pro:generateContent?alt=sse",
 		strings.NewReader(string(body)),
 	)
 	request.Header.Set("x-goog-api-key", "sk_live_gemini")
@@ -44,7 +44,7 @@ func TestLLMRouterPreservesAllowedRawQueryInUpstreamPath(t *testing.T) {
 	if requests.calls != 1 {
 		t.Fatalf("calls=%d", requests.calls)
 	}
-	if requests.input.UpstreamPath != "/v1beta/models/gemini-1.5-pro:streamGenerateContent?alt=sse" ||
+	if requests.input.UpstreamPath != "/v1beta/models/gemini-1.5-pro:generateContent?alt=sse" ||
 		requests.input.APIFamily != domain.APIFamilyGeminiNative ||
 		requests.input.EndpointKind != domain.EndpointChat ||
 		requests.input.PathModel != "gemini-1.5-pro" ||
@@ -66,7 +66,7 @@ func TestLLMRouterRejectsQueryCredentialBeforeApplicationRequest(t *testing.T) {
 
 	request := httptest.NewRequest(
 		http.MethodPost,
-		"/v1beta/models/gemini-1.5-pro:streamGenerateContent?alt=sse&key=sk_query_secret",
+		"/v1beta/models/gemini-1.5-pro:generateContent?alt=sse&key=sk_query_secret",
 		strings.NewReader(`{"contents":[]}`),
 	)
 	request.Header.Set("x-goog-api-key", "sk_live_gemini")
