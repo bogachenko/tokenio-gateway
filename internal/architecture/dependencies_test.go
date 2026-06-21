@@ -211,9 +211,7 @@ type knownInfrastructureApplicationImportRule struct {
 }
 
 // temporary known violations, remove entry when package is refactored to depend on ports.
-var knownInfrastructureApplicationImportRules = []knownInfrastructureApplicationImportRule{
-	{source: "internal/infrastructure/postgres", target: "internal/application/llmrequest"},
-}
+var knownInfrastructureApplicationImportRules = []knownInfrastructureApplicationImportRule{}
 
 func knownInfrastructureApplicationImport(source string, target string) bool {
 	for _, rule := range knownInfrastructureApplicationImportRules {
