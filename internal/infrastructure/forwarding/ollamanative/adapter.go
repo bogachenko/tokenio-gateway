@@ -97,17 +97,21 @@ func (a *Adapter) validateRouteAndRequest(request ports.ForwardRequest) error {
 	if request.Method != http.MethodPost {
 		return ErrInvalidForwardRequest
 	}
+	parsed, err := url.ParseRequestURI(request.Path)
+	if err != nil || parsed.Fragment != "" {
+		return ErrUnsupportedRoute
+	}
 	route := request.Route
 	if strings.TrimSpace(route.ID) == "" || strings.TrimSpace(route.ClientModel) == "" || route.APIFamily != domain.APIFamilyOllamaNative || route.ResellerID != a.reseller.ID || route.ProviderType != a.reseller.ProviderType || route.ProviderType != domain.ProviderOllama {
 		return ErrUnsupportedRoute
 	}
 	switch route.EndpointKind {
 	case domain.EndpointChat:
-		if request.Path != "/api/chat" && request.Path != "/api/generate" {
+		if parsed.Path != "/api/chat" && parsed.Path != "/api/generate" {
 			return ErrUnsupportedRoute
 		}
 	case domain.EndpointEmbeddings:
-		if request.Path != "/api/embeddings" {
+		if parsed.Path != "/api/embeddings" {
 			return ErrUnsupportedRoute
 		}
 	default:
@@ -227,7 +231,7 @@ func parseBaseURL(value string) (*url.URL, error) {
 
 func buildUpstreamURL(base *url.URL, path string) (*url.URL, error) {
 	parsed, err := url.ParseRequestURI(path)
-	if err != nil || parsed.Path == "" || !strings.HasPrefix(parsed.Path, "/") || parsed.RawQuery != "" || parsed.Fragment != "" {
+	if err != nil || parsed.Path == "" || !strings.HasPrefix(parsed.Path, "/") || parsed.Fragment != "" {
 		return nil, ErrInvalidUpstreamURL
 	}
 	if strings.HasPrefix(path, "//") || strings.Contains(parsed.Path, " ") {
@@ -236,7 +240,7 @@ func buildUpstreamURL(base *url.URL, path string) (*url.URL, error) {
 	result := *base
 	basePath := strings.TrimRight(result.Path, "/")
 	result.Path = basePath + parsed.Path
-	result.RawQuery = ""
+	result.RawQuery = parsed.RawQuery
 	result.Fragment = ""
 	return &result, nil
 }
@@ -329,7 +333,7 @@ func classifyFailure(statusCode int, headers http.Header, body []byte) forwardin
 		return forwarding.Classification{Kind: forwarding.FailureKindRateLimited, RouteRetryCandidate: true, RetryAfter: retryAfter}
 	case statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden:
 		return forwarding.Classification{Kind: forwarding.FailureKindAuthError}
-	case statusCode == http.StatusPaymentRequired || strings.Contains(bodyText, "quota") || strings.Contains(bodyText, "resource"):
+	case statusCode == http.StatusPaymentRequired || strings.Contains(bodyText, "quota") || strings.Contains(bodyText, "resource exhausted"):
 		return forwarding.Classification{Kind: forwarding.FailureKindQuotaExceeded}
 	case statusCode >= 500:
 		return forwarding.Classification{Kind: forwarding.FailureKindProvider5XX, RouteRetryCandidate: true}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	llmrequestapp "github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
@@ -129,7 +130,7 @@ func (h *LLMRouter) ServeHTTP(
 			APIFamily:      contract.APIFamily,
 			EndpointKind:   contract.EndpointKind,
 			PathModel:      contract.PathModel,
-			UpstreamPath:   request.URL.Path,
+			UpstreamPath:   upstreamPathWithRawQuery(request.URL),
 			Payload:        body,
 		},
 	)
@@ -185,6 +186,20 @@ func llmContractForPath(path string) (nativeapi.Contract, bool) {
 		return nativeapi.Contract{}, false
 	}
 	return contract, true
+}
+
+func upstreamPathWithRawQuery(u *url.URL) string {
+	if u == nil {
+		return ""
+	}
+	path := u.EscapedPath()
+	if path == "" {
+		path = "/"
+	}
+	if u.RawQuery == "" {
+		return path
+	}
+	return path + "?" + u.RawQuery
 }
 
 func writeLLMBodyError(writer http.ResponseWriter, requestID string, err error) {
