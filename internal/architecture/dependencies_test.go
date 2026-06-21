@@ -218,6 +218,7 @@ var knownInfrastructureApplicationImportRules = []knownInfrastructureApplication
 	{source: "internal/infrastructure/forwarding/gemininative", target: "internal/application/forwarding"},
 	{source: "internal/infrastructure/forwarding/ollamanative", target: "internal/application/forwarding"},
 	{source: "internal/infrastructure/forwarding/openaicompat", target: "internal/application/forwarding"},
+	{source: "internal/infrastructure/forwarding/transportfailure", target: "internal/application/forwarding"},
 	{source: "internal/infrastructure/telegram/httpclient", target: "internal/application/telegramalert"},
 }
 
