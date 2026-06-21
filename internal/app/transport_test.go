@@ -103,7 +103,7 @@ func TestNewTransportGraphWiresControlPlanes(t *testing.T) {
 	provisioning := httptest.NewRecorder()
 	graph.Root.ServeHTTP(
 		provisioning,
-		httptest.NewRequest(http.MethodPost, "/internal/v1/api-key-provisionings", nil),
+		httptest.NewRequest(http.MethodPost, "/internal/v1/api-keys/provision", nil),
 	)
 	if provisioning.Code != http.StatusUnauthorized ||
 		!strings.Contains(provisioning.Body.String(), `"code":"provisioning_unauthorized"`) ||
@@ -156,7 +156,7 @@ func TestNewTransportGraphLeavesProvisioningUnregisteredWhenDisabled(t *testing.
 	response := httptest.NewRecorder()
 	graph.Root.ServeHTTP(
 		response,
-		httptest.NewRequest(http.MethodPost, "/internal/v1/api-key-provisionings", nil),
+		httptest.NewRequest(http.MethodPost, "/internal/v1/api-keys/provision", nil),
 	)
 	if response.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())

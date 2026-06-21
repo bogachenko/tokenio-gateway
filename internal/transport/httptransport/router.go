@@ -8,7 +8,10 @@ import (
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 )
 
-const provisioningBasePath = "/internal/v1/api-key-provisionings"
+const (
+	provisioningBasePath       = "/internal/v1/api-keys/provision"
+	legacyProvisioningBasePath = "/internal/v1/api-key-provisionings"
+)
 
 var ErrInvalidRouterConfig = errors.New("invalid HTTP router config")
 
@@ -28,19 +31,12 @@ func NewRouter(
 	if public == nil || llm == nil || admin == nil {
 		return nil, ErrInvalidRouterConfig
 	}
-	return &Router{
-		public:       public,
-		llm:          llm,
-		admin:        admin,
-		provisioning: provisioning,
-	}, nil
+	return &Router{public: public, llm: llm, admin: admin, provisioning: provisioning}, nil
 }
 
 func (h *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
-	case r.URL.Path == HealthPath ||
-		r.URL.Path == ReadinessPath ||
-		r.URL.Path == "/health":
+	case r.URL.Path == HealthPath || r.URL.Path == ReadinessPath || r.URL.Path == "/health":
 		HealthHandler(w, r)
 	case r.URL.Path == "/v1/models":
 		h.public.ServeHTTP(w, r)
@@ -52,27 +48,16 @@ func (h *Router) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.llm.ServeHTTP(w, r)
 	case r.URL.Path == "/admin/v1" || strings.HasPrefix(r.URL.Path, "/admin/v1/"):
 		h.admin.ServeHTTP(w, r)
-	case h.provisioning != nil &&
-		(r.URL.Path == provisioningBasePath || strings.HasPrefix(r.URL.Path, provisioningBasePath+"/")):
+	case h.provisioning != nil && (r.URL.Path == provisioningBasePath || r.URL.Path == legacyProvisioningBasePath || strings.HasPrefix(r.URL.Path, legacyProvisioningBasePath+"/")):
 		h.provisioning.ServeHTTP(w, r)
 	default:
-		WriteGatewayError(w, GatewayError{
-			Status:  http.StatusNotFound,
-			Code:    domain.ErrorCodeNotFound,
-			Message: "Endpoint not found",
-		})
+		WriteGatewayError(w, GatewayError{Status: http.StatusNotFound, Code: domain.ErrorCodeNotFound, Message: "Endpoint not found"})
 	}
 }
 
 func isPublicLLMPath(path string) bool {
 	switch path {
-	case "/v1/chat/completions",
-		"/v1/embeddings",
-		"/v1/images/generations",
-		"/v1/messages",
-		"/api/chat",
-		"/api/generate",
-		"/api/embeddings":
+	case "/v1/chat/completions", "/v1/embeddings", "/v1/images/generations", "/v1/messages", "/api/chat", "/api/generate", "/api/embeddings":
 		return true
 	default:
 		return strings.HasPrefix(path, "/v1beta/models/")
