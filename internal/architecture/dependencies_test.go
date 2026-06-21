@@ -323,7 +323,7 @@ func repositoryRoot(t *testing.T) string {
 				t.Fatalf("read %s: %v", goMod, scanErr)
 			}
 			if closeErr != nil {
-				t.Fatalf("close %s: %v", goMod)
+				t.Fatalf("close %s: %v", goMod, closeErr)
 			}
 			if firstLine == "module "+modulePath {
 				return current
