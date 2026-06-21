@@ -6,6 +6,7 @@ import (
 
 	adminapp "github.com/bogachenko/tokenio-gateway/internal/application/admin"
 	adminadapters "github.com/bogachenko/tokenio-gateway/internal/composition/adminadapters"
+	adminalerts "github.com/bogachenko/tokenio-gateway/internal/composition/adminalerts"
 	authenticateapp "github.com/bogachenko/tokenio-gateway/internal/application/authenticate"
 	billingapp "github.com/bogachenko/tokenio-gateway/internal/application/billing"
 	ledgerapp "github.com/bogachenko/tokenio-gateway/internal/application/ledger"
@@ -257,7 +258,7 @@ func NewApplicationGraph(
 		primitives.Clock,
 		forwardingExecutor,
 		routingPolicy,
-		contextRetryWaiter{},
+		llmrequestadapters.ContextRetryWaiter{},
 	)
 	if err != nil {
 		return ApplicationGraph{}, fmt.Errorf(
@@ -472,7 +473,7 @@ func NewApplicationGraph(
 				err,
 			)
 		}
-		adminResellers, err = newAdminResellerAlertRepository(
+		adminResellers, err = adminalerts.NewAdminResellerAlertRepository(
 			repositories.AdminResellers,
 			telegramAlerts,
 			loggingGraph.StdLogger,
