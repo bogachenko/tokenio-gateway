@@ -1,4 +1,4 @@
-package app
+package adminalerts
 
 import (
 	"context"
@@ -27,7 +27,7 @@ type adminResellerAlertRepository struct {
 	logger  *log.Logger
 }
 
-func newAdminResellerAlertRepository(
+func NewAdminResellerAlertRepository(
 	repository ports.ResellerRepository,
 	checker resellerBalanceAlertChecker,
 	logger *log.Logger,

@@ -1,4 +1,4 @@
-package app
+package adminalerts
 
 import (
 	"context"
@@ -82,7 +82,7 @@ func TestAdminResellerAlertRepositoryChecksOnlyAfterCommittedBalanceChange(
 	checker := &postCommitBalanceCheckerFake{
 		repository: repository,
 	}
-	decorator, err := newAdminResellerAlertRepository(
+	decorator, err := NewAdminResellerAlertRepository(
 		repository,
 		checker,
 		log.New(io.Discard, "", 0),
@@ -154,7 +154,7 @@ func TestAdminResellerAlertRepositoryDoesNotCheckFailedOrUnchangedMutation(
 			checker := &postCommitBalanceCheckerFake{
 				repository: tc.repository,
 			}
-			decorator, err := newAdminResellerAlertRepository(
+			decorator, err := NewAdminResellerAlertRepository(
 				tc.repository,
 				checker,
 				log.New(io.Discard, "", 0),
@@ -203,7 +203,7 @@ func TestAdminResellerAlertRepositoryIgnoresPostCommitCheckFailure(
 		repository: repository,
 		err:        errors.New("alert store unavailable"),
 	}
-	decorator, err := newAdminResellerAlertRepository(
+	decorator, err := NewAdminResellerAlertRepository(
 		repository,
 		checker,
 		log.New(io.Discard, "", 0),

@@ -1,4 +1,4 @@
-package app
+package llmrequestadapters
 
 import (
 	"context"
@@ -13,14 +13,14 @@ func TestContextRetryWaiterHonorsCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err := (contextRetryWaiter{}).Wait(ctx, time.Hour)
+	err := (ContextRetryWaiter{}).Wait(ctx, time.Hour)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("error = %v, want context canceled", err)
 	}
 }
 
 func TestContextRetryWaiterRejectsInvalidInput(t *testing.T) {
-	waiter := contextRetryWaiter{}
+	waiter := ContextRetryWaiter{}
 
 	if !errors.Is(
 		waiter.Wait(nil, time.Second),
