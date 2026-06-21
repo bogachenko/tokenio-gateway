@@ -10,8 +10,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
+	metadata "github.com/bogachenko/tokenio-gateway/internal/ports/llmrequestmetadata"
 )
 
 const maxJSONNestingDepth = 128
@@ -51,21 +51,21 @@ func inspect(
 	if apiFamily != domain.APIFamilyOpenAICompatible {
 		return requestInspection{}, fmt.Errorf(
 			"%w: unsupported API family %q",
-			llmrequest.ErrStageContractViolation,
+			metadata.ErrStageContractViolation,
 			apiFamily,
 		)
 	}
 	if !supportedEndpointKind(endpointKind) {
 		return requestInspection{}, fmt.Errorf(
 			"%w: unsupported endpoint kind %q",
-			llmrequest.ErrStageContractViolation,
+			metadata.ErrStageContractViolation,
 			endpointKind,
 		)
 	}
 	if !utf8.Valid(payload) {
 		return requestInspection{}, fmt.Errorf(
 			"%w: request body is not valid UTF-8",
-			llmrequest.ErrInvalidJSON,
+			metadata.ErrInvalidJSON,
 		)
 	}
 
@@ -76,28 +76,28 @@ func inspect(
 
 	modelValue, exists := root.object["model"]
 	if !exists {
-		return requestInspection{}, llmrequest.ErrModelRequired
+		return requestInspection{}, metadata.ErrModelRequired
 	}
 	if modelValue.kind != jsonValueString {
 		return requestInspection{}, fmt.Errorf(
 			"%w: model must be a string",
-			llmrequest.ErrInvalidJSON,
+			metadata.ErrInvalidJSON,
 		)
 	}
 	if strings.TrimSpace(modelValue.text) == "" {
-		return requestInspection{}, llmrequest.ErrModelRequired
+		return requestInspection{}, metadata.ErrModelRequired
 	}
 
 	if streamValue, exists := root.object["stream"]; exists {
 		if streamValue.kind != jsonValueBoolean {
 			return requestInspection{}, fmt.Errorf(
 				"%w: stream must be a boolean",
-				llmrequest.ErrInvalidJSON,
+				metadata.ErrInvalidJSON,
 			)
 		}
 		if streamValue.boolean {
 			return requestInspection{},
-				llmrequest.ErrStreamingUnsupported
+				metadata.ErrStreamingUnsupported
 		}
 	}
 
@@ -163,14 +163,14 @@ func inspectImageGenerationRequest(
 	if !exists {
 		return 0, fmt.Errorf(
 			"%w: image generation prompt is required",
-			llmrequest.ErrInvalidJSON,
+			metadata.ErrInvalidJSON,
 		)
 	}
 	if prompt.kind != jsonValueString ||
 		strings.TrimSpace(prompt.text) == "" {
 		return 0, fmt.Errorf(
 			"%w: image generation prompt must be a non-empty string",
-			llmrequest.ErrInvalidJSON,
+			metadata.ErrInvalidJSON,
 		)
 	}
 
@@ -187,7 +187,7 @@ func inspectImageGenerationRequest(
 			strings.TrimSpace(value.text) == "" {
 			return 0, fmt.Errorf(
 				"%w: image generation %s must be a non-empty string",
-				llmrequest.ErrInvalidJSON,
+				metadata.ErrInvalidJSON,
 				name,
 			)
 		}
@@ -200,7 +200,7 @@ func inspectImageGenerationRequest(
 	if n.kind != jsonValueNumber {
 		return 0, fmt.Errorf(
 			"%w: image generation n must be an integer",
-			llmrequest.ErrInvalidJSON,
+			metadata.ErrInvalidJSON,
 		)
 	}
 	units, err := strconv.ParseInt(
@@ -211,7 +211,7 @@ func inspectImageGenerationRequest(
 	if err != nil || units < 1 || units > 10 {
 		return 0, fmt.Errorf(
 			"%w: image generation n must be between 1 and 10",
-			llmrequest.ErrInvalidJSON,
+			metadata.ErrInvalidJSON,
 		)
 	}
 	return units, nil
@@ -222,7 +222,7 @@ func inspectEmbeddingInput(root jsonValue) (int64, error) {
 	if !exists {
 		return 0, fmt.Errorf(
 			"%w: embeddings input is required",
-			llmrequest.ErrInvalidJSON,
+			metadata.ErrInvalidJSON,
 		)
 	}
 
@@ -231,7 +231,7 @@ func inspectEmbeddingInput(root jsonValue) (int64, error) {
 		if input.text == "" {
 			return 0, fmt.Errorf(
 				"%w: embeddings input string is empty",
-				llmrequest.ErrInvalidJSON,
+				metadata.ErrInvalidJSON,
 			)
 		}
 		return int64(len([]byte(input.text))), nil
@@ -240,7 +240,7 @@ func inspectEmbeddingInput(root jsonValue) (int64, error) {
 	default:
 		return 0, fmt.Errorf(
 			"%w: embeddings input has unsupported type",
-			llmrequest.ErrInvalidJSON,
+			metadata.ErrInvalidJSON,
 		)
 	}
 }
@@ -251,7 +251,7 @@ func inspectEmbeddingInputArray(
 	if len(values) == 0 {
 		return 0, fmt.Errorf(
 			"%w: embeddings input array is empty",
-			llmrequest.ErrInvalidJSON,
+			metadata.ErrInvalidJSON,
 		)
 	}
 
@@ -265,7 +265,7 @@ func inspectEmbeddingInputArray(
 	default:
 		return 0, fmt.Errorf(
 			"%w: embeddings input array has unsupported element type",
-			llmrequest.ErrInvalidJSON,
+			metadata.ErrInvalidJSON,
 		)
 	}
 }
@@ -278,7 +278,7 @@ func embeddingStringArrayCeiling(
 		if value.kind != jsonValueString || value.text == "" {
 			return 0, fmt.Errorf(
 				"%w: embeddings input must be non-empty strings",
-				llmrequest.ErrInvalidJSON,
+				metadata.ErrInvalidJSON,
 			)
 		}
 		var err error
@@ -313,7 +313,7 @@ func embeddingTokenBatchCeiling(
 			len(value.array) == 0 {
 			return 0, fmt.Errorf(
 				"%w: embeddings token arrays must be non-empty",
-				llmrequest.ErrInvalidJSON,
+				metadata.ErrInvalidJSON,
 			)
 		}
 		units, err := embeddingTokenArrayCeiling(value.array)
@@ -332,7 +332,7 @@ func validateEmbeddingToken(value jsonValue) error {
 	if value.kind != jsonValueNumber {
 		return fmt.Errorf(
 			"%w: embeddings token IDs must be integers",
-			llmrequest.ErrInvalidJSON,
+			metadata.ErrInvalidJSON,
 		)
 	}
 	token, err := strconv.ParseInt(
@@ -343,7 +343,7 @@ func validateEmbeddingToken(value jsonValue) error {
 	if err != nil || token < 0 {
 		return fmt.Errorf(
 			"%w: embeddings token IDs must be non-negative integers",
-			llmrequest.ErrInvalidJSON,
+			metadata.ErrInvalidJSON,
 		)
 	}
 	return nil
@@ -354,7 +354,7 @@ func addEmbeddingInputUnits(left, right int64) (int64, error) {
 	if right < 0 || left > maxInt64-right {
 		return 0, fmt.Errorf(
 			"%w: embeddings input size overflow",
-			llmrequest.ErrInvalidJSON,
+			metadata.ErrInvalidJSON,
 		)
 	}
 	return left + right, nil
@@ -449,7 +449,7 @@ func decodeRootJSON(payload []byte) (jsonValue, error) {
 	if root.kind != jsonValueObject {
 		return jsonValue{}, fmt.Errorf(
 			"%w: top-level JSON value must be an object",
-			llmrequest.ErrInvalidJSON,
+			metadata.ErrInvalidJSON,
 		)
 	}
 
@@ -460,7 +460,7 @@ func decodeRootJSON(payload []byte) (jsonValue, error) {
 	case err == nil:
 		return jsonValue{}, fmt.Errorf(
 			"%w: trailing JSON value",
-			llmrequest.ErrInvalidJSON,
+			metadata.ErrInvalidJSON,
 		)
 	default:
 		return jsonValue{}, invalidJSONError(
@@ -489,7 +489,7 @@ func decodeJSONValue(
 		default:
 			return jsonValue{}, fmt.Errorf(
 				"%w: unexpected delimiter %q",
-				llmrequest.ErrInvalidJSON,
+				metadata.ErrInvalidJSON,
 				value,
 			)
 		}
@@ -523,7 +523,7 @@ func decodeJSONValue(
 	default:
 		return jsonValue{}, fmt.Errorf(
 			"%w: unsupported JSON token",
-			llmrequest.ErrInvalidJSON,
+			metadata.ErrInvalidJSON,
 		)
 	}
 }
@@ -535,7 +535,7 @@ func decodeJSONObject(
 	if depth > maxJSONNestingDepth {
 		return jsonValue{}, fmt.Errorf(
 			"%w: JSON nesting depth exceeds %d",
-			llmrequest.ErrInvalidJSON,
+			metadata.ErrInvalidJSON,
 			maxJSONNestingDepth,
 		)
 	}
@@ -553,13 +553,13 @@ func decodeJSONObject(
 		if !ok {
 			return jsonValue{}, fmt.Errorf(
 				"%w: object key is not a string",
-				llmrequest.ErrInvalidJSON,
+				metadata.ErrInvalidJSON,
 			)
 		}
 		if _, exists := object[key]; exists {
 			return jsonValue{}, fmt.Errorf(
 				"%w: duplicate object key %q",
-				llmrequest.ErrInvalidJSON,
+				metadata.ErrInvalidJSON,
 				key,
 			)
 		}
@@ -581,7 +581,7 @@ func decodeJSONObject(
 	if closing != json.Delim('}') {
 		return jsonValue{}, fmt.Errorf(
 			"%w: object closing delimiter mismatch",
-			llmrequest.ErrInvalidJSON,
+			metadata.ErrInvalidJSON,
 		)
 	}
 	return jsonValue{
@@ -597,7 +597,7 @@ func decodeJSONArray(
 	if depth > maxJSONNestingDepth {
 		return jsonValue{}, fmt.Errorf(
 			"%w: JSON nesting depth exceeds %d",
-			llmrequest.ErrInvalidJSON,
+			metadata.ErrInvalidJSON,
 			maxJSONNestingDepth,
 		)
 	}
@@ -621,7 +621,7 @@ func decodeJSONArray(
 	if closing != json.Delim(']') {
 		return jsonValue{}, fmt.Errorf(
 			"%w: array closing delimiter mismatch",
-			llmrequest.ErrInvalidJSON,
+			metadata.ErrInvalidJSON,
 		)
 	}
 	return jsonValue{
@@ -633,7 +633,7 @@ func decodeJSONArray(
 func invalidJSONError(action string, err error) error {
 	return fmt.Errorf(
 		"%w: %s: %v",
-		llmrequest.ErrInvalidJSON,
+		metadata.ErrInvalidJSON,
 		action,
 		err,
 	)
