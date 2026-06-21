@@ -184,20 +184,19 @@ Billing JWT не используется для идентификации prov
 Endpoint:
 
 ```http
-POST /internal/v1/api-key-provisionings
+POST /internal/v1/api-keys/provision
 X-Service-Token: <TOKENIO_PROVISIONING_SERVICE_TOKEN>
-Idempotency-Key: <stable_provisioning_request_id>
 Content-Type: application/json
 ```
 
-`Idempotency-Key` обязателен.
+`idempotency_key` в JSON body обязателен.
 
 Request:
 
 ```json
 {
   "external_billing_user_id": "billing_usr_...",
-  "source_reference": "payment_or_order_reference",
+  "idempotency_key": "payment_order_...",
   "key_name": "Telegram payment key"
 }
 ```
@@ -206,11 +205,11 @@ Request:
 
 ```text
 external_billing_user_id — обязательный stable billing subject
-source_reference         — обязательная opaque ссылка на подтверждённую оплату/заказ
+idempotency_key          — обязательный payment_order_id из Billing/payment flow
 key_name                 — optional display name
 ```
 
-`source_reference` не является доказательством оплаты для Tokenio. Доверие основано на service credential caller-а.
+`idempotency_key` приходит в JSON body и используется как idempotency scope provisioning request. HTTP header `Idempotency-Key` не является primary provisioning contract.
 
 ---
 
@@ -264,7 +263,7 @@ response не содержит raw API key.
 
 ```text
 1. validate service credential
-2. validate Idempotency-Key
+2. validate body idempotency_key
 3. lock idempotency scope
 4. find or create user by external_billing_user_id
 5. reject disabled user
@@ -295,10 +294,10 @@ Database commit должен произойти до отправки response.
 Idempotency scope первой версии:
 
 ```text
-Idempotency-Key
+idempotency_key из JSON body
 ```
 
-`Idempotency-Key` должен быть globally unique для trusted provisioning callers.
+`idempotency_key` должен быть globally unique для trusted provisioning callers и равен `payment_order_id` из Billing/payment flow.
 
 Повторный request с тем же key и тем же normalized input:
 
@@ -314,7 +313,6 @@ Idempotency-Key
 
 ```text
 external_billing_user_id
-source_reference
 ```
 
 возвращает:
@@ -475,7 +473,7 @@ Default:
 
 Expired raw key не восстанавливается.
 
-Manual recovery выполняется через новый explicit admin/key-rotation flow, но не через reuse старого `Idempotency-Key`.
+Manual recovery выполняется через новый explicit admin/key-rotation flow, но не через reuse старого `idempotency_key`.
 
 ---
 
@@ -612,13 +610,13 @@ Provisioning creation должна использовать transaction и datab
 Минимальные guards:
 
 ```text
-unique Idempotency-Key
+unique idempotency_key
 one pending_delivery provisioning per user
 unique API key hash
 user lookup/create serialized by external_billing_user_id
 ```
 
-Concurrent requests с одним `Idempotency-Key` должны завершиться одним record и одним API key.
+Concurrent requests с одним `idempotency_key` должны завершиться одним record и одним API key.
 
 Application-level in-memory mutex не является source of truth.
 
@@ -701,7 +699,7 @@ Authorization headers
 X-Service-Token
 ```
 
-Plain `Idempotency-Key` и `source_reference` по умолчанию не логируются; используется hash.
+Plain `idempotency_key` по умолчанию не логируется; используется hash.
 
 ---
 
@@ -789,7 +787,7 @@ Provisioning реализован корректно, если:
 1. Provisioning API не является public LLM API.
 2. Provisioning использует отдельный service credential.
 3. Caller передаёт stable external_billing_user_id.
-4. Idempotency-Key обязателен.
+4. `idempotency_key` в JSON body обязателен.
 5. First request создаёт user/key/provisioning transactionally.
 6. Permanent API key storage содержит только HMAC hash.
 7. Temporary reversible copy хранится только encrypted.
