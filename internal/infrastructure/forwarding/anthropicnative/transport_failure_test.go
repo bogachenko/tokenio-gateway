@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bogachenko/tokenio-gateway/internal/application/forwarding"
 )
@@ -74,7 +75,7 @@ func TestAnthropicNativeResponsePlusErrorKeepsResponseClassificationAndCause(t *
 		failure.StatusCode != http.StatusTooManyRequests ||
 		failure.AttemptState != forwarding.AttemptStateResponseReceived ||
 		!failure.RouteRetryCandidate ||
-		failure.FailureRetryAfterDelay().Seconds() != 3 ||
+		failure.FailureRetryAfterDelay() != 3*time.Second ||
 		!errors.Is(err, cause) {
 		t.Fatalf("failure=%+v err=%v", failure, err)
 	}
@@ -85,15 +86,15 @@ func TestAnthropicNativeDeadlineBeforeSendIsTypedTimeoutFailure(t *testing.T) {
 		t.Fatal("transport must not be called")
 		return nil, nil
 	}))
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
 
 	_, err := adapter.Forward(ctx, baseForwardRequest())
 	failure := assertForwardingFailure(t, err)
-	if failure.Kind != forwarding.FailureKindRequestError ||
+	if failure.Kind != forwarding.FailureKindTimeout ||
 		failure.AttemptState != forwarding.AttemptStateNotSent ||
-		failure.RouteRetryCandidate ||
-		!errors.Is(err, context.Canceled) {
+		!failure.RouteRetryCandidate ||
+		!errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("failure=%+v err=%v", failure, err)
 	}
 }
