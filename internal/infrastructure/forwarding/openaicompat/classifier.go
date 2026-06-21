@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bogachenko/tokenio-gateway/internal/application/forwarding"
+	failure "github.com/bogachenko/tokenio-gateway/internal/ports/forwardingfailure"
 )
 
 type ErrorClassifier interface {
@@ -15,7 +15,7 @@ type ErrorClassifier interface {
 		headers map[string][]string,
 		body []byte,
 		bodyTruncated bool,
-	) forwarding.Classification
+	) failure.Classification
 }
 
 type StatusClassifier struct{}
@@ -25,26 +25,26 @@ func (StatusClassifier) Classify(
 	headers map[string][]string,
 	_ []byte,
 	_ bool,
-) forwarding.Classification {
+) failure.Classification {
 	switch {
 	case statusCode == 401 || statusCode == 403:
-		return forwarding.Classification{
-			Kind:                forwarding.FailureKindAuthError,
+		return failure.Classification{
+			Kind:                failure.FailureKindAuthError,
 			RouteRetryCandidate: true,
 		}
 	case statusCode == http.StatusTooManyRequests:
-		return forwarding.Classification{
-			Kind:                forwarding.FailureKindRateLimited,
+		return failure.Classification{
+			Kind:                failure.FailureKindRateLimited,
 			RouteRetryCandidate: true,
 			RetryAfter:          parseRetryAfter(headers),
 		}
 	case statusCode >= 400 && statusCode <= 499:
-		return forwarding.Classification{
-			Kind: forwarding.FailureKindRequestError,
+		return failure.Classification{
+			Kind: failure.FailureKindRequestError,
 		}
 	case statusCode >= 500 && statusCode <= 599:
-		classification := forwarding.Classification{
-			Kind:                forwarding.FailureKindProvider5XX,
+		classification := failure.Classification{
+			Kind:                failure.FailureKindProvider5XX,
 			RouteRetryCandidate: true,
 		}
 		if statusCode == http.StatusServiceUnavailable {
@@ -52,48 +52,48 @@ func (StatusClassifier) Classify(
 		}
 		return classification
 	case statusCode >= 300 && statusCode <= 399:
-		return forwarding.Classification{
-			Kind: forwarding.FailureKindMalformedResponse,
+		return failure.Classification{
+			Kind: failure.FailureKindMalformedResponse,
 		}
 	default:
-		return forwarding.Classification{
-			Kind: forwarding.FailureKindMalformedResponse,
+		return failure.Classification{
+			Kind: failure.FailureKindMalformedResponse,
 		}
 	}
 }
 
 func parseRetryAfter(
 	headers map[string][]string,
-) forwarding.RetryAfter {
+) failure.RetryAfter {
 	values := retryAfterHeaderValues(headers)
 	if len(values) != 1 {
-		return forwarding.RetryAfter{}
+		return failure.RetryAfter{}
 	}
 	value := strings.TrimSpace(values[0])
 	if value == "" {
-		return forwarding.RetryAfter{}
+		return failure.RetryAfter{}
 	}
 
 	if seconds, err := strconv.ParseInt(value, 10, 64); err == nil {
 		if seconds < 0 || seconds > int64(^uint64(0)>>1)/int64(time.Second) {
-			return forwarding.RetryAfter{}
+			return failure.RetryAfter{}
 		}
-		result, directiveErr := forwarding.NewRetryAfterDelay(
+		result, directiveErr := failure.NewRetryAfterDelay(
 			time.Duration(seconds) * time.Second,
 		)
 		if directiveErr != nil {
-			return forwarding.RetryAfter{}
+			return failure.RetryAfter{}
 		}
 		return result
 	}
 
 	at, err := http.ParseTime(value)
 	if err != nil {
-		return forwarding.RetryAfter{}
+		return failure.RetryAfter{}
 	}
-	result, directiveErr := forwarding.NewRetryAfterTime(at)
+	result, directiveErr := failure.NewRetryAfterTime(at)
 	if directiveErr != nil {
-		return forwarding.RetryAfter{}
+		return failure.RetryAfter{}
 	}
 	return result
 }
