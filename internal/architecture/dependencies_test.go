@@ -218,7 +218,6 @@ var knownInfrastructureApplicationImportRules = []knownInfrastructureApplication
 	{source: "internal/infrastructure/forwarding/ollamanative", target: "internal/application/forwarding"},
 	{source: "internal/infrastructure/forwarding/openaicompat", target: "internal/application/forwarding"},
 	{source: "internal/infrastructure/forwarding/transportfailure", target: "internal/application/forwarding"},
-	{source: "internal/infrastructure/telegram/httpclient", target: "internal/application/telegramalert"},
 }
 
 func knownInfrastructureApplicationImport(source string, target string) bool {
@@ -316,7 +315,7 @@ func repositoryRoot(t *testing.T) string {
 			scanErr := scanner.Err()
 			closeErr := file.Close()
 			if scanErr != nil {
-				t.Fatalf("read %s: %v", goMod, scanErr)
+				t.Fatalf("read %s: %v", goMod)
 			}
 			if closeErr != nil {
 				t.Fatalf("close %s: %v", goMod, closeErr)
