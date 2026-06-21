@@ -1,4 +1,4 @@
-package app
+package adminadapters
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 )
 
-type failedBatchRetrierSource interface {
+type FailedBatchRetrierSource interface {
 	RetryFailedBatch(
 		context.Context,
 		string,
@@ -19,31 +19,26 @@ type failedBatchRetrierSource interface {
 	) (domain.BillingChargeBatch, error)
 }
 
-type adminFailedBatchRetrier struct {
-	next failedBatchRetrierSource
+type failedBatchRetrierAdapter struct {
+	next FailedBatchRetrierSource
 }
 
-func newAdminFailedBatchRetrier(
-	next failedBatchRetrierSource,
+func NewFailedBatchRetrierAdapter(
+	next FailedBatchRetrierSource,
 ) adminapp.FailedChargeBatchRetrier {
-	return &adminFailedBatchRetrier{next: next}
+	return &failedBatchRetrierAdapter{next: next}
 }
 
-func (a *adminFailedBatchRetrier) RetryFailedBatch(
+func (a *failedBatchRetrierAdapter) RetryFailedBatch(
 	ctx context.Context,
 	batchID string,
 	audit domain.AuditContext,
 ) (domain.BillingChargeBatch, error) {
 	if a == nil || a.next == nil {
-		return domain.BillingChargeBatch{},
-			adminapp.ErrBatchRetryInternal
+		return domain.BillingChargeBatch{}, adminapp.ErrBatchRetryInternal
 	}
 
-	batch, err := a.next.RetryFailedBatch(
-		ctx,
-		batchID,
-		audit,
-	)
+	batch, err := a.next.RetryFailedBatch(ctx, batchID, audit)
 	if err == nil {
 		return batch, nil
 	}
@@ -51,39 +46,27 @@ func (a *adminFailedBatchRetrier) RetryFailedBatch(
 	switch {
 	case errors.Is(err, billingapp.ErrChargeBatchNotFound):
 		return batch, adminapp.ErrBatchRetryNotFound
-	case errors.Is(err, billingapp.ErrChargeBatchNotFailed),
-		errors.Is(
-			err,
-			billingapp.ErrChargeReconciliationRequired,
-		):
+	case errors.Is(err, billingapp.ErrChargeBatchNotFailed), errors.Is(err, billingapp.ErrChargeReconciliationRequired):
 		return batch, adminapp.ErrBatchRetryStateConflict
-	case errors.Is(err, billingapp.ErrBillingStoreUnavailable),
-		errors.Is(err, billingapp.ErrBillingUnavailable):
+	case errors.Is(err, billingapp.ErrBillingStoreUnavailable), errors.Is(err, billingapp.ErrBillingUnavailable):
 		return batch, adminapp.ErrBatchRetryUnavailable
 	default:
 		return batch, adminapp.ErrBatchRetryInternal
 	}
 }
 
-type adminRoutePriceValidator struct{}
+type RoutePriceValidatorAdapter struct{}
 
-func (adminRoutePriceValidator) ValidateRoutePrice(
-	price domain.RoutePrice,
-) error {
+func (RoutePriceValidatorAdapter) ValidateRoutePrice(price domain.RoutePrice) error {
 	return pricingapp.ValidateRoutePrice(price)
 }
 
-type adminUsagePolicy struct{}
+type UsagePolicyAdapter struct{}
 
-func (adminUsagePolicy) ValidateRecord(
-	record domain.UsageRecord,
-) error {
+func (UsagePolicyAdapter) ValidateRecord(record domain.UsageRecord) error {
 	return ledgerapp.ValidateRecord(record)
 }
 
-func (adminUsagePolicy) ValidateTransition(
-	from domain.UsageStatus,
-	to domain.UsageStatus,
-) error {
+func (UsagePolicyAdapter) ValidateTransition(from domain.UsageStatus, to domain.UsageStatus) error {
 	return ledgerapp.ValidateTransition(from, to)
 }

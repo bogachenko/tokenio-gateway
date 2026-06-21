@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	adminapp "github.com/bogachenko/tokenio-gateway/internal/application/admin"
+	adminadapters "github.com/bogachenko/tokenio-gateway/internal/composition/adminadapters"
 	authenticateapp "github.com/bogachenko/tokenio-gateway/internal/application/authenticate"
 	billingapp "github.com/bogachenko/tokenio-gateway/internal/application/billing"
 	ledgerapp "github.com/bogachenko/tokenio-gateway/internal/application/ledger"
@@ -441,7 +442,7 @@ func NewApplicationGraph(
 		)
 	}
 
-	adminBatchRetrier := newAdminFailedBatchRetrier(
+	adminBatchRetrier := adminadapters.NewFailedBatchRetrierAdapter(
 		failedBatchRetry,
 	)
 
@@ -532,8 +533,8 @@ func NewApplicationGraph(
 		Resellers:      adminResellers,
 		Routes:         repositories.AdminRoutes,
 		Prices:         repositories.AdminRoutePrices,
-		PriceValidator: adminRoutePriceValidator{},
-		UsagePolicy:    adminUsagePolicy{},
+		PriceValidator: adminadapters.RoutePriceValidatorAdapter{},
+		UsagePolicy:    adminadapters.UsagePolicyAdapter{},
 		Ledger:         repositories.AdminUsage,
 		Audit:          repositories.AdminAudit,
 		Secrets:        security.SecretPresence,

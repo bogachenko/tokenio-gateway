@@ -1,4 +1,4 @@
-package app
+package adminadapters
 
 import (
 	"context"
@@ -23,7 +23,7 @@ func (f failedBatchRetrierSourceFake) RetryFailedBatch(
 	return f.batch, f.err
 }
 
-func TestAdminFailedBatchRetrierMapsBoundaryErrors(
+func TestFailedBatchRetrierAdapterMapsBoundaryErrors(
 	t *testing.T,
 ) {
 	testCases := []struct {
@@ -43,14 +43,12 @@ func TestAdminFailedBatchRetrierMapsBoundaryErrors(
 		},
 		{
 			name: "reconciliation required",
-			err: billingapp.
-				ErrChargeReconciliationRequired,
+			err:  billingapp.ErrChargeReconciliationRequired,
 			want: adminapp.ErrBatchRetryStateConflict,
 		},
 		{
 			name: "billing store unavailable",
-			err: billingapp.
-				ErrBillingStoreUnavailable,
+			err:  billingapp.ErrBillingStoreUnavailable,
 			want: adminapp.ErrBatchRetryUnavailable,
 		},
 		{
@@ -67,7 +65,7 @@ func TestAdminFailedBatchRetrierMapsBoundaryErrors(
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			adapter := newAdminFailedBatchRetrier(
+			adapter := NewFailedBatchRetrierAdapter(
 				failedBatchRetrierSourceFake{
 					err: testCase.err,
 				},
@@ -88,13 +86,13 @@ func TestAdminFailedBatchRetrierMapsBoundaryErrors(
 	}
 }
 
-func TestAdminFailedBatchRetrierPreservesSuccess(
+func TestFailedBatchRetrierAdapterPreservesSuccess(
 	t *testing.T,
 ) {
 	want := domain.BillingChargeBatch{
 		ID: "billchg_success",
 	}
-	adapter := newAdminFailedBatchRetrier(
+	adapter := NewFailedBatchRetrierAdapter(
 		failedBatchRetrierSourceFake{
 			batch: want,
 		},
@@ -113,10 +111,10 @@ func TestAdminFailedBatchRetrierPreservesSuccess(
 	}
 }
 
-func TestAdminFailedBatchRetrierRejectsNilSource(
+func TestFailedBatchRetrierAdapterRejectsNilSource(
 	t *testing.T,
 ) {
-	adapter := newAdminFailedBatchRetrier(nil)
+	adapter := NewFailedBatchRetrierAdapter(nil)
 	_, err := adapter.RetryFailedBatch(
 		context.Background(),
 		"billchg_test",
@@ -131,10 +129,10 @@ func TestAdminFailedBatchRetrierRejectsNilSource(
 	}
 }
 
-func TestAdminRoutePriceValidatorDelegatesPolicy(
+func TestRoutePriceValidatorAdapterDelegatesPolicy(
 	t *testing.T,
 ) {
-	err := (adminRoutePriceValidator{}).ValidateRoutePrice(
+	err := (RoutePriceValidatorAdapter{}).ValidateRoutePrice(
 		domain.RoutePrice{},
 	)
 	if err == nil {
@@ -142,10 +140,10 @@ func TestAdminRoutePriceValidatorDelegatesPolicy(
 	}
 }
 
-func TestAdminUsagePolicyDelegatesRecordAndTransitionPolicy(
+func TestUsagePolicyAdapterDelegatesRecordAndTransitionPolicy(
 	t *testing.T,
 ) {
-	policy := adminUsagePolicy{}
+	policy := UsagePolicyAdapter{}
 
 	if err := policy.ValidateRecord(domain.UsageRecord{}); err == nil {
 		t.Fatal("expected canonical ledger record validation error")
