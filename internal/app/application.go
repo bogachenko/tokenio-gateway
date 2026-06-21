@@ -138,7 +138,7 @@ func NewApplicationGraph(
 		)
 	}
 	modelCatalogPricing, err :=
-		NewModelCatalogPublicPricingCalculator(
+		modelcatalogapp.NewRoutePricePublicPricingCalculator(
 			pricingCalculator,
 		)
 	if err != nil {

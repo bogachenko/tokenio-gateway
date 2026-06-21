@@ -1,4 +1,4 @@
-package app
+package modelcatalog
 
 import (
 	"errors"
@@ -8,15 +8,14 @@ import (
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 )
 
-func TestModelCatalogPublicPricingCalculatorUsesSharedCalculator(
+func TestRoutePricePublicPricingCalculatorUsesSharedCalculator(
 	t *testing.T,
 ) {
 	calculator, err := pricing.NewCalculator(1.25, 1.10)
 	if err != nil {
 		t.Fatalf("NewCalculator: %v", err)
 	}
-	adapter, err :=
-		NewModelCatalogPublicPricingCalculator(calculator)
+	adapter, err := NewRoutePricePublicPricingCalculator(calculator)
 	if err != nil {
 		t.Fatalf("New adapter: %v", err)
 	}
@@ -38,13 +37,13 @@ func TestModelCatalogPublicPricingCalculatorUsesSharedCalculator(
 	}
 }
 
-func TestNewModelCatalogPublicPricingCalculatorRejectsNil(
+func TestNewRoutePricePublicPricingCalculatorRejectsNil(
 	t *testing.T,
 ) {
-	_, err := NewModelCatalogPublicPricingCalculator(nil)
+	_, err := NewRoutePricePublicPricingCalculator(nil)
 	if !errors.Is(
 		err,
-		ErrInvalidModelCatalogPricingAdapter,
+		ErrInvalidPublicPricingCalculator,
 	) {
 		t.Fatalf("error = %v", err)
 	}

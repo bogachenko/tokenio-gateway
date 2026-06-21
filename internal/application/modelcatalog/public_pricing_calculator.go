@@ -1,39 +1,43 @@
-package app
+package modelcatalog
 
 import (
 	"errors"
 	"fmt"
 
-	modelcatalog "github.com/bogachenko/tokenio-gateway/internal/application/modelcatalog"
-	pricing "github.com/bogachenko/tokenio-gateway/internal/application/pricing"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 )
 
-var ErrInvalidModelCatalogPricingAdapter = errors.New(
-	"invalid model catalog pricing adapter",
+var ErrInvalidPublicPricingCalculator = errors.New(
+	"invalid model catalog public pricing calculator",
 )
 
-type ModelCatalogPublicPricingCalculator struct {
-	calculator *pricing.Calculator
+type PublicUnitPriceCalculator interface {
+	CalculatePublicUnitPriceCents(
+		unitPriceCents int64,
+		markup float64,
+	) (int64, error)
 }
 
-func NewModelCatalogPublicPricingCalculator(
-	calculator *pricing.Calculator,
-) (*ModelCatalogPublicPricingCalculator, error) {
+type RoutePricePublicPricingCalculator struct {
+	calculator PublicUnitPriceCalculator
+}
+
+func NewRoutePricePublicPricingCalculator(
+	calculator PublicUnitPriceCalculator,
+) (*RoutePricePublicPricingCalculator, error) {
 	if calculator == nil {
-		return nil, ErrInvalidModelCatalogPricingAdapter
+		return nil, ErrInvalidPublicPricingCalculator
 	}
-	return &ModelCatalogPublicPricingCalculator{
+	return &RoutePricePublicPricingCalculator{
 		calculator: calculator,
 	}, nil
 }
 
-func (a *ModelCatalogPublicPricingCalculator) CalculatePublicPricing(
+func (c *RoutePricePublicPricingCalculator) CalculatePublicPricing(
 	price domain.RoutePrice,
-) (modelcatalog.Pricing, error) {
-	if a == nil || a.calculator == nil {
-		return modelcatalog.Pricing{},
-			ErrInvalidModelCatalogPricingAdapter
+) (Pricing, error) {
+	if c == nil || c.calculator == nil {
+		return Pricing{}, ErrInvalidPublicPricingCalculator
 	}
 	values := []int64{
 		price.InputPricePer1MTokensCents,
@@ -50,19 +54,19 @@ func (a *ModelCatalogPublicPricingCalculator) CalculatePublicPricing(
 	public := make([]int64, len(values))
 	for index, value := range values {
 		calculated, err :=
-			a.calculator.CalculatePublicUnitPriceCents(
+			c.calculator.CalculatePublicUnitPriceCents(
 				value,
 				price.MarkupCoefficient,
 			)
 		if err != nil {
-			return modelcatalog.Pricing{}, fmt.Errorf(
+			return Pricing{}, fmt.Errorf(
 				"calculate public unit price: %w",
 				err,
 			)
 		}
 		public[index] = calculated
 	}
-	return modelcatalog.Pricing{
+	return Pricing{
 		Currency:                             price.Currency,
 		InputPricePer1MTokensCents:           public[0],
 		CachedInputPricePer1MTokensCents:     public[1],
@@ -78,4 +82,4 @@ func (a *ModelCatalogPublicPricingCalculator) CalculatePublicPricing(
 	}, nil
 }
 
-var _ modelcatalog.PublicPricingCalculator = (*ModelCatalogPublicPricingCalculator)(nil)
+var _ PublicPricingCalculator = (*RoutePricePublicPricingCalculator)(nil)
