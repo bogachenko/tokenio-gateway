@@ -41,6 +41,9 @@ func (a *Adapter) Parse(
 	if input.APIFamily == domain.APIFamilyOllamaNative {
 		return parseOllamaNative(input)
 	}
+	if input.APIFamily == domain.APIFamilyAnthropicNative {
+		return parseAnthropicNative(input)
+	}
 	inspection, err := inspect(
 		input.APIFamily,
 		input.EndpointKind,
@@ -98,6 +101,23 @@ func (a *Adapter) Detect(
 			)
 		}
 		return ollamaNativeCapabilities(input.EndpointKind)
+	}
+	if input.APIFamily == domain.APIFamilyAnthropicNative {
+		parsed, err := parseAnthropicNative(llmrequest.ParseInput{
+			APIFamily:    input.APIFamily,
+			EndpointKind: input.EndpointKind,
+			Payload:      input.Payload,
+		})
+		if err != nil {
+			return domain.CapabilitySet{}, err
+		}
+		if parsed.ClientModel != input.ClientModel {
+			return domain.CapabilitySet{}, fmt.Errorf(
+				"%w: parsed Anthropic body model mismatch",
+				llmrequest.ErrStageContractViolation,
+			)
+		}
+		return anthropicNativeCapabilities(input.EndpointKind)
 	}
 	inspection, err := inspect(
 		input.APIFamily,
@@ -167,6 +187,36 @@ func parseOllamaNative(input llmrequest.ParseInput) (llmrequest.ParsedRequest, e
 	}, nil
 }
 
+func parseAnthropicNative(input llmrequest.ParseInput) (llmrequest.ParsedRequest, error) {
+	if _, err := anthropicNativeCapabilities(input.EndpointKind); err != nil {
+		return llmrequest.ParsedRequest{}, err
+	}
+	if len(input.Payload) == 0 {
+		return llmrequest.ParsedRequest{}, llmrequest.ErrInvalidJSON
+	}
+
+	root, err := decodeRootJSON(input.Payload)
+	if err != nil {
+		return llmrequest.ParsedRequest{}, err
+	}
+	modelValue, exists := root.object["model"]
+	if !exists {
+		return llmrequest.ParsedRequest{}, llmrequest.ErrModelRequired
+	}
+	if modelValue.kind != jsonValueString {
+		return llmrequest.ParsedRequest{}, fmt.Errorf(
+			"%w: Anthropic model must be a string",
+			llmrequest.ErrInvalidJSON,
+		)
+	}
+	if strings.TrimSpace(modelValue.text) == "" {
+		return llmrequest.ParsedRequest{}, llmrequest.ErrModelRequired
+	}
+	return llmrequest.ParsedRequest{
+		ClientModel: modelValue.text,
+	}, nil
+}
+
 func geminiNativeCapabilities(endpoint domain.EndpointKind) (domain.CapabilitySet, error) {
 	switch endpoint {
 	case domain.EndpointChat:
@@ -190,6 +240,18 @@ func ollamaNativeCapabilities(endpoint domain.EndpointKind) (domain.CapabilitySe
 	default:
 		return domain.CapabilitySet{}, fmt.Errorf(
 			"%w: unsupported Ollama native endpoint",
+			llmrequest.ErrInvalidInput,
+		)
+	}
+}
+
+func anthropicNativeCapabilities(endpoint domain.EndpointKind) (domain.CapabilitySet, error) {
+	switch endpoint {
+	case domain.EndpointChat:
+		return domain.CapabilitySet{Chat: true}, nil
+	default:
+		return domain.CapabilitySet{}, fmt.Errorf(
+			"%w: unsupported Anthropic native endpoint",
 			llmrequest.ErrInvalidInput,
 		)
 	}
