@@ -5,37 +5,18 @@ import (
 
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
+	"github.com/bogachenko/tokenio-gateway/internal/ports/llmrequestmetadata"
 )
 
 var (
-	ErrDependencyRequired     = errors.New("llm request dependency is required")
-	ErrInvalidInput           = errors.New("invalid llm request input")
-	ErrStageContractViolation = errors.New("llm request stage contract violation")
+	ErrDependencyRequired = errors.New("llm request dependency is required")
 
-	ErrInvalidJSON = &ports.ApplicationError{
-		Code:         domain.ErrorCodeInvalidJSON,
-		SafeMessage:  "Request body must contain valid JSON",
-		Category:     ports.FailureCategoryInvalidRequest,
-		Retryability: ports.RetryabilityNonRetryable,
-		RequestStage: ports.RequestStagePreForwarding,
-		Cause:        errors.New("invalid json"),
-	}
-	ErrModelRequired = &ports.ApplicationError{
-		Code:         domain.ErrorCodeModelRequired,
-		SafeMessage:  "Model is required",
-		Category:     ports.FailureCategoryInvalidRequest,
-		Retryability: ports.RetryabilityNonRetryable,
-		RequestStage: ports.RequestStagePreForwarding,
-		Cause:        errors.New("model required"),
-	}
-	ErrStreamingUnsupported = &ports.ApplicationError{
-		Code:         domain.ErrorCodeStreamingUnsupported,
-		SafeMessage:  "Streaming is not supported",
-		Category:     ports.FailureCategoryInvalidRequest,
-		Retryability: ports.RetryabilityNonRetryable,
-		RequestStage: ports.RequestStagePreForwarding,
-		Cause:        errors.New("streaming unsupported"),
-	}
+	ErrInvalidInput           = llmrequestmetadata.ErrInvalidInput
+	ErrStageContractViolation = llmrequestmetadata.ErrStageContractViolation
+	ErrInvalidJSON            = llmrequestmetadata.ErrInvalidJSON
+	ErrModelRequired          = llmrequestmetadata.ErrModelRequired
+	ErrStreamingUnsupported   = llmrequestmetadata.ErrStreamingUnsupported
+
 	ErrUnknownModel = &ports.ApplicationError{
 		Code:         domain.ErrorCodeUnknownModel,
 		SafeMessage:  "Unknown model",

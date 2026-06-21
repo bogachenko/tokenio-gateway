@@ -3,6 +3,7 @@ package llmrequest
 import (
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
+	"github.com/bogachenko/tokenio-gateway/internal/ports/llmrequestmetadata"
 )
 
 type Input struct {
@@ -24,24 +25,11 @@ type Principal struct {
 	BillingSubjectUserID string
 }
 
-type ParseInput struct {
-	APIFamily    domain.APIFamily
-	EndpointKind domain.EndpointKind
-	PathModel    string
-	Payload      []byte
-}
+type ParseInput = llmrequestmetadata.ParseInput
 
-type ParsedRequest struct {
-	ClientModel string
-}
+type ParsedRequest = llmrequestmetadata.ParsedRequest
 
-type CapabilityInput struct {
-	APIFamily    domain.APIFamily
-	EndpointKind domain.EndpointKind
-	ClientModel  string
-	PathModel    string
-	Payload      []byte
-}
+type CapabilityInput = llmrequestmetadata.CapabilityInput
 
 type RoutePlanInput struct {
 	LocalRequestID string
