@@ -13,9 +13,9 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/bogachenko/tokenio-gateway/internal/application/forwarding"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
+	failure "github.com/bogachenko/tokenio-gateway/internal/ports/forwardingfailure"
 )
 
 var _ ports.ForwardingAdapter = (*Adapter)(nil)
@@ -59,16 +59,16 @@ func NewAdapter(config Config, classifier ErrorClassifier) (*Adapter, error) {
 
 func (a *Adapter) Forward(ctx context.Context, request ports.ForwardRequest) (ports.ForwardResponse, error) {
 	if err := ctx.Err(); err != nil {
-		kind := forwarding.FailureKindRequestError
+		kind := failure.FailureKindRequestError
 		retry := false
 		if errors.Is(err, context.DeadlineExceeded) {
-			kind = forwarding.FailureKindTimeout
+			kind = failure.FailureKindTimeout
 			retry = true
 		}
-		return ports.ForwardResponse{}, forwarding.NewFailure(
+		return ports.ForwardResponse{}, failure.NewFailure(
 			kind,
 			0,
-			forwarding.AttemptStateNotSent,
+			failure.AttemptStateNotSent,
 			retry,
 			err,
 		)
@@ -105,26 +105,26 @@ func (a *Adapter) Forward(ctx context.Context, request ports.ForwardRequest) (po
 	}
 	if err != nil {
 		if writeAttempted.Load() {
-			return ports.ForwardResponse{}, forwarding.NewFailure(
-				forwarding.FailureKindUncertainProcessing,
+			return ports.ForwardResponse{}, failure.NewFailure(
+				failure.FailureKindUncertainProcessing,
 				0,
-				forwarding.AttemptStateSentNoResponse,
+				failure.AttemptStateSentNoResponse,
 				false,
 				err,
 			)
 		}
-		return ports.ForwardResponse{}, forwarding.NewFailure(
+		return ports.ForwardResponse{}, failure.NewFailure(
 			forwardingTransportFailureKind(err),
 			0,
-			forwarding.AttemptStateNotSent,
+			failure.AttemptStateNotSent,
 			true,
 			err,
 		)
 	}
-	return ports.ForwardResponse{}, forwarding.NewFailure(
-		forwarding.FailureKindMalformedResponse,
+	return ports.ForwardResponse{}, failure.NewFailure(
+		failure.FailureKindMalformedResponse,
 		0,
-		forwarding.AttemptStateNotSent,
+		failure.AttemptStateNotSent,
 		true,
 		nil,
 	)
@@ -138,14 +138,14 @@ func (a *Adapter) handleResponse(resp *http.Response, cause error) (ports.Forwar
 
 	bodyBytes, truncated, readErr := readBounded(resp.Body, a.maxResponseBodyBytes)
 	if readErr != nil {
-		return ports.ForwardResponse{}, forwarding.NewFailure(forwarding.FailureKindMalformedResponse, resp.StatusCode, forwarding.AttemptStateResponseReceived, false, readErr)
+		return ports.ForwardResponse{}, failure.NewFailure(failure.FailureKindMalformedResponse, resp.StatusCode, failure.AttemptStateResponseReceived, false, readErr)
 	}
 	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
 		if cause != nil {
-			return ports.ForwardResponse{}, forwarding.NewFailure(forwarding.FailureKindMalformedResponse, resp.StatusCode, forwarding.AttemptStateResponseReceived, false, cause)
+			return ports.ForwardResponse{}, failure.NewFailure(failure.FailureKindMalformedResponse, resp.StatusCode, failure.AttemptStateResponseReceived, false, cause)
 		}
 		if truncated {
-			failure := forwarding.NewFailure(forwarding.FailureKindMalformedResponse, resp.StatusCode, forwarding.AttemptStateResponseReceived, false, ErrUpstreamResponseTooLarge)
+			failure := failure.NewFailure(failure.FailureKindMalformedResponse, resp.StatusCode, failure.AttemptStateResponseReceived, false, ErrUpstreamResponseTooLarge)
 			return ports.ForwardResponse{}, fmt.Errorf("%w: %w", ErrUpstreamResponseTooLarge, failure)
 		}
 		return ports.ForwardResponse{StatusCode: resp.StatusCode, Headers: cloneHeaders(resp.Header), Body: bodyBytes}, nil
@@ -155,10 +155,10 @@ func (a *Adapter) handleResponse(resp *http.Response, cause error) (ports.Forwar
 		classificationBody = classificationBody[:a.maxResponseBodyBytes]
 	}
 	classification := a.classifier.Classify(resp.StatusCode, cloneHeaders(resp.Header), classificationBody, truncated)
-	return ports.ForwardResponse{}, forwarding.NewFailureWithRetryAfter(
+	return ports.ForwardResponse{}, failure.NewFailureWithRetryAfter(
 		classification.Kind,
 		resp.StatusCode,
-		forwarding.AttemptStateResponseReceived,
+		failure.AttemptStateResponseReceived,
 		classification.RouteRetryCandidate,
 		classification.RetryAfter,
 		cause,
@@ -244,13 +244,13 @@ func (r *attemptReadCloser) Read(p []byte) (int, error) {
 
 func (r *attemptReadCloser) Close() error { return nil }
 
-func forwardingTransportFailureKind(err error) forwarding.FailureKind {
+func forwardingTransportFailureKind(err error) failure.FailureKind {
 	if errors.Is(err, context.DeadlineExceeded) {
-		return forwarding.FailureKindTimeout
+		return failure.FailureKindTimeout
 	}
 	var networkError net.Error
 	if errors.As(err, &networkError) && networkError.Timeout() {
-		return forwarding.FailureKindTimeout
+		return failure.FailureKindTimeout
 	}
-	return forwarding.FailureKindConnectionError
+	return failure.FailureKindConnectionError
 }
