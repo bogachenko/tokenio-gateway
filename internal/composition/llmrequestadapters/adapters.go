@@ -23,35 +23,22 @@ type LLMRequestRouteSelector = llmrequest.LLMRequestRouteSelector
 type LLMRequestUsageResolver = llmrequest.LLMRequestUsageResolver
 
 type publicAuthenticationUseCase interface {
-	AuthenticatePublicRequest(
-		context.Context,
-		authenticateapp.Input,
-	) (authenticateapp.Result, error)
+	AuthenticatePublicRequest(context.Context, authenticateapp.Input) (authenticateapp.Result, error)
 }
 
 type llmRequestPublicAuthenticationAdapter struct {
 	usecase publicAuthenticationUseCase
 }
 
-func NewLLMRequestAuthenticator(
-	public publicAuthenticationUseCase,
-) (*llmrequest.LLMRequestAuthenticator, error) {
+func NewLLMRequestAuthenticator(public publicAuthenticationUseCase) (*llmrequest.LLMRequestAuthenticator, error) {
 	if public == nil {
 		return nil, llmrequest.ErrDependencyRequired
 	}
-	return llmrequest.NewLLMRequestAuthenticator(
-		llmRequestPublicAuthenticationAdapter{usecase: public},
-	)
+	return llmrequest.NewLLMRequestAuthenticator(llmRequestPublicAuthenticationAdapter{usecase: public})
 }
 
-func (a llmRequestPublicAuthenticationAdapter) AuthenticatePublicRequest(
-	ctx context.Context,
-	rawAPIKey string,
-) (llmrequest.Principal, error) {
-	result, err := a.usecase.AuthenticatePublicRequest(
-		ctx,
-		authenticateapp.Input{RawAPIKey: rawAPIKey},
-	)
+func (a llmRequestPublicAuthenticationAdapter) AuthenticatePublicRequest(ctx context.Context, rawAPIKey string) (llmrequest.Principal, error) {
+	result, err := a.usecase.AuthenticatePublicRequest(ctx, authenticateapp.Input{RawAPIKey: rawAPIKey})
 	if err != nil {
 		return llmrequest.Principal{}, err
 	}
@@ -63,40 +50,27 @@ func (a llmRequestPublicAuthenticationAdapter) AuthenticatePublicRequest(
 }
 
 type billingAdmissionUseCase interface {
-	Admit(
-		context.Context,
-		billingapp.AdmissionInput,
-	) (billingapp.AdmissionResult, error)
+	Admit(context.Context, billingapp.AdmissionInput) (billingapp.AdmissionResult, error)
 }
 
 type llmRequestBillingAdmissionAdapter struct {
 	usecase billingAdmissionUseCase
 }
 
-func NewLLMRequestBillingAdmitter(
-	billing billingAdmissionUseCase,
-) (*llmrequest.LLMRequestBillingAdmitter, error) {
+func NewLLMRequestBillingAdmitter(billing billingAdmissionUseCase) (*llmrequest.LLMRequestBillingAdmitter, error) {
 	if billing == nil {
 		return nil, llmrequest.ErrDependencyRequired
 	}
-	return llmrequest.NewLLMRequestBillingAdmitter(
-		llmRequestBillingAdmissionAdapter{usecase: billing},
-	)
+	return llmrequest.NewLLMRequestBillingAdmitter(llmRequestBillingAdmissionAdapter{usecase: billing})
 }
 
-func (a llmRequestBillingAdmissionAdapter) Admit(
-	ctx context.Context,
-	input llmrequest.BillingAdmissionInput,
-) (llmrequest.BillingAdmissionResult, error) {
-	result, err := a.usecase.Admit(
-		ctx,
-		billingapp.AdmissionInput{
-			UserID:               input.Principal.UserID,
-			BillingSubjectUserID: input.Principal.BillingSubjectUserID,
-			RequiredReserveCents: input.RequiredReserveCents,
-			Currency:             input.Currency,
-		},
-	)
+func (a llmRequestBillingAdmissionAdapter) Admit(ctx context.Context, input llmrequest.BillingAdmissionInput) (llmrequest.BillingAdmissionResult, error) {
+	result, err := a.usecase.Admit(ctx, billingapp.AdmissionInput{
+		UserID:               input.Principal.UserID,
+		BillingSubjectUserID: input.Principal.BillingSubjectUserID,
+		RequiredReserveCents: input.RequiredReserveCents,
+		Currency:             input.Currency,
+	})
 	if err != nil {
 		return llmrequest.BillingAdmissionResult{}, err
 	}
@@ -111,39 +85,26 @@ func (a llmRequestBillingAdmissionAdapter) Admit(
 }
 
 type autoChargeUseCase interface {
-	Run(
-		context.Context,
-		billingapp.AutoChargeInput,
-	) (billingapp.AutoChargeResult, error)
+	Run(context.Context, billingapp.AutoChargeInput) (billingapp.AutoChargeResult, error)
 }
 
 type llmRequestAutoChargeAdapter struct {
 	usecase autoChargeUseCase
 }
 
-func NewLLMRequestAutoCharger(
-	service autoChargeUseCase,
-) (*llmrequest.LLMRequestAutoCharger, error) {
+func NewLLMRequestAutoCharger(service autoChargeUseCase) (*llmrequest.LLMRequestAutoCharger, error) {
 	if service == nil {
 		return nil, llmrequest.ErrDependencyRequired
 	}
-	return llmrequest.NewLLMRequestAutoCharger(
-		llmRequestAutoChargeAdapter{usecase: service},
-	)
+	return llmrequest.NewLLMRequestAutoCharger(llmRequestAutoChargeAdapter{usecase: service})
 }
 
-func (a llmRequestAutoChargeAdapter) Run(
-	ctx context.Context,
-	input llmrequest.AutoChargeServiceInput,
-) (llmrequest.AutoChargeServiceResult, error) {
-	result, err := a.usecase.Run(
-		ctx,
-		billingapp.AutoChargeInput{
-			UserID:               input.UserID,
-			BillingSubjectUserID: input.BillingSubjectUserID,
-			Currency:             input.Currency,
-		},
-	)
+func (a llmRequestAutoChargeAdapter) Run(ctx context.Context, input llmrequest.AutoChargeServiceInput) (llmrequest.AutoChargeServiceResult, error) {
+	result, err := a.usecase.Run(ctx, billingapp.AutoChargeInput{
+		UserID:               input.UserID,
+		BillingSubjectUserID: input.BillingSubjectUserID,
+		Currency:             input.Currency,
+	})
 	if errors.Is(err, billingapp.ErrChargeDeferred) {
 		return llmrequest.AutoChargeServiceResult{Deferred: true}, nil
 	}
@@ -159,62 +120,40 @@ func (a llmRequestAutoChargeAdapter) Run(
 }
 
 type llmRequestLedgerUseCase interface {
-	CommitBillable(
-		context.Context,
-		ledgerapp.CommitBillableInput,
-	) (domain.UsageRecord, error)
-	MarkPricingFailed(
-		context.Context,
-		ledgerapp.MarkPricingFailedInput,
-	) (domain.UsageRecord, error)
+	CommitBillable(context.Context, ledgerapp.CommitBillableInput) (domain.UsageRecord, error)
+	MarkPricingFailed(context.Context, ledgerapp.MarkPricingFailedInput) (domain.UsageRecord, error)
 }
 
 type llmRequestLedgerAdapter struct {
 	usecase llmRequestLedgerUseCase
 }
 
-func NewLLMRequestFinalizer(
-	ledger llmRequestLedgerUseCase,
-) (*llmrequest.LLMRequestFinalizer, error) {
+func NewLLMRequestFinalizer(ledger llmRequestLedgerUseCase) (*llmrequest.LLMRequestFinalizer, error) {
 	if ledger == nil {
 		return nil, llmrequest.ErrDependencyRequired
 	}
-	return llmrequest.NewLLMRequestFinalizer(
-		llmRequestLedgerAdapter{usecase: ledger},
-	)
+	return llmrequest.NewLLMRequestFinalizer(llmRequestLedgerAdapter{usecase: ledger})
 }
 
-func (a llmRequestLedgerAdapter) CommitBillable(
-	ctx context.Context,
-	input llmrequest.CommitBillableInput,
-) (domain.UsageRecord, error) {
-	return a.usecase.CommitBillable(
-		ctx,
-		ledgerapp.CommitBillableInput{
-			LocalRequestID:          input.LocalRequestID,
-			Usage:                   input.Usage,
-			UsageCompleteness:       input.UsageCompleteness,
-			ClientAmountCents:       input.ClientAmountCents,
-			ActualUpstreamCostCents: input.ActualUpstreamCostCents,
-			ProviderRequestID:       input.ProviderRequestID,
-			ProviderResponseModel:   input.ProviderResponseModel,
-		},
-	)
+func (a llmRequestLedgerAdapter) CommitBillable(ctx context.Context, input llmrequest.CommitBillableInput) (domain.UsageRecord, error) {
+	return a.usecase.CommitBillable(ctx, ledgerapp.CommitBillableInput{
+		LocalRequestID:          input.LocalRequestID,
+		Usage:                   input.Usage,
+		UsageCompleteness:       input.UsageCompleteness,
+		ClientAmountCents:       input.ClientAmountCents,
+		ActualUpstreamCostCents: input.ActualUpstreamCostCents,
+		ProviderRequestID:       input.ProviderRequestID,
+		ProviderResponseModel:   input.ProviderResponseModel,
+	})
 }
 
-func (a llmRequestLedgerAdapter) MarkPricingFailed(
-	ctx context.Context,
-	input llmrequest.MarkPricingFailedInput,
-) (domain.UsageRecord, error) {
-	return a.usecase.MarkPricingFailed(
-		ctx,
-		ledgerapp.MarkPricingFailedInput{
-			LocalRequestID:    input.LocalRequestID,
-			Usage:             input.Usage,
-			UsageCompleteness: input.UsageCompleteness,
-			FailureReason:     input.FailureReason,
-		},
-	)
+func (a llmRequestLedgerAdapter) MarkPricingFailed(ctx context.Context, input llmrequest.MarkPricingFailedInput) (domain.UsageRecord, error) {
+	return a.usecase.MarkPricingFailed(ctx, ledgerapp.MarkPricingFailedInput{
+		LocalRequestID:    input.LocalRequestID,
+		Usage:             input.Usage,
+		UsageCompleteness: input.UsageCompleteness,
+		FailureReason:     input.FailureReason,
+	})
 }
 
 type llmRequestPreflightPricerAdapter struct {
@@ -240,19 +179,13 @@ func NewLLMRequestRoutePreflighter(
 	)
 }
 
-func (a llmRequestPreflightPricerAdapter) Price(
-	ctx context.Context,
-	input llmrequest.PreflightPricingInput,
-) (llmrequest.PreflightPricingResult, error) {
-	result, err := a.pricer.Price(
-		ctx,
-		pricingapp.PreflightInput{
-			Route:                 input.Route,
-			Price:                 input.Price,
-			RequestBody:           append([]byte(nil), input.RequestBody...),
-			RequestedCapabilities: input.RequestedCapabilities,
-		},
-	)
+func (a llmRequestPreflightPricerAdapter) Price(ctx context.Context, input llmrequest.PreflightPricingInput) (llmrequest.PreflightPricingResult, error) {
+	result, err := a.pricer.Price(ctx, pricingapp.PreflightInput{
+		Route:                 input.Route,
+		Price:                 input.Price,
+		RequestBody:           append([]byte(nil), input.RequestBody...),
+		RequestedCapabilities: input.RequestedCapabilities,
+	})
 	if err != nil {
 		return llmrequest.PreflightPricingResult{}, err
 	}
@@ -265,50 +198,42 @@ func (a llmRequestPreflightPricerAdapter) Price(
 	}, nil
 }
 
-func NewLLMRequestRouteSelector(
-	clock ports.Clock,
-) (*llmrequest.LLMRequestRouteSelector, error) {
+func NewLLMRequestRouteSelector(clock ports.Clock) (*llmrequest.LLMRequestRouteSelector, error) {
 	return llmrequest.NewLLMRequestRouteSelector(clock)
 }
 
-type llmRequestUsagePricingResolverAdapter struct {
-	resolver *pricingapp.UsageResolver
+type usagePricingResolver interface {
+	Resolve(context.Context, pricingapp.ResolveUsageInput) (pricingapp.ResolvedUsageResult, error)
 }
 
-func NewLLMRequestUsageResolver(
-	resolver *pricingapp.UsageResolver,
-) (*llmrequest.LLMRequestUsageResolver, error) {
+type llmRequestUsagePricingResolverAdapter struct {
+	resolver usagePricingResolver
+}
+
+func NewLLMRequestUsageResolver(resolver usagePricingResolver) (*llmrequest.LLMRequestUsageResolver, error) {
 	if resolver == nil {
 		return nil, llmrequest.ErrDependencyRequired
 	}
-	return llmrequest.NewLLMRequestUsageResolver(
-		llmRequestUsagePricingResolverAdapter{resolver: resolver},
-	)
+	return llmrequest.NewLLMRequestUsageResolver(llmRequestUsagePricingResolverAdapter{resolver: resolver})
 }
 
-func (a llmRequestUsagePricingResolverAdapter) Resolve(
-	ctx context.Context,
-	input llmrequest.UsagePricingInput,
-) (llmrequest.UsagePricingResult, error) {
-	result, err := a.resolver.Resolve(
-		ctx,
-		pricingapp.ResolveUsageInput{
-			Route:        input.Route,
-			Price:        input.Price,
-			RequestBody:  append([]byte(nil), input.RequestBody...),
-			ResponseBody: append([]byte(nil), input.ResponseBody...),
-			ActualUsage:  copyTokenUsagePointer(input.ActualUsage),
-			RequestedCapabilities: input.
-				RequestedCapabilities,
-			Modalities: pricingapp.InputModalities{
-				Image: input.Modalities.Image,
-				Audio: input.Modalities.Audio,
-				File:  input.Modalities.File,
-				Video: input.Modalities.Video,
-			},
-			ZeroUsageAllowed: input.ZeroUsageAllowed,
+func (a llmRequestUsagePricingResolverAdapter) Resolve(ctx context.Context, input llmrequest.UsagePricingInput) (llmrequest.UsagePricingResult, error) {
+	result, err := a.resolver.Resolve(ctx, pricingapp.ResolveUsageInput{
+		Route:        input.Route,
+		Price:        input.Price,
+		RequestBody:  append([]byte(nil), input.RequestBody...),
+		ResponseBody: append([]byte(nil), input.ResponseBody...),
+		ActualUsage:  copyTokenUsagePointer(input.ActualUsage),
+		RequestedCapabilities: input.
+			RequestedCapabilities,
+		Modalities: pricingapp.InputModalities{
+			Image: input.Modalities.Image,
+			Audio: input.Modalities.Audio,
+			File:  input.Modalities.File,
+			Video: input.Modalities.Video,
 		},
-	)
+		ZeroUsageAllowed: input.ZeroUsageAllowed,
+	})
 	if err != nil {
 		return llmrequest.UsagePricingResult{}, err
 	}
@@ -329,11 +254,7 @@ func NewLLMRequestForwardingExecutor(
 	factory ports.ForwardingAdapterFactory,
 	maxResponseBodyBytes int64,
 ) (*llmrequest.LLMRequestForwardingExecutor, error) {
-	return llmrequest.NewLLMRequestForwardingExecutor(
-		secrets,
-		factory,
-		maxResponseBodyBytes,
-	)
+	return llmrequest.NewLLMRequestForwardingExecutor(secrets, factory, maxResponseBodyBytes)
 }
 
 func copyInt64Pointer(value *int64) *int64 {
