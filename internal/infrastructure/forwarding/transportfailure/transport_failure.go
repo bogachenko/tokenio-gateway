@@ -18,6 +18,10 @@ type WriteTracker struct {
 	attempted atomic.Bool
 }
 
+func WithTrace(ctx context.Context, tracker *WriteTracker) context.Context {
+	return httptrace.WithClientTrace(ctx, tracker.HTTPTrace())
+}
+
 func (tracker *WriteTracker) HTTPTrace() *httptrace.ClientTrace {
 	return &httptrace.ClientTrace{
 		WroteHeaders: func() { tracker.MarkAttempted() },
