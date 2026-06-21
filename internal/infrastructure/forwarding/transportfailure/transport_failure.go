@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"net"
-	"net/http"
 	"net/http/httptrace"
 	"sync/atomic"
 
