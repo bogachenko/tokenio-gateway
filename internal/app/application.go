@@ -15,6 +15,7 @@ import (
 	provisioningapp "github.com/bogachenko/tokenio-gateway/internal/application/provisioning"
 	telegramalert "github.com/bogachenko/tokenio-gateway/internal/application/telegramalert"
 	"github.com/bogachenko/tokenio-gateway/internal/config"
+	llmrequestadapters "github.com/bogachenko/tokenio-gateway/internal/composition/llmrequestadapters"
 	requestmetaopenaicompat "github.com/bogachenko/tokenio-gateway/internal/infrastructure/requestmeta/openaicompat"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
@@ -236,7 +237,7 @@ func NewApplicationGraph(
 	}
 
 	forwardingExecutor, err :=
-		NewLLMRequestForwardingExecutor(
+		llmrequestadapters.NewLLMRequestForwardingExecutor(
 			security.Secrets,
 			forwardingInfrastructure.AdapterFactory,
 			cfg.UpstreamResponseBodyMaxBytes,
@@ -303,7 +304,7 @@ func NewApplicationGraph(
 			err,
 		)
 	}
-	usageResolver, err := NewLLMRequestUsageResolver(
+	usageResolver, err := llmrequestadapters.NewLLMRequestUsageResolver(
 		pricingUsageResolver,
 	)
 	if err != nil {
@@ -312,7 +313,7 @@ func NewApplicationGraph(
 			err,
 		)
 	}
-	requestFinalizer, err := NewLLMRequestFinalizer(
+	requestFinalizer, err := llmrequestadapters.NewLLMRequestFinalizer(
 		ledgerService,
 	)
 	if err != nil {
@@ -321,7 +322,7 @@ func NewApplicationGraph(
 			err,
 		)
 	}
-	requestAutoCharger, err := NewLLMRequestAutoCharger(
+	requestAutoCharger, err := llmrequestadapters.NewLLMRequestAutoCharger(
 		autoCharge,
 	)
 	if err != nil {
@@ -341,7 +342,7 @@ func NewApplicationGraph(
 			err,
 		)
 	}
-	routePreflighter, err := NewLLMRequestRoutePreflighter(
+	routePreflighter, err := llmrequestadapters.NewLLMRequestRoutePreflighter(
 		security.SecretPresence,
 		preflightPricer,
 		primitives.RouteCapacity,
@@ -354,7 +355,7 @@ func NewApplicationGraph(
 			err,
 		)
 	}
-	routeSelector, err := NewLLMRequestRouteSelector(
+	routeSelector, err := llmrequestadapters.NewLLMRequestRouteSelector(
 		primitives.Clock,
 	)
 	if err != nil {
@@ -378,7 +379,7 @@ func NewApplicationGraph(
 			err,
 		)
 	}
-	requestAuthenticator, err := NewLLMRequestAuthenticator(
+	requestAuthenticator, err := llmrequestadapters.NewLLMRequestAuthenticator(
 		publicAuthentication,
 	)
 	if err != nil {
@@ -401,7 +402,7 @@ func NewApplicationGraph(
 			err,
 		)
 	}
-	billingAdmitter, err := NewLLMRequestBillingAdmitter(
+	billingAdmitter, err := llmrequestadapters.NewLLMRequestBillingAdmitter(
 		billingAdmission,
 	)
 	if err != nil {
