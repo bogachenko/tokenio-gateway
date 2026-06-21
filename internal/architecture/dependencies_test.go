@@ -315,7 +315,7 @@ func repositoryRoot(t *testing.T) string {
 			scanErr := scanner.Err()
 			closeErr := file.Close()
 			if scanErr != nil {
-				t.Fatalf("read %s: %v", goMod)
+				t.Fatalf("read %s: %v", goMod, scanErr)
 			}
 			if closeErr != nil {
 				t.Fatalf("close %s: %v", goMod, closeErr)
