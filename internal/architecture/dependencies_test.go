@@ -213,7 +213,6 @@ type knownInfrastructureApplicationImportRule struct {
 // temporary known violations, remove entry when package is refactored to depend on ports.
 var knownInfrastructureApplicationImportRules = []knownInfrastructureApplicationImportRule{
 	{source: "internal/infrastructure/postgres", target: "internal/application/llmrequest"},
-	{source: "internal/infrastructure/requestmeta/openaicompat", target: "internal/application/llmrequest"},
 	{source: "internal/infrastructure/forwarding/anthropicnative", target: "internal/application/forwarding"},
 	{source: "internal/infrastructure/forwarding/gemininative", target: "internal/application/forwarding"},
 	{source: "internal/infrastructure/forwarding/ollamanative", target: "internal/application/forwarding"},
