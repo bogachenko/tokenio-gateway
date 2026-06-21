@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bogachenko/tokenio-gateway/internal/application/forwarding"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/infrastructure/forwarding/transportfailure"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
+	failure "github.com/bogachenko/tokenio-gateway/internal/ports/forwardingfailure"
 )
 
 var (
@@ -129,42 +129,42 @@ func handleResponse(resp *http.Response, limit int64, cause error) (ports.Forwar
 	if resp.Body == nil { resp.Body = io.NopCloser(bytes.NewReader(nil)) }
 	defer resp.Body.Close()
 	body, truncated, err := readBounded(resp.Body, limit)
-	if err != nil { return ports.ForwardResponse{}, forwarding.NewFailure(forwarding.FailureKindMalformedResponse, resp.StatusCode, forwarding.AttemptStateResponseReceived, false, err) }
-	if truncated { return ports.ForwardResponse{}, forwarding.NewFailure(forwarding.FailureKindMalformedResponse, resp.StatusCode, forwarding.AttemptStateResponseReceived, false, ErrUpstreamResponseTooLarge) }
+	if err != nil { return ports.ForwardResponse{}, failure.NewFailure(failure.FailureKindMalformedResponse, resp.StatusCode, failure.AttemptStateResponseReceived, false, err) }
+	if truncated { return ports.ForwardResponse{}, failure.NewFailure(failure.FailureKindMalformedResponse, resp.StatusCode, failure.AttemptStateResponseReceived, false, ErrUpstreamResponseTooLarge) }
 	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
-		if cause != nil { return ports.ForwardResponse{}, forwarding.NewFailure(forwarding.FailureKindMalformedResponse, resp.StatusCode, forwarding.AttemptStateResponseReceived, false, cause) }
+		if cause != nil { return ports.ForwardResponse{}, failure.NewFailure(failure.FailureKindMalformedResponse, resp.StatusCode, failure.AttemptStateResponseReceived, false, cause) }
 		usage, usageErr := ExtractUsage(body)
-		if usageErr != nil && !errors.Is(usageErr, ErrUsageNotFound) { return ports.ForwardResponse{}, forwarding.NewFailure(forwarding.FailureKindMalformedResponse, resp.StatusCode, forwarding.AttemptStateResponseReceived, false, usageErr) }
+		if usageErr != nil && !errors.Is(usageErr, ErrUsageNotFound) { return ports.ForwardResponse{}, failure.NewFailure(failure.FailureKindMalformedResponse, resp.StatusCode, failure.AttemptStateResponseReceived, false, usageErr) }
 		response := ports.ForwardResponse{StatusCode: resp.StatusCode, Headers: cloneHeaders(resp.Header), Body: body}
 		if usageErr == nil { response.Usage = &ports.ForwardUsage{InputTokens: usage.InputTokens, OutputTokens: usage.OutputTokens} }
 		return response, nil
 	}
 	classification := classifyFailure(resp.StatusCode, resp.Header, body)
-	return ports.ForwardResponse{}, forwarding.NewFailureWithRetryAfter(classification.Kind, resp.StatusCode, forwarding.AttemptStateResponseReceived, classification.RouteRetryCandidate, classification.RetryAfter, cause)
+	return ports.ForwardResponse{}, failure.NewFailureWithRetryAfter(classification.Kind, resp.StatusCode, failure.AttemptStateResponseReceived, classification.RouteRetryCandidate, classification.RetryAfter, cause)
 }
 
-func classifyFailure(statusCode int, headers http.Header, body []byte) forwarding.Classification {
+func classifyFailure(statusCode int, headers http.Header, body []byte) failure.Classification {
 	switch {
 	case statusCode == http.StatusTooManyRequests:
-		retryAfter := parseRetryAfter(headers.Get("Retry-After")); return forwarding.Classification{Kind: forwarding.FailureKindRateLimited, RouteRetryCandidate: true, RetryAfter: retryAfter}
+		retryAfter := parseRetryAfter(headers.Get("Retry-After")); return failure.Classification{Kind: failure.FailureKindRateLimited, RouteRetryCandidate: true, RetryAfter: retryAfter}
 	case statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden:
-		return forwarding.Classification{Kind: forwarding.FailureKindAuthError}
+		return failure.Classification{Kind: failure.FailureKindAuthError}
 	case statusCode == http.StatusPaymentRequired || strings.Contains(strings.ToLower(string(body)), "quota"):
-		return forwarding.Classification{Kind: forwarding.FailureKindQuotaExceeded}
+		return failure.Classification{Kind: failure.FailureKindQuotaExceeded}
 	case statusCode >= 500:
-		return forwarding.Classification{Kind: forwarding.FailureKindProvider5XX, RouteRetryCandidate: true}
+		return failure.Classification{Kind: failure.FailureKindProvider5XX, RouteRetryCandidate: true}
 	default:
-		return forwarding.Classification{Kind: forwarding.FailureKindRequestError}
+		return failure.Classification{Kind: failure.FailureKindRequestError}
 	}
 }
 
-func parseRetryAfter(value string) forwarding.RetryAfter {
+func parseRetryAfter(value string) failure.RetryAfter {
 	value = strings.TrimSpace(value)
-	if value == "" { return forwarding.RetryAfter{} }
+	if value == "" { return failure.RetryAfter{} }
 	seconds, err := strconv.Atoi(value)
-	if err != nil || seconds < 0 { return forwarding.RetryAfter{} }
-	retryAfter, err := forwarding.NewRetryAfterDelay(time.Duration(seconds) * time.Second)
-	if err != nil { return forwarding.RetryAfter{} }
+	if err != nil || seconds < 0 { return failure.RetryAfter{} }
+	retryAfter, err := failure.NewRetryAfterDelay(time.Duration(seconds) * time.Second)
+	if err != nil { return failure.RetryAfter{} }
 	return retryAfter
 }
 
