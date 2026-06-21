@@ -17,10 +17,10 @@ import (
 )
 
 const (
-	basePath = "/internal/v1/api-key-provisionings"
+	basePath       = "/internal/v1/api-keys/provision"
+	legacyBasePath = "/internal/v1/api-key-provisionings"
 
 	serviceTokenHeader = "X-Service-Token"
-	idempotencyHeader  = "Idempotency-Key"
 )
 
 type Authenticator interface {
@@ -72,9 +72,10 @@ func (h *Router) ServeHTTP(
 	request *http.Request,
 ) {
 	if request.URL.Path != basePath &&
+		request.URL.Path != legacyBasePath &&
 		!strings.HasPrefix(
 			request.URL.Path,
-			basePath+"/",
+			legacyBasePath+"/",
 		) {
 		writeError(
 			writer,
@@ -113,7 +114,8 @@ func (h *Router) ServeHTTP(
 		return
 	}
 
-	if request.URL.Path == basePath {
+	if request.URL.Path == basePath ||
+		request.URL.Path == legacyBasePath {
 		h.handleProvision(writer, request, requestID)
 		return
 	}
@@ -143,16 +145,6 @@ func (h *Router) handleProvision(
 		return
 	}
 
-	idempotencyKey :=
-		request.Header.Get(idempotencyHeader)
-	if !validOpaque(idempotencyKey) {
-		writeProvisioningInvalidRequest(
-			writer,
-			requestID,
-		)
-		return
-	}
-
 	var body provisionRequest
 	if !decodeJSON(
 		writer,
@@ -167,12 +159,20 @@ func (h *Router) handleProvision(
 		return
 	}
 
+	if !validOpaque(body.IdempotencyKey) {
+		writeProvisioningInvalidRequest(
+			writer,
+			requestID,
+		)
+		return
+	}
+
 	result, err := h.service.Provision(
 		request.Context(),
 		application.ProvisionInput{
-			IdempotencyKey:        idempotencyKey,
+			IdempotencyKey:        body.IdempotencyKey,
 			ExternalBillingUserID: body.ExternalBillingUserID,
-			SourceReference:       body.SourceReference,
+			SourceReference:       body.IdempotencyKey,
 			KeyName:               body.KeyName,
 		},
 	)
@@ -207,7 +207,7 @@ func (h *Router) handleProvisioningPath(
 ) {
 	path := strings.TrimPrefix(
 		request.URL.Path,
-		basePath+"/",
+		legacyBasePath+"/",
 	)
 	parts := strings.Split(path, "/")
 	if len(parts) != 2 ||
@@ -253,6 +253,7 @@ func (h *Router) handleProvisioningPath(
 
 type provisionRequest struct {
 	ExternalBillingUserID string `json:"external_billing_user_id"`
+	IdempotencyKey        string `json:"idempotency_key"`
 	SourceReference       string `json:"source_reference"`
 	KeyName               string `json:"key_name"`
 }
