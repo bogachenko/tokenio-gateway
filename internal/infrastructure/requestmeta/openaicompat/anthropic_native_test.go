@@ -87,9 +87,20 @@ func TestAdapterRejectsInvalidAnthropicNativeMessagesModelBody(t *testing.T) {
 			payload: []byte(`{"model":"claude-sonnet-4-5"} {}`),
 			want:    llmrequest.ErrInvalidJSON,
 		},
+		{
+			name:    "duplicate model",
+			payload: []byte(`{"model":"claude-a","model":"claude-b","messages":[]}`),
+			want:    llmrequest.ErrInvalidJSON,
+		},
+		{
+			name:    "nested duplicate role",
+			payload: []byte(`{"model":"claude-a","messages":[{"role":"user","role":"assistant","content":"hi"}]}`),
+			want:    llmrequest.ErrInvalidJSON,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			original := append([]byte(nil), test.payload...)
 			_, err := adapter.Parse(
 				context.Background(),
 				llmrequest.ParseInput{
@@ -100,6 +111,9 @@ func TestAdapterRejectsInvalidAnthropicNativeMessagesModelBody(t *testing.T) {
 			)
 			if !errors.Is(err, test.want) {
 				t.Fatalf("error = %v want %v", err, test.want)
+			}
+			if !bytes.Equal(test.payload, original) {
+				t.Fatalf("payload mutated: got %q want %q", test.payload, original)
 			}
 		})
 	}
