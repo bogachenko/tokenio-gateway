@@ -14,6 +14,7 @@ import (
 
 	"github.com/bogachenko/tokenio-gateway/internal/application/forwarding"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
+	"github.com/bogachenko/tokenio-gateway/internal/infrastructure/forwarding/transportfailure"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
 
@@ -63,7 +64,7 @@ func (a *Adapter) Forward(ctx context.Context, request ports.ForwardRequest) (po
 		return ports.ForwardResponse{}, ErrInvalidForwardRequest
 	}
 	if err := ctx.Err(); err != nil {
-		return ports.ForwardResponse{}, err
+		return transportfailure.ContextErr(err)
 	}
 	if err := a.validateRouteAndRequest(request); err != nil {
 		return ports.ForwardResponse{}, err
@@ -76,21 +77,24 @@ func (a *Adapter) Forward(ctx context.Context, request ports.ForwardRequest) (po
 	if err != nil {
 		return ports.ForwardResponse{}, err
 	}
-	req, err := http.NewRequestWithContext(ctx, request.Method, upstreamURL.String(), bytes.NewReader(body))
+	tracker := &transportfailure.WriteTracker{}
+	ctx = transportfailure.WithTrace(ctx, tracker)
+	req, err := http.NewRequestWithContext(ctx, request.Method, upstreamURL.String(), nil)
 	if err != nil {
 		return ports.ForwardResponse{}, ErrInvalidUpstreamURL
 	}
 	req.Header = buildUpstreamHeaders(request.Headers, a.resellerAPIKey)
+	req.Body = transportfailure.NewTrackedBody(body, tracker)
 	req.ContentLength = int64(len(body))
 
 	resp, err := a.transport.RoundTrip(req)
+	if resp != nil {
+		return handleResponse(resp, a.maxResponseBodyBytes, err)
+	}
 	if err != nil {
-		return ports.ForwardResponse{}, err
+		return transportfailure.TransportErr(err, tracker.Attempted())
 	}
-	if resp == nil {
-		return ports.ForwardResponse{}, ErrInvalidForwardRequest
-	}
-	return handleResponse(resp, a.maxResponseBodyBytes)
+	return transportfailure.NilResponse()
 }
 
 func (a *Adapter) validateRouteAndRequest(request ports.ForwardRequest) error {
@@ -190,7 +194,7 @@ func optionalNonNegativeInt64(payload map[string]json.RawMessage, field string) 
 	return value, true, nil
 }
 
-func handleResponse(resp *http.Response, limit int64) (ports.ForwardResponse, error) {
+func handleResponse(resp *http.Response, limit int64, cause error) (ports.ForwardResponse, error) {
 	if resp.Body == nil {
 		resp.Body = io.NopCloser(bytes.NewReader(nil))
 	}
@@ -203,6 +207,9 @@ func handleResponse(resp *http.Response, limit int64) (ports.ForwardResponse, er
 		return ports.ForwardResponse{}, forwarding.NewFailure(forwarding.FailureKindMalformedResponse, resp.StatusCode, forwarding.AttemptStateResponseReceived, false, ErrUpstreamResponseTooLarge)
 	}
 	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
+		if cause != nil {
+			return ports.ForwardResponse{}, forwarding.NewFailure(forwarding.FailureKindMalformedResponse, resp.StatusCode, forwarding.AttemptStateResponseReceived, false, cause)
+		}
 		usage, usageErr := ExtractUsage(body)
 		if usageErr != nil && !errors.Is(usageErr, ErrUsageNotFound) {
 			return ports.ForwardResponse{}, forwarding.NewFailure(forwarding.FailureKindMalformedResponse, resp.StatusCode, forwarding.AttemptStateResponseReceived, false, usageErr)
@@ -214,7 +221,7 @@ func handleResponse(resp *http.Response, limit int64) (ports.ForwardResponse, er
 		return response, nil
 	}
 	classification := classifyFailure(resp.StatusCode, resp.Header, body)
-	return ports.ForwardResponse{}, forwarding.NewFailureWithRetryAfter(classification.Kind, resp.StatusCode, forwarding.AttemptStateResponseReceived, classification.RouteRetryCandidate, classification.RetryAfter, nil)
+	return ports.ForwardResponse{}, forwarding.NewFailureWithRetryAfter(classification.Kind, resp.StatusCode, forwarding.AttemptStateResponseReceived, classification.RouteRetryCandidate, classification.RetryAfter, cause)
 }
 
 func parseBaseURL(value string) (*url.URL, error) {

@@ -13,6 +13,7 @@ import (
 
 	"github.com/bogachenko/tokenio-gateway/internal/application/forwarding"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
+	"github.com/bogachenko/tokenio-gateway/internal/infrastructure/forwarding/transportfailure"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
 )
 
@@ -53,21 +54,24 @@ func NewAdapter(config Config) (*Adapter, error) {
 func (a *Adapter) Forward(ctx context.Context, request ports.ForwardRequest) (ports.ForwardResponse, error) {
 	if a == nil || a.transport == nil || a.baseURL == nil || a.resellerAPIKey == "" || a.maxResponseBodyBytes <= 0 { return ports.ForwardResponse{}, ErrInvalidAdapterConfig }
 	if ctx == nil { return ports.ForwardResponse{}, ErrInvalidForwardRequest }
-	if err := ctx.Err(); err != nil { return ports.ForwardResponse{}, err }
+	if err := ctx.Err(); err != nil { return transportfailure.ContextErr(err) }
 	if err := a.validateRouteAndRequest(request); err != nil { return ports.ForwardResponse{}, err }
 	path, err := preparePath(request.Route, request.Path)
 	if err != nil { return ports.ForwardResponse{}, err }
 	upstreamURL, err := buildUpstreamURL(a.baseURL, path)
 	if err != nil { return ports.ForwardResponse{}, err }
 	body := append([]byte(nil), request.Body...)
-	req, err := http.NewRequestWithContext(ctx, request.Method, upstreamURL.String(), bytes.NewReader(body))
+	tracker := &transportfailure.WriteTracker{}
+	ctx = transportfailure.WithTrace(ctx, tracker)
+	req, err := http.NewRequestWithContext(ctx, request.Method, upstreamURL.String(), nil)
 	if err != nil { return ports.ForwardResponse{}, ErrInvalidUpstreamURL }
 	req.Header = buildUpstreamHeaders(request.Headers, a.resellerAPIKey)
+	req.Body = transportfailure.NewTrackedBody(body, tracker)
 	req.ContentLength = int64(len(body))
 	resp, err := a.transport.RoundTrip(req)
-	if err != nil { return ports.ForwardResponse{}, err }
-	if resp == nil { return ports.ForwardResponse{}, ErrInvalidForwardRequest }
-	return handleResponse(resp, a.maxResponseBodyBytes)
+	if resp != nil { return handleResponse(resp, a.maxResponseBodyBytes, err) }
+	if err != nil { return transportfailure.TransportErr(err, tracker.Attempted()) }
+	return transportfailure.NilResponse()
 }
 
 func (a *Adapter) validateRouteAndRequest(request ports.ForwardRequest) error {
@@ -121,13 +125,14 @@ func operationMatchesEndpoint(operation string, endpoint domain.EndpointKind) bo
 	}
 }
 
-func handleResponse(resp *http.Response, limit int64) (ports.ForwardResponse, error) {
+func handleResponse(resp *http.Response, limit int64, cause error) (ports.ForwardResponse, error) {
 	if resp.Body == nil { resp.Body = io.NopCloser(bytes.NewReader(nil)) }
 	defer resp.Body.Close()
 	body, truncated, err := readBounded(resp.Body, limit)
 	if err != nil { return ports.ForwardResponse{}, forwarding.NewFailure(forwarding.FailureKindMalformedResponse, resp.StatusCode, forwarding.AttemptStateResponseReceived, false, err) }
 	if truncated { return ports.ForwardResponse{}, forwarding.NewFailure(forwarding.FailureKindMalformedResponse, resp.StatusCode, forwarding.AttemptStateResponseReceived, false, ErrUpstreamResponseTooLarge) }
 	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
+		if cause != nil { return ports.ForwardResponse{}, forwarding.NewFailure(forwarding.FailureKindMalformedResponse, resp.StatusCode, forwarding.AttemptStateResponseReceived, false, cause) }
 		usage, usageErr := ExtractUsage(body)
 		if usageErr != nil && !errors.Is(usageErr, ErrUsageNotFound) { return ports.ForwardResponse{}, forwarding.NewFailure(forwarding.FailureKindMalformedResponse, resp.StatusCode, forwarding.AttemptStateResponseReceived, false, usageErr) }
 		response := ports.ForwardResponse{StatusCode: resp.StatusCode, Headers: cloneHeaders(resp.Header), Body: body}
@@ -135,7 +140,7 @@ func handleResponse(resp *http.Response, limit int64) (ports.ForwardResponse, er
 		return response, nil
 	}
 	classification := classifyFailure(resp.StatusCode, resp.Header, body)
-	return ports.ForwardResponse{}, forwarding.NewFailureWithRetryAfter(classification.Kind, resp.StatusCode, forwarding.AttemptStateResponseReceived, classification.RouteRetryCandidate, classification.RetryAfter, nil)
+	return ports.ForwardResponse{}, forwarding.NewFailureWithRetryAfter(classification.Kind, resp.StatusCode, forwarding.AttemptStateResponseReceived, classification.RouteRetryCandidate, classification.RetryAfter, cause)
 }
 
 func classifyFailure(statusCode int, headers http.Header, body []byte) forwarding.Classification {
