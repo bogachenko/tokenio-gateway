@@ -206,28 +206,24 @@ func directEnvironmentAccessAllowed(relative string) bool {
 }
 
 type knownInfrastructureApplicationImportRule struct {
-	source       string
-	sourcePrefix string
-	target       string
+	source string
+	target string
 }
 
 // temporary known violations, remove entry when package is refactored to depend on ports.
 var knownInfrastructureApplicationImportRules = []knownInfrastructureApplicationImportRule{
 	{source: "internal/infrastructure/postgres", target: "internal/application/llmrequest"},
 	{source: "internal/infrastructure/requestmeta/openaicompat", target: "internal/application/llmrequest"},
-	{sourcePrefix: "internal/infrastructure/forwarding", target: "internal/application/forwarding"},
+	{source: "internal/infrastructure/forwarding/anthropicnative", target: "internal/application/forwarding"},
+	{source: "internal/infrastructure/forwarding/gemininative", target: "internal/application/forwarding"},
+	{source: "internal/infrastructure/forwarding/ollamanative", target: "internal/application/forwarding"},
+	{source: "internal/infrastructure/forwarding/openaicompat", target: "internal/application/forwarding"},
 	{source: "internal/infrastructure/telegram/httpclient", target: "internal/application/telegramalert"},
 }
 
 func knownInfrastructureApplicationImport(source string, target string) bool {
 	for _, rule := range knownInfrastructureApplicationImportRules {
-		if target != rule.target {
-			continue
-		}
-		if rule.source != "" && source == rule.source {
-			return true
-		}
-		if rule.sourcePrefix != "" && (source == rule.sourcePrefix || strings.HasPrefix(source, rule.sourcePrefix+"/")) {
+		if source == rule.source && target == rule.target {
 			return true
 		}
 	}
