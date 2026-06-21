@@ -7,15 +7,15 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
+	metadata "github.com/bogachenko/tokenio-gateway/internal/ports/llmrequestmetadata"
 )
 
 type Adapter struct{}
 
 var (
-	_ llmrequest.RequestParser      = (*Adapter)(nil)
-	_ llmrequest.CapabilityDetector = (*Adapter)(nil)
+	_ metadata.RequestParser      = (*Adapter)(nil)
+	_ metadata.CapabilityDetector = (*Adapter)(nil)
 )
 
 func NewAdapter() *Adapter {
@@ -24,16 +24,16 @@ func NewAdapter() *Adapter {
 
 func (a *Adapter) Parse(
 	ctx context.Context,
-	input llmrequest.ParseInput,
-) (llmrequest.ParsedRequest, error) {
+	input metadata.ParseInput,
+) (metadata.ParsedRequest, error) {
 	if a == nil {
-		return llmrequest.ParsedRequest{}, fmt.Errorf(
+		return metadata.ParsedRequest{}, fmt.Errorf(
 			"%w: nil OpenAI-compatible request metadata adapter",
-			llmrequest.ErrStageContractViolation,
+			metadata.ErrStageContractViolation,
 		)
 	}
 	if err := validateContext(ctx); err != nil {
-		return llmrequest.ParsedRequest{}, err
+		return metadata.ParsedRequest{}, err
 	}
 	if input.APIFamily == domain.APIFamilyGeminiNative {
 		return parseGeminiNative(input)
@@ -50,21 +50,21 @@ func (a *Adapter) Parse(
 		input.Payload,
 	)
 	if err != nil {
-		return llmrequest.ParsedRequest{}, err
+		return metadata.ParsedRequest{}, err
 	}
-	return llmrequest.ParsedRequest{
+	return metadata.ParsedRequest{
 		ClientModel: inspection.clientModel,
 	}, nil
 }
 
 func (a *Adapter) Detect(
 	ctx context.Context,
-	input llmrequest.CapabilityInput,
+	input metadata.CapabilityInput,
 ) (domain.CapabilitySet, error) {
 	if a == nil {
 		return domain.CapabilitySet{}, fmt.Errorf(
 			"%w: nil OpenAI-compatible request metadata adapter",
-			llmrequest.ErrStageContractViolation,
+			metadata.ErrStageContractViolation,
 		)
 	}
 	if err := validateContext(ctx); err != nil {
@@ -73,20 +73,20 @@ func (a *Adapter) Detect(
 	if strings.TrimSpace(input.ClientModel) == "" {
 		return domain.CapabilitySet{}, fmt.Errorf(
 			"%w: blank parsed client model",
-			llmrequest.ErrStageContractViolation,
+			metadata.ErrStageContractViolation,
 		)
 	}
 	if input.APIFamily == domain.APIFamilyGeminiNative {
 		if input.ClientModel != input.PathModel {
 			return domain.CapabilitySet{}, fmt.Errorf(
 				"%w: parsed Gemini path model mismatch",
-				llmrequest.ErrStageContractViolation,
+				metadata.ErrStageContractViolation,
 			)
 		}
 		return geminiNativeCapabilities(input.EndpointKind)
 	}
 	if input.APIFamily == domain.APIFamilyOllamaNative {
-		parsed, err := parseOllamaNative(llmrequest.ParseInput{
+		parsed, err := parseOllamaNative(metadata.ParseInput{
 			APIFamily:    input.APIFamily,
 			EndpointKind: input.EndpointKind,
 			Payload:      input.Payload,
@@ -97,13 +97,13 @@ func (a *Adapter) Detect(
 		if parsed.ClientModel != input.ClientModel {
 			return domain.CapabilitySet{}, fmt.Errorf(
 				"%w: parsed Ollama body model mismatch",
-				llmrequest.ErrStageContractViolation,
+				metadata.ErrStageContractViolation,
 			)
 		}
 		return ollamaNativeCapabilities(input.EndpointKind)
 	}
 	if input.APIFamily == domain.APIFamilyAnthropicNative {
-		parsed, err := parseAnthropicNative(llmrequest.ParseInput{
+		parsed, err := parseAnthropicNative(metadata.ParseInput{
 			APIFamily:    input.APIFamily,
 			EndpointKind: input.EndpointKind,
 			Payload:      input.Payload,
@@ -114,7 +114,7 @@ func (a *Adapter) Detect(
 		if parsed.ClientModel != input.ClientModel {
 			return domain.CapabilitySet{}, fmt.Errorf(
 				"%w: parsed Anthropic body model mismatch",
-				llmrequest.ErrStageContractViolation,
+				metadata.ErrStageContractViolation,
 			)
 		}
 		return anthropicNativeCapabilities(input.EndpointKind)
@@ -130,33 +130,33 @@ func (a *Adapter) Detect(
 	if inspection.clientModel != input.ClientModel {
 		return domain.CapabilitySet{}, fmt.Errorf(
 			"%w: parsed client model mismatch",
-			llmrequest.ErrStageContractViolation,
+			metadata.ErrStageContractViolation,
 		)
 	}
 	return inspection.capabilities, nil
 }
 
-func parseGeminiNative(input llmrequest.ParseInput) (llmrequest.ParsedRequest, error) {
+func parseGeminiNative(input metadata.ParseInput) (metadata.ParsedRequest, error) {
 	if strings.TrimSpace(input.PathModel) == "" {
-		return llmrequest.ParsedRequest{}, fmt.Errorf(
+		return metadata.ParsedRequest{}, fmt.Errorf(
 			"%w: Gemini path model is required",
-			llmrequest.ErrInvalidInput,
+			metadata.ErrInvalidInput,
 		)
 	}
 	if _, err := geminiNativeCapabilities(input.EndpointKind); err != nil {
-		return llmrequest.ParsedRequest{}, err
+		return metadata.ParsedRequest{}, err
 	}
-	return llmrequest.ParsedRequest{
+	return metadata.ParsedRequest{
 		ClientModel: input.PathModel,
 	}, nil
 }
 
-func parseOllamaNative(input llmrequest.ParseInput) (llmrequest.ParsedRequest, error) {
+func parseOllamaNative(input metadata.ParseInput) (metadata.ParsedRequest, error) {
 	if _, err := ollamaNativeCapabilities(input.EndpointKind); err != nil {
-		return llmrequest.ParsedRequest{}, err
+		return metadata.ParsedRequest{}, err
 	}
 	if len(input.Payload) == 0 {
-		return llmrequest.ParsedRequest{}, llmrequest.ErrInvalidJSON
+		return metadata.ParsedRequest{}, metadata.ErrInvalidJSON
 	}
 
 	var request struct {
@@ -165,54 +165,54 @@ func parseOllamaNative(input llmrequest.ParseInput) (llmrequest.ParsedRequest, e
 	}
 	decoder := json.NewDecoder(bytes.NewReader(input.Payload))
 	if err := decoder.Decode(&request); err != nil {
-		return llmrequest.ParsedRequest{}, fmt.Errorf(
+		return metadata.ParsedRequest{}, fmt.Errorf(
 			"%w: invalid Ollama JSON body",
-			llmrequest.ErrInvalidJSON,
+			metadata.ErrInvalidJSON,
 		)
 	}
 	if decoder.Decode(&struct{}{}) == nil {
-		return llmrequest.ParsedRequest{}, fmt.Errorf(
+		return metadata.ParsedRequest{}, fmt.Errorf(
 			"%w: trailing Ollama JSON value",
-			llmrequest.ErrInvalidJSON,
+			metadata.ErrInvalidJSON,
 		)
 	}
 	if strings.TrimSpace(request.Model) == "" {
-		return llmrequest.ParsedRequest{}, llmrequest.ErrModelRequired
+		return metadata.ParsedRequest{}, metadata.ErrModelRequired
 	}
 	if request.Stream != nil && *request.Stream {
-		return llmrequest.ParsedRequest{}, llmrequest.ErrStreamingUnsupported
+		return metadata.ParsedRequest{}, metadata.ErrStreamingUnsupported
 	}
-	return llmrequest.ParsedRequest{
+	return metadata.ParsedRequest{
 		ClientModel: request.Model,
 	}, nil
 }
 
-func parseAnthropicNative(input llmrequest.ParseInput) (llmrequest.ParsedRequest, error) {
+func parseAnthropicNative(input metadata.ParseInput) (metadata.ParsedRequest, error) {
 	if _, err := anthropicNativeCapabilities(input.EndpointKind); err != nil {
-		return llmrequest.ParsedRequest{}, err
+		return metadata.ParsedRequest{}, err
 	}
 	if len(input.Payload) == 0 {
-		return llmrequest.ParsedRequest{}, llmrequest.ErrInvalidJSON
+		return metadata.ParsedRequest{}, metadata.ErrInvalidJSON
 	}
 
 	root, err := decodeRootJSON(input.Payload)
 	if err != nil {
-		return llmrequest.ParsedRequest{}, err
+		return metadata.ParsedRequest{}, err
 	}
 	modelValue, exists := root.object["model"]
 	if !exists {
-		return llmrequest.ParsedRequest{}, llmrequest.ErrModelRequired
+		return metadata.ParsedRequest{}, metadata.ErrModelRequired
 	}
 	if modelValue.kind != jsonValueString {
-		return llmrequest.ParsedRequest{}, fmt.Errorf(
+		return metadata.ParsedRequest{}, fmt.Errorf(
 			"%w: Anthropic model must be a string",
-			llmrequest.ErrInvalidJSON,
+			metadata.ErrInvalidJSON,
 		)
 	}
 	if strings.TrimSpace(modelValue.text) == "" {
-		return llmrequest.ParsedRequest{}, llmrequest.ErrModelRequired
+		return metadata.ParsedRequest{}, metadata.ErrModelRequired
 	}
-	return llmrequest.ParsedRequest{
+	return metadata.ParsedRequest{
 		ClientModel: modelValue.text,
 	}, nil
 }
@@ -226,7 +226,7 @@ func geminiNativeCapabilities(endpoint domain.EndpointKind) (domain.CapabilitySe
 	default:
 		return domain.CapabilitySet{}, fmt.Errorf(
 			"%w: unsupported Gemini native endpoint",
-			llmrequest.ErrInvalidInput,
+			metadata.ErrInvalidInput,
 		)
 	}
 }
@@ -240,7 +240,7 @@ func ollamaNativeCapabilities(endpoint domain.EndpointKind) (domain.CapabilitySe
 	default:
 		return domain.CapabilitySet{}, fmt.Errorf(
 			"%w: unsupported Ollama native endpoint",
-			llmrequest.ErrInvalidInput,
+			metadata.ErrInvalidInput,
 		)
 	}
 }
@@ -252,7 +252,7 @@ func anthropicNativeCapabilities(endpoint domain.EndpointKind) (domain.Capabilit
 	default:
 		return domain.CapabilitySet{}, fmt.Errorf(
 			"%w: unsupported Anthropic native endpoint",
-			llmrequest.ErrInvalidInput,
+			metadata.ErrInvalidInput,
 		)
 	}
 }
@@ -261,7 +261,7 @@ func validateContext(ctx context.Context) error {
 	if ctx == nil {
 		return fmt.Errorf(
 			"%w: nil context",
-			llmrequest.ErrInvalidInput,
+			metadata.ErrInvalidInput,
 		)
 	}
 	if err := ctx.Err(); err != nil {
