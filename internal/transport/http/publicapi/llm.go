@@ -89,6 +89,16 @@ func (h *LLMRouter) ServeHTTP(
 		)
 		return
 	}
+	if contract.Streaming {
+		writeError(
+			writer,
+			requestID,
+			http.StatusBadRequest,
+			domain.ErrorCodeStreamingUnsupported,
+			"Streaming is not supported",
+		)
+		return
+	}
 
 	credential, credentialFailure := nativeapi.ExtractCredential(
 		contract.APIFamily,
