@@ -55,6 +55,49 @@ func TestInternalDependencyDirection(t *testing.T) {
 	}
 }
 
+func TestInfrastructureDoesNotImportApplicationBeyondKnownViolations(t *testing.T) {
+	root := repositoryRoot(t)
+	fileSet := token.NewFileSet()
+	var violations []string
+
+	walkProductionGoFiles(t, root, func(path string, relative string) error {
+		file, err := parser.ParseFile(fileSet, path, nil, parser.ImportsOnly)
+		if err != nil {
+			return fmt.Errorf("parse %s: %w", relative, err)
+		}
+
+		sourcePackage := internalPackagePath(relative)
+		if !strings.HasPrefix(sourcePackage, "internal/infrastructure/") {
+			return nil
+		}
+
+		for _, importSpec := range file.Imports {
+			importPath, err := strconv.Unquote(importSpec.Path.Value)
+			if err != nil {
+				return fmt.Errorf("decode import %s in %s: %w", importSpec.Path.Value, relative, err)
+			}
+			targetPackage := projectInternalPackagePath(importPath)
+			if !strings.HasPrefix(targetPackage, "internal/application/") {
+				continue
+			}
+			if knownInfrastructureApplicationImport(sourcePackage, targetPackage) {
+				continue
+			}
+			violations = append(violations, fmt.Sprintf(
+				"%s imports %s: infrastructure must not depend on application; add a port or refactor an existing known violation first",
+				fileSet.Position(importSpec.Pos()),
+				importPath,
+			))
+		}
+		return nil
+	})
+
+	sort.Strings(violations)
+	if len(violations) != 0 {
+		t.Fatalf("new infrastructure -> application imports:\n%s", strings.Join(violations, "\n"))
+	}
+}
+
 func TestDirectEnvironmentAccessBoundary(t *testing.T) {
 	root := repositoryRoot(t)
 	fileSet := token.NewFileSet()
@@ -162,6 +205,32 @@ func directEnvironmentAccessAllowed(relative string) bool {
 		strings.HasPrefix(relative, "internal/infrastructure/secrets/envresolver/")
 }
 
+type knownInfrastructureApplicationImportRule struct {
+	source string
+	target string
+}
+
+// temporary known violations, remove entry when package is refactored to depend on ports.
+var knownInfrastructureApplicationImportRules = []knownInfrastructureApplicationImportRule{
+	{source: "internal/infrastructure/postgres", target: "internal/application/llmrequest"},
+	{source: "internal/infrastructure/requestmeta/openaicompat", target: "internal/application/llmrequest"},
+	{source: "internal/infrastructure/forwarding/anthropicnative", target: "internal/application/forwarding"},
+	{source: "internal/infrastructure/forwarding/gemininative", target: "internal/application/forwarding"},
+	{source: "internal/infrastructure/forwarding/ollamanative", target: "internal/application/forwarding"},
+	{source: "internal/infrastructure/forwarding/openaicompat", target: "internal/application/forwarding"},
+	{source: "internal/infrastructure/forwarding/transportfailure", target: "internal/application/forwarding"},
+	{source: "internal/infrastructure/telegram/httpclient", target: "internal/application/telegramalert"},
+}
+
+func knownInfrastructureApplicationImport(source string, target string) bool {
+	for _, rule := range knownInfrastructureApplicationImportRules {
+		if source == rule.source && target == rule.target {
+			return true
+		}
+	}
+	return false
+}
+
 func forbiddenDependency(source string, target string) string {
 	switch {
 	case source == "domain":
@@ -197,6 +266,14 @@ func internalPackage(relative string) string {
 	return parts[1]
 }
 
+func internalPackagePath(relative string) string {
+	relative = filepath.ToSlash(relative)
+	if !strings.HasPrefix(relative, "internal/") {
+		return ""
+	}
+	return strings.TrimSuffix(relative, "/"+filepath.Base(relative))
+}
+
 func projectInternalPackage(importPath string) string {
 	prefix := modulePath + "/internal/"
 	if !strings.HasPrefix(importPath, prefix) {
@@ -211,6 +288,14 @@ func projectInternalPackage(importPath string) string {
 		return "application/" + parts[1]
 	}
 	return parts[0]
+}
+
+func projectInternalPackagePath(importPath string) string {
+	prefix := modulePath + "/internal/"
+	if !strings.HasPrefix(importPath, prefix) {
+		return ""
+	}
+	return "internal/" + strings.TrimPrefix(importPath, prefix)
 }
 
 func repositoryRoot(t *testing.T) string {
