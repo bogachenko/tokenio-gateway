@@ -76,7 +76,7 @@ func (a *Adapter) validateRouteAndRequest(request ports.ForwardRequest) error {
 	if strings.TrimSpace(route.ID) == "" || strings.TrimSpace(route.ClientModel) == "" || route.APIFamily != domain.APIFamilyGeminiNative || route.ResellerID != a.reseller.ID || route.ProviderType != a.reseller.ProviderType { return ErrUnsupportedRoute }
 	switch route.EndpointKind { case domain.EndpointChat, domain.EndpointEmbeddings: default: return ErrUnsupportedRoute }
 	parsed, err := url.ParseRequestURI(request.Path)
-	if err != nil || !strings.HasPrefix(parsed.Path, "/v1beta/models/") || parsed.RawQuery != "" || parsed.Fragment != "" { return ErrUnsupportedRoute }
+	if err != nil || !strings.HasPrefix(parsed.Path, "/v1beta/models/") || parsed.Fragment != "" { return ErrUnsupportedRoute }
 	model, operation, ok := geminiPathModelAndOperation(parsed.Path)
 	if !ok || model != route.ClientModel || !operationMatchesEndpoint(operation, route.EndpointKind) { return ErrUnsupportedRoute }
 	switch route.ModelRewritePolicy { case domain.ModelRewritePolicyNone: if route.ProviderModel != route.ClientModel { return ErrUnsupportedRoute }; case domain.ModelRewritePolicyProviderModel: if strings.TrimSpace(route.ProviderModel) == "" { return ErrUnsupportedRoute }; default: return ErrUnsupportedRoute }
@@ -89,10 +89,12 @@ func preparePath(route domain.Route, path string) (string, error) {
 		return path, nil
 	case domain.ModelRewritePolicyProviderModel:
 		parsed, err := url.ParseRequestURI(path)
-		if err != nil || parsed.RawQuery != "" || parsed.Fragment != "" { return "", ErrUnsupportedRoute }
+		if err != nil || parsed.Fragment != "" { return "", ErrUnsupportedRoute }
 		model, operation, ok := geminiPathModelAndOperation(parsed.Path)
 		if !ok || model != route.ClientModel { return "", ErrUnsupportedRoute }
-		return "/v1beta/models/" + url.PathEscape(route.ProviderModel) + ":" + operation, nil
+		rewritten := "/v1beta/models/" + url.PathEscape(route.ProviderModel) + ":" + operation
+		if parsed.RawQuery != "" { rewritten += "?" + parsed.RawQuery }
+		return rewritten, nil
 	default:
 		return "", ErrUnsupportedRoute
 	}
