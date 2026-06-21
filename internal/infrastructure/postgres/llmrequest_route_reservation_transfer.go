@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bogachenko/tokenio-gateway/internal/application/llmrequest"
 	"github.com/bogachenko/tokenio-gateway/internal/domain"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
+	reservation "github.com/bogachenko/tokenio-gateway/internal/ports/llmrequestreservation"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -68,7 +68,7 @@ type LLMRequestRouteReservationTransfer struct {
 	clock ports.Clock
 }
 
-var _ llmrequest.RouteReservationTransfer = (*LLMRequestRouteReservationTransfer)(nil)
+var _ reservation.RouteReservationTransfer = (*LLMRequestRouteReservationTransfer)(nil)
 
 func NewLLMRequestRouteReservationTransfer(
 	db *DB,
@@ -80,7 +80,7 @@ func NewLLMRequestRouteReservationTransfer(
 	if clock == nil {
 		return nil, fmt.Errorf(
 			"%w: nil route reservation transfer clock",
-			llmrequest.ErrDependencyRequired,
+			reservation.ErrDependencyRequired,
 		)
 	}
 	return &LLMRequestRouteReservationTransfer{db: db, clock: clock}, nil
@@ -88,27 +88,27 @@ func NewLLMRequestRouteReservationTransfer(
 
 func (s *LLMRequestRouteReservationTransfer) Transfer(
 	ctx context.Context,
-	input llmrequest.RouteReservationTransferInput,
-) (llmrequest.RouteReservationTransferResult, error) {
+	input reservation.RouteReservationTransferInput,
+) (reservation.RouteReservationTransferResult, error) {
 	if s == nil || s.db == nil || s.db.pool == nil || s.clock == nil {
-		return llmrequest.RouteReservationTransferResult{}, ErrInvalidDatabaseConfig
+		return reservation.RouteReservationTransferResult{}, ErrInvalidDatabaseConfig
 	}
 	if ctx == nil {
-		return llmrequest.RouteReservationTransferResult{},
+		return reservation.RouteReservationTransferResult{},
 			ports.ErrStoreContractViolation
 	}
 	if err := validateRouteReservationTransferInput(input); err != nil {
-		return llmrequest.RouteReservationTransferResult{}, err
+		return reservation.RouteReservationTransferResult{}, err
 	}
 
 	now := s.clock.Now()
 	if now.IsZero() || now.Location() != time.UTC {
-		return llmrequest.RouteReservationTransferResult{},
+		return reservation.RouteReservationTransferResult{},
 			ports.ErrStoreContractViolation
 	}
 	now = now.Truncate(time.Microsecond)
 
-	var result llmrequest.RouteReservationTransferResult
+	var result reservation.RouteReservationTransferResult
 	err := InTx(ctx, s.db, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		current, err := scanUsageRecord(
 			tx.QueryRow(
@@ -136,7 +136,7 @@ func (s *LLMRequestRouteReservationTransfer) Transfer(
 			if err != nil {
 				return err
 			}
-			result = llmrequest.RouteReservationTransferResult{
+			result = reservation.RouteReservationTransferResult{
 				Usage:            current,
 				ReleasedReseller: resellers[input.ExpectedUsage.SelectedResellerID],
 				ReservedReseller: resellers[input.Target.Reseller.ID],
@@ -205,7 +205,7 @@ func (s *LLMRequestRouteReservationTransfer) Transfer(
 			return ports.ErrStoreContractViolation
 		}
 
-		result = llmrequest.RouteReservationTransferResult{
+		result = reservation.RouteReservationTransferResult{
 			Usage:            persisted,
 			ReleasedReseller: released,
 			ReservedReseller: reserved,
@@ -213,13 +213,13 @@ func (s *LLMRequestRouteReservationTransfer) Transfer(
 		return nil
 	})
 	if err != nil {
-		return llmrequest.RouteReservationTransferResult{}, err
+		return reservation.RouteReservationTransferResult{}, err
 	}
 	return result, nil
 }
 
 func validateRouteReservationTransferInput(
-	input llmrequest.RouteReservationTransferInput,
+	input reservation.RouteReservationTransferInput,
 ) error {
 	expected := input.ExpectedUsage
 	target := input.Target
@@ -251,7 +251,7 @@ func validateRouteReservationTransferInput(
 
 func routeTransferTargetUsage(
 	expected domain.UsageRecord,
-	target llmrequest.RouteFallbackPlan,
+	target reservation.RouteFallbackPlan,
 	now time.Time,
 ) domain.UsageRecord {
 	result := expected
@@ -321,7 +321,7 @@ func validateRouteTransferResellers(
 	previous domain.Reseller,
 	target domain.Reseller,
 	current domain.UsageRecord,
-	plan llmrequest.RouteFallbackPlan,
+	plan reservation.RouteFallbackPlan,
 ) error {
 	if previous.ID != current.SelectedResellerID ||
 		target.ID != plan.Reseller.ID ||
@@ -348,7 +348,7 @@ func applyRouteTransferBalances(
 		candidate.ReservedCents = nextReserved
 		if !domain.CanReserveResellerBalance(candidate, reserveCents) {
 			return domain.Reseller{}, domain.Reseller{},
-				llmrequest.ErrResellerReserveUnavailable
+				reservation.ErrResellerReserveUnavailable
 		}
 		nextReserved += reserveCents
 		updated, err := updateRouteTransferReseller(
@@ -368,7 +368,7 @@ func applyRouteTransferBalances(
 	}
 	if !domain.CanReserveResellerBalance(target, reserveCents) {
 		return domain.Reseller{}, domain.Reseller{},
-			llmrequest.ErrResellerReserveUnavailable
+			reservation.ErrResellerReserveUnavailable
 	}
 	targetReserved := target.ReservedCents + reserveCents
 
