@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	adminapp "github.com/bogachenko/tokenio-gateway/internal/application/admin"
-	adminadapters "github.com/bogachenko/tokenio-gateway/internal/application/adminadapters"
+	adminadapters "github.com/bogachenko/tokenio-gateway/internal/composition/adminadapters"
 	authenticateapp "github.com/bogachenko/tokenio-gateway/internal/application/authenticate"
 	billingapp "github.com/bogachenko/tokenio-gateway/internal/application/billing"
 	ledgerapp "github.com/bogachenko/tokenio-gateway/internal/application/ledger"
