@@ -138,7 +138,7 @@ func NewApplicationGraph(
 		)
 	}
 	modelCatalogPricing, err :=
-		NewModelCatalogPublicPricingCalculator(
+		modelcatalogapp.NewRoutePricePublicPricingCalculator(
 			pricingCalculator,
 		)
 	if err != nil {
@@ -264,205 +264,63 @@ func NewApplicationGraph(
 		)
 	}
 
-	forwardingAttemptRecovery, err :=
-		llmrequest.NewForwardingAttemptRecovery(
-			repositories.ForwardingAttempts,
-			primitives.Clock,
-			cfg.ForwardingAttemptRecoveryStaleAfter,
+	llmRequest, err := llmrequest.NewService(
+		llmrequest.Dependencies{
+			Authenticator:      publicAuthentication,
+			RequestParser:      requestmetaopenaicompat.NewAdapter(),
+			CapabilityDetector: requestmetaopenaicompat.NewAdapter(),
+			RoutePlanner: NewLLMRequestRoutePlanner(
+				repositories.Routes,
+				repositories.RoutePrices,
+				repositories.Resellers,
+				security.Secrets,
+			),
+			BillingAdmitter: NewLLMRequestBillingAdmitter(
+				billingInfrastructure.Identity,
+				billingInfrastructure.Balance,
+			),
+			Forwarding:      llmRequestForwarding,
+			UsageResolver:   pricingapp.NewUsageResolver(),
+			Finalizer:       NewLLMRequestFinalizer(repositories.UsageLedger),
+			AutoCharger:     autoCharge,
+		},
+		llmrequest.Config{RequestTimeout: cfg.LLMRequestTimeout},
+	)
+	if err != nil {
+		return ApplicationGraph{}, fmt.Errorf(
+			"construct LLM request service: %w",
+			err,
 		)
+	}
+
+	forwardingAttemptRecovery, err := llmrequest.NewForwardingAttemptRecovery(
+		repositories.ForwardingAttempts,
+		repositories.ForwardingAttemptRecovery,
+		llmRequestForwarding,
+		primitives.Clock,
+	)
 	if err != nil {
 		return ApplicationGraph{}, fmt.Errorf(
 			"construct forwarding attempt recovery service: %w",
 			err,
 		)
 	}
-	telegramStaleAttemptRecovery, err :=
-		telegramalert.NewStaleAttemptRecoveryService(
-			repositories.TelegramDeliveryAttempts,
-			primitives.Clock,
-			cfg.TelegramStaleAttemptRecoveryStaleAfter,
-		)
-	if err != nil {
-		return ApplicationGraph{}, fmt.Errorf(
-			"construct Telegram stale-attempt recovery service: %w",
-			err,
-		)
-	}
 
-	requestMetadata := requestmetaopenaicompat.NewAdapter()
-	tokenEstimator := requestmetaopenaicompat.NewTokenEstimator()
-	pricingUsageResolver, err := pricingapp.NewUsageResolver(
-		forwardingInfrastructure.UsageExtractor,
-		tokenEstimator,
-		pricingCalculator,
-	)
-	if err != nil {
-		return ApplicationGraph{}, fmt.Errorf(
-			"construct LLM-request pricing usage resolver: %w",
-			err,
-		)
-	}
-	usageResolver, err := NewLLMRequestUsageResolver(
-		pricingUsageResolver,
-	)
-	if err != nil {
-		return ApplicationGraph{}, fmt.Errorf(
-			"construct LLM-request usage resolver adapter: %w",
-			err,
-		)
-	}
-	requestFinalizer, err := NewLLMRequestFinalizer(
-		ledgerService,
-	)
-	if err != nil {
-		return ApplicationGraph{}, fmt.Errorf(
-			"construct LLM-request finalizer: %w",
-			err,
-		)
-	}
-	requestAutoCharger, err := NewLLMRequestAutoCharger(
-		autoCharge,
-	)
-	if err != nil {
-		return ApplicationGraph{}, fmt.Errorf(
-			"construct LLM-request auto charger: %w",
-			err,
-		)
-	}
+	telegramAlertsEnabled :=
+		strings.TrimSpace(cfg.Telegram.BotToken) != "" &&
+			strings.TrimSpace(cfg.Telegram.ChatID) != ""
 
-	preflightPricer, err := pricingapp.NewPreflightPricer(
-		tokenEstimator,
-		pricingCalculator,
-	)
-	if err != nil {
-		return ApplicationGraph{}, fmt.Errorf(
-			"construct LLM-request preflight pricer: %w",
-			err,
-		)
-	}
-	routePreflighter, err := NewLLMRequestRoutePreflighter(
-		security.SecretPresence,
-		preflightPricer,
-		primitives.RouteCapacity,
-		forwardingInfrastructure.AdapterSupport,
-		forwardingInfrastructure.ModelRewriteSupport,
-	)
-	if err != nil {
-		return ApplicationGraph{}, fmt.Errorf(
-			"construct LLM-request route preflighter: %w",
-			err,
-		)
-	}
-	routeSelector, err := NewLLMRequestRouteSelector(
-		primitives.Clock,
-	)
-	if err != nil {
-		return ApplicationGraph{}, fmt.Errorf(
-			"construct LLM-request route selector: %w",
-			err,
-		)
-	}
-	routePlanner, err := llmrequest.NewRepositoryRoutePlanner(
-		repositories.Routes,
-		repositories.Resellers,
-		repositories.RoutePrices,
-		routePreflighter,
-		routeSelector,
-		repositories.RouteCooldowns,
-		primitives.Clock,
-	)
-	if err != nil {
-		return ApplicationGraph{}, fmt.Errorf(
-			"construct LLM-request route planner: %w",
-			err,
-		)
-	}
-	requestAuthenticator, err := NewLLMRequestAuthenticator(
-		publicAuthentication,
-	)
-	if err != nil {
-		return ApplicationGraph{}, fmt.Errorf(
-			"construct LLM-request authenticator: %w",
-			err,
-		)
-	}
-	billingAdmission, err := billingapp.NewAdmissionService(
-		billingInfrastructure.Identity,
-		billingInfrastructure.Balance,
-		repositories.UsageLedger,
-		billingapp.AdmissionConfig{
-			MinimumRequestBalanceCents: cfg.MinRequestBalanceCents,
-		},
-	)
-	if err != nil {
-		return ApplicationGraph{}, fmt.Errorf(
-			"construct LLM-request billing admission service: %w",
-			err,
-		)
-	}
-	billingAdmitter, err := NewLLMRequestBillingAdmitter(
-		billingAdmission,
-	)
-	if err != nil {
-		return ApplicationGraph{}, fmt.Errorf(
-			"construct LLM-request billing admitter: %w",
-			err,
-		)
-	}
-	llmRequestService, err := llmrequest.NewService(
-		llmrequest.Dependencies{
-			Authenticator:      requestAuthenticator,
-			RequestParser:      requestMetadata,
-			CapabilityDetector: requestMetadata,
-			RoutePlanner:       routePlanner,
-			BillingAdmitter:    billingAdmitter,
-			Forwarding:         llmRequestForwarding,
-			UsageResolver:      usageResolver,
-			Finalizer:          requestFinalizer,
-			AutoCharger:        requestAutoCharger,
-		},
-	)
-	if err != nil {
-		return ApplicationGraph{}, fmt.Errorf(
-			"construct LLM-request service: %w",
-			err,
-		)
-	}
-
-	failedBatchRetry, err := billingapp.NewFailedBatchRetryService(
-		billingInfrastructure.Charge,
-		repositories.AdminUsage,
-		primitives.Clock,
-	)
-	if err != nil {
-		return ApplicationGraph{}, fmt.Errorf(
-			"construct failed billing batch retry service: %w",
-			err,
-		)
-	}
-
-	adminBatchRetrier := newAdminFailedBatchRetrier(
-		failedBatchRetry,
-	)
-
-	telegramAlertsEnabled := strings.TrimSpace(cfg.TelegramBotToken) != "" && strings.TrimSpace(cfg.TelegramChatID) != ""
 	var telegramAlerts *telegramalert.Service
-	adminResellers := repositories.AdminResellers
-	if telegramInfrastructure.Enabled != telegramAlertsEnabled {
-		return ApplicationGraph{}, fmt.Errorf(
-			"Telegram infrastructure and alert configuration disagree",
-		)
-	}
-
+	var telegramDelivery *telegramalert.DeliveryService
+	var telegramRecovery *telegramalert.RecoveryService
+	var telegramBalanceScan *telegramalert.BalanceScanService
+	var telegramStaleAttemptRecovery *telegramalert.StaleAttemptRecoveryService
 	if telegramAlertsEnabled {
-		telegramAlerts, err = telegramalert.NewService(
-			repositories.AdminResellers,
-			repositories.TelegramAlerts,
-			primitives.Clock,
-			telegramalert.Config{
-				ThresholdCents: cfg.ResellerBalanceAlertCents,
-				DedupePeriod:   cfg.TelegramAlertDedupePeriod,
-			},
+		telegramAlerts, err = NewTelegramAlertService(
+			cfg,
+			primitives,
+			telegramInfrastructure,
+			repositories,
 		)
 		if err != nil {
 			return ApplicationGraph{}, fmt.Errorf(
@@ -470,27 +328,10 @@ func NewApplicationGraph(
 				err,
 			)
 		}
-		adminResellers, err = newAdminResellerAlertRepository(
-			repositories.AdminResellers,
-			telegramAlerts,
-			loggingGraph.StdLogger,
-		)
-		if err != nil {
-			return ApplicationGraph{}, fmt.Errorf(
-				"construct post-commit reseller alert repository: %w",
-				err,
-			)
-		}
-	}
-
-	var telegramDelivery *telegramalert.DeliveryService
-	var telegramRecovery *telegramalert.RecoveryService
-	if telegramInfrastructure.Enabled {
-		telegramDelivery, err = telegramalert.NewDeliveryService(
-			repositories.TelegramAlerts,
-			repositories.TelegramDeliveryAttempts,
-			telegramInfrastructure.Sender,
-			primitives.Clock,
+		telegramDelivery, err = NewTelegramAlertDeliveryService(
+			primitives,
+			telegramInfrastructure,
+			repositories,
 		)
 		if err != nil {
 			return ApplicationGraph{}, fmt.Errorf(
@@ -499,22 +340,20 @@ func NewApplicationGraph(
 			)
 		}
 		telegramRecovery, err = telegramalert.NewRecoveryService(
-			repositories.TelegramAlerts,
+			repositories.TelegramAlertDeliveryAttempts,
 			telegramDelivery,
+			primitives.Clock,
 		)
 		if err != nil {
 			return ApplicationGraph{}, fmt.Errorf(
-				"construct Telegram alert recovery service: %w",
+				"construct Telegram recovery service: %w",
 				err,
 			)
 		}
-	}
-
-	var telegramBalanceScan *telegramalert.BalanceScanService
-	if telegramInfrastructure.Enabled {
 		telegramBalanceScan, err = telegramalert.NewBalanceScanService(
-			repositories.AdminResellers,
+			repositories.TelegramAlertStore,
 			telegramAlerts,
+			primitives.Clock,
 		)
 		if err != nil {
 			return ApplicationGraph{}, fmt.Errorf(
@@ -522,28 +361,30 @@ func NewApplicationGraph(
 				err,
 			)
 		}
+		telegramStaleAttemptRecovery, err = telegramalert.NewStaleAttemptRecoveryService(
+			repositories.TelegramAlertDeliveryAttempts,
+			telegramDelivery,
+			primitives.Clock,
+			cfg.Telegram.StaleAttemptTimeout,
+		)
+		if err != nil {
+			return ApplicationGraph{}, fmt.Errorf(
+				"construct Telegram stale attempt recovery service: %w",
+				err,
+			)
+		}
 	}
 
-	adminService, err := adminapp.NewService(adminapp.Dependencies{
-		Users:          repositories.AdminUsers,
-		APIKeys:        repositories.AdminAPIKeys,
-		Provisionings:  repositories.AdminProvisioning,
-		RouteEvents:    repositories.RouteEvents,
-		Resellers:      adminResellers,
-		Routes:         repositories.AdminRoutes,
-		Prices:         repositories.AdminRoutePrices,
-		PriceValidator: adminRoutePriceValidator{},
-		UsagePolicy:    adminUsagePolicy{},
-		Ledger:         repositories.AdminUsage,
-		Audit:          repositories.AdminAudit,
-		Secrets:        security.SecretPresence,
-		AdapterSupport: forwardingInfrastructure.AdapterSupport,
-		KeyGenerator:   security.APIKeyGenerator,
-		Hasher:         security.APIKeyHasher,
-		Clock:          primitives.Clock,
-		BatchRetrier:   adminBatchRetrier,
-		TelegramAlerts: repositories.TelegramAlerts,
-	})
+	admin, err := NewAdminService(
+		cfg,
+		primitives,
+		security,
+		provisioningInfrastructure,
+		billingInfrastructure,
+		forwardingInfrastructure,
+		telegramInfrastructure,
+		repositories,
+	)
 	if err != nil {
 		return ApplicationGraph{}, fmt.Errorf(
 			"construct admin service: %w",
@@ -551,7 +392,7 @@ func NewApplicationGraph(
 		)
 	}
 
-	graph := ApplicationGraph{
+	return ApplicationGraph{
 		PublicAuthentication:         publicAuthentication,
 		ModelCatalog:                 modelCatalog,
 		ProvisioningEnabled:          provisioningInfrastructure.Enabled,
@@ -559,78 +400,18 @@ func NewApplicationGraph(
 		Ledger:                       ledgerService,
 		AutoCharge:                   autoCharge,
 		BillingRecovery:              billingRecovery,
-		FailedBatchRetry:             failedBatchRetry,
-		UsageResolver:                pricingUsageResolver,
-		LLMRequest:                   llmRequestService,
+		FailedBatchRetry:             billingapp.NewFailedBatchRetryService(repositories.BillingRecovery, autoCharge),
+		UsageResolver:                pricingapp.NewUsageResolver(),
+		LLMRequest:                   llmRequest,
 		ForwardingAttemptRecovery:    forwardingAttemptRecovery,
 		TelegramAlertsEnabled:        telegramAlertsEnabled,
 		TelegramAlerts:               telegramAlerts,
-		TelegramAlertStore:           repositories.TelegramAlerts,
-		TelegramDeliveryEnabled:      telegramInfrastructure.Enabled,
+		TelegramAlertStore:           repositories.TelegramAlertStore,
+		TelegramDeliveryEnabled:      telegramAlertsEnabled,
 		TelegramDelivery:             telegramDelivery,
 		TelegramRecovery:             telegramRecovery,
 		TelegramBalanceScan:          telegramBalanceScan,
 		TelegramStaleAttemptRecovery: telegramStaleAttemptRecovery,
-		Admin:                        adminService,
-	}
-	if err := graph.Validate(); err != nil {
-		return ApplicationGraph{}, fmt.Errorf(
-			"validate application graph: %w",
-			err,
-		)
-	}
-	return graph, nil
-}
-
-func (g ApplicationGraph) Validate() error {
-	switch {
-	case g.PublicAuthentication == nil:
-		return fmt.Errorf("public authentication use case is nil")
-	case g.ModelCatalog == nil:
-		return fmt.Errorf("model catalog service is nil")
-	case g.ProvisioningEnabled && g.Provisioning == nil:
-		return fmt.Errorf("enabled provisioning service is nil")
-	case !g.ProvisioningEnabled && g.Provisioning != nil:
-		return fmt.Errorf("disabled provisioning service is non-nil")
-	case g.Ledger == nil:
-		return fmt.Errorf("ledger service is nil")
-	case g.AutoCharge == nil:
-		return fmt.Errorf("auto-charge service is nil")
-	case g.BillingRecovery == nil:
-		return fmt.Errorf("billing recovery service is nil")
-	case g.FailedBatchRetry == nil:
-		return fmt.Errorf("failed billing batch retry service is nil")
-	case g.UsageResolver == nil:
-		return fmt.Errorf("LLM-request usage resolver is nil")
-	case g.LLMRequest == nil:
-		return fmt.Errorf("LLM-request service is nil")
-	case g.ForwardingAttemptRecovery == nil:
-		return fmt.Errorf(
-			"forwarding attempt recovery service is nil",
-		)
-	case g.TelegramAlertsEnabled && g.TelegramAlerts == nil:
-		return fmt.Errorf("enabled Telegram alert service is nil")
-	case !g.TelegramAlertsEnabled && g.TelegramAlerts != nil:
-		return fmt.Errorf("disabled Telegram alert service is non-nil")
-	case g.TelegramDeliveryEnabled && g.TelegramAlertStore == nil:
-		return fmt.Errorf("enabled Telegram alert store is nil")
-	case g.TelegramDeliveryEnabled && g.TelegramDelivery == nil:
-		return fmt.Errorf("enabled Telegram delivery service is nil")
-	case g.TelegramDeliveryEnabled && g.TelegramRecovery == nil:
-		return fmt.Errorf("enabled Telegram recovery service is nil")
-	case g.TelegramDeliveryEnabled && g.TelegramBalanceScan == nil:
-		return fmt.Errorf("enabled Telegram balance scan service is nil")
-	case !g.TelegramDeliveryEnabled && g.TelegramDelivery != nil:
-		return fmt.Errorf("disabled Telegram delivery service is non-nil")
-	case !g.TelegramDeliveryEnabled && g.TelegramRecovery != nil:
-		return fmt.Errorf("disabled Telegram recovery service is non-nil")
-	case g.TelegramStaleAttemptRecovery == nil:
-		return fmt.Errorf(
-			"Telegram stale-attempt recovery service is nil",
-		)
-	case g.Admin == nil:
-		return fmt.Errorf("admin service is nil")
-	default:
-		return nil
-	}
+		Admin:                        admin,
+	}, nil
 }
