@@ -441,7 +441,7 @@ func NewApplicationGraph(
 		)
 	}
 
-	adminBatchRetrier := newAdminFailedBatchRetrier(
+	adminBatchRetrier := adminapp.NewFailedBatchRetrierAdapter(
 		failedBatchRetry,
 	)
 
@@ -532,8 +532,8 @@ func NewApplicationGraph(
 		Resellers:      adminResellers,
 		Routes:         repositories.AdminRoutes,
 		Prices:         repositories.AdminRoutePrices,
-		PriceValidator: adminRoutePriceValidator{},
-		UsagePolicy:    adminUsagePolicy{},
+		PriceValidator: adminapp.RoutePriceValidatorAdapter{},
+		UsagePolicy:    adminapp.UsagePolicyAdapter{},
 		Ledger:         repositories.AdminUsage,
 		Audit:          repositories.AdminAudit,
 		Secrets:        security.SecretPresence,
