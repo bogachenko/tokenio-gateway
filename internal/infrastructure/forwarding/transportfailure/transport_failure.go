@@ -9,8 +9,8 @@ import (
 	"net/http/httptrace"
 	"sync/atomic"
 
-	"github.com/bogachenko/tokenio-gateway/internal/application/forwarding"
 	"github.com/bogachenko/tokenio-gateway/internal/ports"
+	failure "github.com/bogachenko/tokenio-gateway/internal/ports/forwardingfailure"
 )
 
 type WriteTracker struct {
@@ -60,16 +60,16 @@ func (body *trackedBody) Read(p []byte) (int, error) {
 func (body *trackedBody) Close() error { return nil }
 
 func ContextErr(err error) (ports.ForwardResponse, error) {
-	kind := forwarding.FailureKindRequestError
+	kind := failure.FailureKindRequestError
 	retry := false
 	if errors.Is(err, context.DeadlineExceeded) {
-		kind = forwarding.FailureKindTimeout
+		kind = failure.FailureKindTimeout
 		retry = true
 	}
-	return ports.ForwardResponse{}, forwarding.NewFailure(
+	return ports.ForwardResponse{}, failure.NewFailure(
 		kind,
 		0,
-		forwarding.AttemptStateNotSent,
+		failure.AttemptStateNotSent,
 		retry,
 		err,
 	)
@@ -77,40 +77,40 @@ func ContextErr(err error) (ports.ForwardResponse, error) {
 
 func TransportErr(err error, writeAttempted bool) (ports.ForwardResponse, error) {
 	if writeAttempted {
-		return ports.ForwardResponse{}, forwarding.NewFailure(
-			forwarding.FailureKindUncertainProcessing,
+		return ports.ForwardResponse{}, failure.NewFailure(
+			failure.FailureKindUncertainProcessing,
 			0,
-			forwarding.AttemptStateSentNoResponse,
+			failure.AttemptStateSentNoResponse,
 			false,
 			err,
 		)
 	}
-	return ports.ForwardResponse{}, forwarding.NewFailure(
+	return ports.ForwardResponse{}, failure.NewFailure(
 		TransportFailureKind(err),
 		0,
-		forwarding.AttemptStateNotSent,
+		failure.AttemptStateNotSent,
 		true,
 		err,
 	)
 }
 
 func NilResponse() (ports.ForwardResponse, error) {
-	return ports.ForwardResponse{}, forwarding.NewFailure(
-		forwarding.FailureKindMalformedResponse,
+	return ports.ForwardResponse{}, failure.NewFailure(
+		failure.FailureKindMalformedResponse,
 		0,
-		forwarding.AttemptStateNotSent,
+		failure.AttemptStateNotSent,
 		true,
 		nil,
 	)
 }
 
-func TransportFailureKind(err error) forwarding.FailureKind {
+func TransportFailureKind(err error) failure.FailureKind {
 	if errors.Is(err, context.DeadlineExceeded) {
-		return forwarding.FailureKindTimeout
+		return failure.FailureKindTimeout
 	}
 	var netErr net.Error
 	if errors.As(err, &netErr) && netErr.Timeout() {
-		return forwarding.FailureKindTimeout
+		return failure.FailureKindTimeout
 	}
-	return forwarding.FailureKindConnectionError
+	return failure.FailureKindConnectionError
 }
