@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -106,11 +107,10 @@ func validProvisionRequest() *http.Request {
 		basePath,
 		strings.NewReader(
 			`{"external_billing_user_id":"billing_user_1",`+
-				`"source_reference":"payment_1"}`,
+				`"idempotency_key":"payment-order-1"}`,
 		),
 	)
 	request.Header.Set(serviceTokenHeader, "service-token")
-	request.Header.Set(idempotencyHeader, "payment-order-1")
 	request.Header.Set("Content-Type", "application/json")
 	return request
 }
@@ -159,7 +159,7 @@ func TestProvisionEndpoint(t *testing.T) {
 		"payment-order-1" ||
 		service.lastInput.ExternalBillingUserID !=
 			"billing_user_1" ||
-		service.lastInput.SourceReference != "payment_1" {
+		service.lastInput.SourceReference != "payment-order-1" {
 		t.Fatalf("input = %+v", service.lastInput)
 	}
 
@@ -175,6 +175,57 @@ func TestProvisionEndpoint(t *testing.T) {
 	if envelope.Data.APIKey != "sk_live_secret" ||
 		envelope.Data.ProvisioningID != "prov_1" {
 		t.Fatalf("response = %+v", envelope.Data)
+	}
+}
+
+func TestProvisionRepeatUsesBodyIdempotencyKey(
+	t *testing.T,
+) {
+	apiKeyIDsByIdempotency := map[string]string{}
+	createdAPIKeys := 0
+	service := &routerService{
+		provision: func(
+			_ context.Context,
+			input application.ProvisionInput,
+		) (application.ProvisionResult, error) {
+			apiKeyID, ok := apiKeyIDsByIdempotency[input.IdempotencyKey]
+			if !ok {
+				createdAPIKeys++
+				apiKeyID = "ak_1"
+				apiKeyIDsByIdempotency[input.IdempotencyKey] = apiKeyID
+			}
+			return application.ProvisionResult{
+				Result:             application.ResultTypeReplayed,
+				ProvisioningID:     "prov_1",
+				ProvisioningStatus: domain.APIKeyProvisioningStatusPendingDelivery,
+				APIKeyID:           apiKeyID,
+				APIKey:             "sk_live_secret",
+			}, nil
+		},
+	}
+	router := newTestRouter(t, service)
+
+	for range 2 {
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, validProvisionRequest())
+		if response.Code != http.StatusOK {
+			t.Fatalf(
+				"status = %d, body = %s",
+				response.Code,
+				response.Body.String(),
+			)
+		}
+	}
+
+	if createdAPIKeys != 1 ||
+		service.provisionCalls != 2 ||
+		service.lastInput.IdempotencyKey != "payment-order-1" {
+		t.Fatalf(
+			"created=%d calls=%d input=%+v",
+			createdAPIKeys,
+			service.provisionCalls,
+			service.lastInput,
+		)
 	}
 }
 
@@ -240,7 +291,7 @@ func TestConfirmDeliveryEndpoint(t *testing.T) {
 	}
 	request := httptest.NewRequest(
 		http.MethodPost,
-		basePath+"/prov_1/confirm-delivery",
+		legacyBasePath+"/prov_1/confirm-delivery",
 		nil,
 	)
 	request.Header.Set(serviceTokenHeader, "service-token")
@@ -279,9 +330,22 @@ func TestAuthenticationAndValidationStopBeforeService(
 			wantCode:   domain.ErrorCodeProvisioningUnauthorized,
 		},
 		{
-			name: "missing idempotency",
+			name: "missing idempotency in body",
 			mutate: func(request *http.Request) {
-				request.Header.Del(idempotencyHeader)
+				request.Body = io.NopCloser(strings.NewReader(
+					`{"external_billing_user_id":"billing_user_1"}`,
+				))
+			},
+			wantStatus: http.StatusBadRequest,
+			wantCode:   domain.ErrorCodeProvisioningInvalidRequest,
+		},
+		{
+			name: "idempotency header without body idempotency",
+			mutate: func(request *http.Request) {
+				request.Header.Set("Idempotency-Key", "payment-order-1")
+				request.Body = io.NopCloser(strings.NewReader(
+					`{"external_billing_user_id":"billing_user_1"}`,
+				))
 			},
 			wantStatus: http.StatusBadRequest,
 			wantCode:   domain.ErrorCodeProvisioningInvalidRequest,
@@ -440,7 +504,7 @@ func TestProvisioningUnknownPathInsideNamespaceIncludesRequestID(
 	router := newTestRouter(t, &routerService{})
 	request := httptest.NewRequest(
 		http.MethodGet,
-		basePath+"/unknown",
+		legacyBasePath+"/unknown",
 		nil,
 	)
 	request.Header.Set(serviceTokenHeader, "service-token")
