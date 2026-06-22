@@ -121,8 +121,11 @@ SOURCE_MARKERS: dict[str, list[str]] = {
         'parts[1] == "balance"',
         'parts[1] == "cooldown"',
         'parts[1] == "price"',
-        'parts[2] == "retry"',
-        'parts[2] == "resolve"',
+        'parts[1] == "retry"',
+        'parts[1] == "resolve"',
+        'case "billable":',
+        'case "failed":',
+        'case "charged":',
     ],
 }
 
