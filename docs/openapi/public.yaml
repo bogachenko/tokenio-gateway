@@ -1,0 +1,250 @@
+openapi: 3.1.1
+info:
+  title: Tokenio Public API
+  version: 0.1.0
+  summary: Customer-facing LLM API contract.
+  description: >-
+    Public API documentation for Tokenio customers. This document only includes
+    model access endpoints. It intentionally excludes admin, internal
+    provisioning, operator billing, provider management, route management,
+    audit log, and other control-plane endpoints.
+servers:
+  - url: /
+    description: Relative server URL.
+tags:
+  - name: Models
+  - name: OpenAI-compatible
+  - name: Anthropic-compatible
+  - name: Gemini-compatible
+  - name: Ollama-compatible
+paths:
+  /v1/models:
+    get:
+      tags: [Models, OpenAI-compatible]
+      summary: List OpenAI-compatible models
+      operationId: listOpenAICompatibleModels
+      security: [{ TokenioBearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/ModelListOK' }
+        default: { $ref: '#/components/responses/Error' }
+  /v1/chat/completions:
+    post:
+      tags: [OpenAI-compatible]
+      summary: Create a chat completion
+      operationId: createChatCompletion
+      security: [{ TokenioBearerAuth: [] }]
+      requestBody: { $ref: '#/components/requestBodies/FlexibleJSON' }
+      responses:
+        '200': { $ref: '#/components/responses/LLMOK' }
+        default: { $ref: '#/components/responses/Error' }
+  /v1/embeddings:
+    post:
+      tags: [OpenAI-compatible]
+      summary: Create embeddings
+      operationId: createEmbeddings
+      security: [{ TokenioBearerAuth: [] }]
+      requestBody: { $ref: '#/components/requestBodies/FlexibleJSON' }
+      responses:
+        '200': { $ref: '#/components/responses/LLMOK' }
+        default: { $ref: '#/components/responses/Error' }
+  /v1/images/generations:
+    post:
+      tags: [OpenAI-compatible]
+      summary: Generate images
+      operationId: createImageGeneration
+      security: [{ TokenioBearerAuth: [] }]
+      requestBody: { $ref: '#/components/requestBodies/FlexibleJSON' }
+      responses:
+        '200': { $ref: '#/components/responses/LLMOK' }
+        default: { $ref: '#/components/responses/Error' }
+  /v1/messages:
+    post:
+      tags: [Anthropic-compatible]
+      summary: Create an Anthropic-compatible message
+      operationId: createAnthropicMessage
+      security: [{ TokenioAnthropicApiKey: [] }]
+      requestBody: { $ref: '#/components/requestBodies/FlexibleJSON' }
+      responses:
+        '200': { $ref: '#/components/responses/LLMOK' }
+        default: { $ref: '#/components/responses/Error' }
+  /v1beta/models:
+    get:
+      tags: [Models, Gemini-compatible]
+      summary: List Gemini-compatible models
+      operationId: listGeminiCompatibleModels
+      security: [{ TokenioGeminiApiKey: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/JSONOK' }
+        default: { $ref: '#/components/responses/Error' }
+  /v1beta/models/{model}:generateContent:
+    parameters: [{ $ref: '#/components/parameters/Model' }]
+    post:
+      tags: [Gemini-compatible]
+      summary: Generate Gemini-compatible content
+      operationId: generateGeminiContent
+      security: [{ TokenioGeminiApiKey: [] }]
+      requestBody: { $ref: '#/components/requestBodies/FlexibleJSON' }
+      responses:
+        '200': { $ref: '#/components/responses/LLMOK' }
+        default: { $ref: '#/components/responses/Error' }
+  /v1beta/models/{model}:streamGenerateContent:
+    parameters: [{ $ref: '#/components/parameters/Model' }]
+    post:
+      tags: [Gemini-compatible]
+      summary: Stream Gemini-compatible content
+      operationId: streamGenerateGeminiContent
+      security: [{ TokenioGeminiApiKey: [] }]
+      requestBody: { $ref: '#/components/requestBodies/FlexibleJSON' }
+      responses:
+        '200': { $ref: '#/components/responses/LLMOK' }
+        default: { $ref: '#/components/responses/Error' }
+  /v1beta/models/{model}:embedContent:
+    parameters: [{ $ref: '#/components/parameters/Model' }]
+    post:
+      tags: [Gemini-compatible]
+      summary: Create a Gemini-compatible embedding
+      operationId: embedGeminiContent
+      security: [{ TokenioGeminiApiKey: [] }]
+      requestBody: { $ref: '#/components/requestBodies/FlexibleJSON' }
+      responses:
+        '200': { $ref: '#/components/responses/LLMOK' }
+        default: { $ref: '#/components/responses/Error' }
+  /v1beta/models/{model}:batchEmbedContents:
+    parameters: [{ $ref: '#/components/parameters/Model' }]
+    post:
+      tags: [Gemini-compatible]
+      summary: Create Gemini-compatible batch embeddings
+      operationId: batchEmbedGeminiContents
+      security: [{ TokenioGeminiApiKey: [] }]
+      requestBody: { $ref: '#/components/requestBodies/FlexibleJSON' }
+      responses:
+        '200': { $ref: '#/components/responses/LLMOK' }
+        default: { $ref: '#/components/responses/Error' }
+  /api/tags:
+    get:
+      tags: [Models, Ollama-compatible]
+      summary: List Ollama-compatible models
+      operationId: listOllamaTags
+      security: [{ TokenioBearerAuth: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/JSONOK' }
+        default: { $ref: '#/components/responses/Error' }
+  /api/chat:
+    post:
+      tags: [Ollama-compatible]
+      summary: Create an Ollama-compatible chat response
+      operationId: createOllamaChat
+      security: [{ TokenioBearerAuth: [] }]
+      requestBody: { $ref: '#/components/requestBodies/FlexibleJSON' }
+      responses:
+        '200': { $ref: '#/components/responses/LLMOK' }
+        default: { $ref: '#/components/responses/Error' }
+  /api/generate:
+    post:
+      tags: [Ollama-compatible]
+      summary: Create an Ollama-compatible generation
+      operationId: createOllamaGenerate
+      security: [{ TokenioBearerAuth: [] }]
+      requestBody: { $ref: '#/components/requestBodies/FlexibleJSON' }
+      responses:
+        '200': { $ref: '#/components/responses/LLMOK' }
+        default: { $ref: '#/components/responses/Error' }
+  /api/embeddings:
+    post:
+      tags: [Ollama-compatible]
+      summary: Create Ollama-compatible embeddings
+      operationId: createOllamaEmbeddings
+      security: [{ TokenioBearerAuth: [] }]
+      requestBody: { $ref: '#/components/requestBodies/FlexibleJSON' }
+      responses:
+        '200': { $ref: '#/components/responses/LLMOK' }
+        default: { $ref: '#/components/responses/Error' }
+components:
+  securitySchemes:
+    TokenioBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Tokenio user token
+    TokenioAnthropicApiKey:
+      type: apiKey
+      in: header
+      name: x-api-key
+    TokenioGeminiApiKey:
+      type: apiKey
+      in: header
+      name: x-goog-api-key
+  parameters:
+    Model:
+      name: model
+      in: path
+      required: true
+      schema: { type: string }
+  requestBodies:
+    FlexibleJSON:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/FlexibleJSON' }
+  headers:
+    XLocalRequestID: { description: Tokenio request id., schema: { type: string } }
+    XBillingProviderType: { description: Selected provider type., schema: { type: string } }
+    XBillingClientModel: { description: Customer-visible model used for billing., schema: { type: string } }
+    XBillingModel: { description: Billing model classification., schema: { type: string } }
+    XBillingStatus: { description: Usage ledger status after finalization., schema: { type: string } }
+    XBillingUsageCompleteness: { description: Completeness level of provider usage data., schema: { type: string } }
+    XBillingCurrency: { description: Billing currency., schema: { type: string, enum: [RUB] } }
+    XBillingAmountCents: { description: Client amount for this request in cents., schema: { type: integer, format: int64 } }
+    XBillingRemainingCents: { description: Remaining effective balance in cents., schema: { type: integer, format: int64 } }
+  responses:
+    ModelListOK:
+      description: OpenAI-compatible model list.
+      headers:
+        X-Local-Request-ID: { $ref: '#/components/headers/XLocalRequestID' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/FlexibleJSON' }
+    JSONOK:
+      description: JSON response.
+      headers:
+        X-Local-Request-ID: { $ref: '#/components/headers/XLocalRequestID' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/FlexibleJSON' }
+    LLMOK:
+      description: Provider response forwarded by Tokenio.
+      headers:
+        X-Local-Request-ID: { $ref: '#/components/headers/XLocalRequestID' }
+        X-Billing-Provider-Type: { $ref: '#/components/headers/XBillingProviderType' }
+        X-Billing-Client-Model: { $ref: '#/components/headers/XBillingClientModel' }
+        X-Billing-Model: { $ref: '#/components/headers/XBillingModel' }
+        X-Billing-Status: { $ref: '#/components/headers/XBillingStatus' }
+        X-Billing-Usage-Completeness: { $ref: '#/components/headers/XBillingUsageCompleteness' }
+        X-Billing-Currency: { $ref: '#/components/headers/XBillingCurrency' }
+        X-Billing-Amount-Cents: { $ref: '#/components/headers/XBillingAmountCents' }
+        X-Billing-Remaining-Cents: { $ref: '#/components/headers/XBillingRemainingCents' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/FlexibleJSON' }
+    Error:
+      description: Error response.
+      headers:
+        X-Local-Request-ID: { $ref: '#/components/headers/XLocalRequestID' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+  schemas:
+    FlexibleJSON:
+      type: object
+      additionalProperties: true
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error: { $ref: '#/components/schemas/ErrorBody' }
+    ErrorBody:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        request_id: { type: string }
