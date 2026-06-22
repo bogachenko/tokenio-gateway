@@ -1,5 +1,7 @@
 __pycache__/
 patch.diff
 *.py
+!scripts/openapi_drift_check.py
 *.txt
 .env.docker
+docs/openapi/dist/

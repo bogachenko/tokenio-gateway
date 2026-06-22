@@ -1,0 +1,605 @@
+openapi: 3.1.1
+info:
+  title: Tokenio Gateway API
+  version: 0.1.0
+  summary: OpenAPI contract for Tokenio Gateway.
+  description: >-
+    Tokenio Gateway exposes a billing-aware LLM gateway with OpenAI-compatible,
+    Anthropic-native, Gemini-native, Ollama-native, internal provisioning, and
+    admin control-plane APIs. Successful LLM provider responses are modeled as
+    flexible JSON because Gateway forwards upstream bodies without semantic
+    conversion.
+servers:
+  - url: /
+    description: Relative server URL.
+tags:
+  - name: Health
+  - name: Public OpenAI-compatible
+  - name: Public Anthropic-native
+  - name: Public Gemini-native
+  - name: Public Ollama-native
+  - name: Internal provisioning
+  - name: Admin users
+  - name: Admin API keys
+  - name: Admin provisioning
+  - name: Admin resellers
+  - name: Admin reseller balance
+  - name: Admin routes
+  - name: Admin route cooldowns
+  - name: Admin route prices
+  - name: Admin usage
+  - name: Admin billing
+  - name: Admin route events
+  - name: Admin Telegram alerts
+  - name: Admin audit
+
+x-operation-templates:
+  health: &health
+    tags: [Health]
+    security: []
+    responses:
+      '200': { $ref: '#/components/responses/HealthOK' }
+      '405': { $ref: '#/components/responses/Error' }
+  publicModels: &publicModels
+    responses:
+      '200': { $ref: '#/components/responses/JSONOK' }
+      default: { $ref: '#/components/responses/Error' }
+  llm: &llm
+    requestBody: { $ref: '#/components/requestBodies/FlexibleJSON' }
+    responses:
+      '200': { $ref: '#/components/responses/LLMOK' }
+      default: { $ref: '#/components/responses/Error' }
+  provisioning: &provisioning
+    security: [{ ProvisioningServiceToken: [] }]
+    responses:
+      '200': { $ref: '#/components/responses/ProvisioningOK' }
+      default: { $ref: '#/components/responses/Error' }
+  admin: &admin
+    security: [{ AdminBearerAuth: [] }]
+    responses:
+      '200': { $ref: '#/components/responses/AdminOK' }
+      default: { $ref: '#/components/responses/Error' }
+  adminWrite: &adminWrite
+    security: [{ AdminBearerAuth: [] }]
+    requestBody: { $ref: '#/components/requestBodies/FlexibleJSON' }
+    responses:
+      '200': { $ref: '#/components/responses/AdminOK' }
+      default: { $ref: '#/components/responses/Error' }
+
+paths:
+  /health:
+    get:
+      <<: *health
+      summary: Legacy health check
+      operationId: getHealth
+  /healthz:
+    get:
+      <<: *health
+      summary: Health check
+      operationId: getHealthz
+  /readyz:
+    get:
+      <<: *health
+      summary: Readiness check
+      operationId: getReadyz
+
+  /v1/models:
+    get:
+      <<: *publicModels
+      tags: [Public OpenAI-compatible]
+      summary: List OpenAI-compatible public models
+      operationId: listOpenAICompatibleModels
+      security: [{ TokenioBearerAuth: [] }]
+  /v1/chat/completions:
+    post:
+      <<: *llm
+      tags: [Public OpenAI-compatible]
+      summary: Forward an OpenAI-compatible chat completion request
+      operationId: createOpenAICompatibleChatCompletion
+      security: [{ TokenioBearerAuth: [] }]
+  /v1/embeddings:
+    post:
+      <<: *llm
+      tags: [Public OpenAI-compatible]
+      summary: Forward an OpenAI-compatible embeddings request
+      operationId: createOpenAICompatibleEmbeddings
+      security: [{ TokenioBearerAuth: [] }]
+  /v1/images/generations:
+    post:
+      <<: *llm
+      tags: [Public OpenAI-compatible]
+      summary: Forward an OpenAI-compatible image generation request
+      operationId: createOpenAICompatibleImageGeneration
+      security: [{ TokenioBearerAuth: [] }]
+
+  /v1/messages:
+    post:
+      <<: *llm
+      tags: [Public Anthropic-native]
+      summary: Forward an Anthropic Messages request
+      operationId: createAnthropicMessage
+      security: [{ TokenioAnthropicApiKey: [] }]
+
+  /v1beta/models:
+    get:
+      <<: *publicModels
+      tags: [Public Gemini-native]
+      summary: List Gemini-native public models
+      operationId: listGeminiNativeModels
+      security: [{ TokenioGeminiApiKey: [] }]
+  /v1beta/models/{model}:generateContent:
+    parameters: [{ $ref: '#/components/parameters/Model' }]
+    post:
+      <<: *llm
+      tags: [Public Gemini-native]
+      summary: Forward a Gemini generateContent request
+      operationId: generateGeminiContent
+      security: [{ TokenioGeminiApiKey: [] }]
+  /v1beta/models/{model}:streamGenerateContent:
+    parameters: [{ $ref: '#/components/parameters/Model' }]
+    post:
+      <<: *llm
+      tags: [Public Gemini-native]
+      summary: Reject or forward a Gemini streamGenerateContent request according to Gateway streaming support
+      operationId: streamGenerateGeminiContent
+      security: [{ TokenioGeminiApiKey: [] }]
+  /v1beta/models/{model}:embedContent:
+    parameters: [{ $ref: '#/components/parameters/Model' }]
+    post:
+      <<: *llm
+      tags: [Public Gemini-native]
+      summary: Forward a Gemini embedContent request
+      operationId: embedGeminiContent
+      security: [{ TokenioGeminiApiKey: [] }]
+  /v1beta/models/{model}:batchEmbedContents:
+    parameters: [{ $ref: '#/components/parameters/Model' }]
+    post:
+      <<: *llm
+      tags: [Public Gemini-native]
+      summary: Forward a Gemini batchEmbedContents request
+      operationId: batchEmbedGeminiContent
+      security: [{ TokenioGeminiApiKey: [] }]
+
+  /api/tags:
+    get:
+      <<: *publicModels
+      tags: [Public Ollama-native]
+      summary: List Ollama-native public models
+      operationId: listOllamaTags
+      security: [{ TokenioBearerAuth: [] }]
+  /api/chat:
+    post:
+      <<: *llm
+      tags: [Public Ollama-native]
+      summary: Forward an Ollama chat request
+      operationId: createOllamaChat
+      security: [{ TokenioBearerAuth: [] }]
+  /api/generate:
+    post:
+      <<: *llm
+      tags: [Public Ollama-native]
+      summary: Forward an Ollama generate request
+      operationId: createOllamaGenerate
+      security: [{ TokenioBearerAuth: [] }]
+  /api/embeddings:
+    post:
+      <<: *llm
+      tags: [Public Ollama-native]
+      summary: Forward an Ollama embeddings request
+      operationId: createOllamaEmbeddings
+      security: [{ TokenioBearerAuth: [] }]
+
+  /internal/v1/api-keys/provision:
+    post:
+      <<: *provisioning
+      tags: [Internal provisioning]
+      summary: Provision a Tokenio user API key after confirmed payment
+      operationId: provisionApiKey
+      requestBody: { $ref: '#/components/requestBodies/ProvisionAPIKey' }
+  /internal/v1/api-key-provisionings/{provisioning_id}/confirm-delivery:
+    parameters: [{ $ref: '#/components/parameters/ProvisioningID' }]
+    post:
+      <<: *provisioning
+      tags: [Internal provisioning]
+      summary: Confirm that a provisioned raw API key was delivered
+      operationId: confirmProvisioningDelivery
+
+  /admin/v1/users:
+    get:
+      <<: *admin
+      tags: [Admin users]
+      summary: List users
+      operationId: listUsers
+      parameters: [{ $ref: '#/components/parameters/Limit' }, { $ref: '#/components/parameters/Offset' }]
+    post:
+      <<: *adminWrite
+      tags: [Admin users]
+      summary: Create user
+      operationId: createUser
+  /admin/v1/users/{user_id}/enable:
+    parameters: [{ $ref: '#/components/parameters/UserID' }]
+    post:
+      <<: *admin
+      tags: [Admin users]
+      summary: Enable user
+      operationId: enableUser
+  /admin/v1/users/{user_id}/disable:
+    parameters: [{ $ref: '#/components/parameters/UserID' }]
+    post:
+      <<: *admin
+      tags: [Admin users]
+      summary: Disable user
+      operationId: disableUser
+  /admin/v1/users/{user_id}/api-keys:
+    parameters: [{ $ref: '#/components/parameters/UserID' }]
+    get:
+      <<: *admin
+      tags: [Admin API keys]
+      summary: List user API keys
+      operationId: listUserApiKeys
+      parameters: [{ $ref: '#/components/parameters/Limit' }, { $ref: '#/components/parameters/Offset' }]
+    post:
+      <<: *adminWrite
+      tags: [Admin API keys]
+      summary: Create user API key
+      operationId: createUserApiKey
+  /admin/v1/api-keys/{api_key_id}/revoke:
+    parameters: [{ $ref: '#/components/parameters/APIKeyID' }]
+    post:
+      <<: *admin
+      tags: [Admin API keys]
+      summary: Revoke API key
+      operationId: revokeApiKey
+
+  /admin/v1/api-key-provisionings:
+    get:
+      <<: *admin
+      tags: [Admin provisioning]
+      summary: List API key provisionings
+      operationId: listApiKeyProvisionings
+      parameters: [{ $ref: '#/components/parameters/Limit' }, { $ref: '#/components/parameters/Offset' }]
+  /admin/v1/api-key-provisionings/{provisioning_id}:
+    parameters: [{ $ref: '#/components/parameters/ProvisioningID' }]
+    get:
+      <<: *admin
+      tags: [Admin provisioning]
+      summary: Get API key provisioning
+      operationId: getApiKeyProvisioning
+
+  /admin/v1/resellers:
+    get:
+      <<: *admin
+      tags: [Admin resellers]
+      summary: List resellers
+      operationId: listResellers
+      parameters: [{ $ref: '#/components/parameters/Limit' }, { $ref: '#/components/parameters/Offset' }]
+    post:
+      <<: *adminWrite
+      tags: [Admin resellers]
+      summary: Create reseller
+      operationId: createReseller
+  /admin/v1/resellers/{reseller_id}:
+    parameters: [{ $ref: '#/components/parameters/ResellerID' }]
+    patch:
+      <<: *adminWrite
+      tags: [Admin resellers]
+      summary: Update reseller
+      operationId: updateReseller
+  /admin/v1/resellers/{reseller_id}/enable:
+    parameters: [{ $ref: '#/components/parameters/ResellerID' }]
+    post:
+      <<: *admin
+      tags: [Admin resellers]
+      summary: Enable reseller
+      operationId: enableReseller
+  /admin/v1/resellers/{reseller_id}/disable:
+    parameters: [{ $ref: '#/components/parameters/ResellerID' }]
+    post:
+      <<: *admin
+      tags: [Admin resellers]
+      summary: Disable reseller
+      operationId: disableReseller
+  /admin/v1/resellers/{reseller_id}/balance:
+    parameters: [{ $ref: '#/components/parameters/ResellerID' }]
+    get:
+      <<: *admin
+      tags: [Admin reseller balance]
+      summary: Get reseller balance
+      operationId: getResellerBalance
+  /admin/v1/resellers/{reseller_id}/balance/adjust:
+    parameters: [{ $ref: '#/components/parameters/ResellerID' }]
+    post:
+      <<: *adminWrite
+      tags: [Admin reseller balance]
+      summary: Adjust reseller balance
+      operationId: adjustResellerBalance
+  /admin/v1/resellers/{reseller_id}/balance/set:
+    parameters: [{ $ref: '#/components/parameters/ResellerID' }]
+    post:
+      <<: *adminWrite
+      tags: [Admin reseller balance]
+      summary: Set reseller balance
+      operationId: setResellerBalance
+
+  /admin/v1/routes:
+    get:
+      <<: *admin
+      tags: [Admin routes]
+      summary: List routes
+      operationId: listRoutes
+      parameters: [{ $ref: '#/components/parameters/Limit' }, { $ref: '#/components/parameters/Offset' }]
+    post:
+      <<: *adminWrite
+      tags: [Admin routes]
+      summary: Create route
+      operationId: createRoute
+  /admin/v1/routes/{route_id}:
+    parameters: [{ $ref: '#/components/parameters/RouteID' }]
+    patch:
+      <<: *adminWrite
+      tags: [Admin routes]
+      summary: Update route
+      operationId: updateRoute
+  /admin/v1/routes/{route_id}/enable:
+    parameters: [{ $ref: '#/components/parameters/RouteID' }]
+    post:
+      <<: *admin
+      tags: [Admin routes]
+      summary: Enable route
+      operationId: enableRoute
+  /admin/v1/routes/{route_id}/disable:
+    parameters: [{ $ref: '#/components/parameters/RouteID' }]
+    post:
+      <<: *admin
+      tags: [Admin routes]
+      summary: Disable route
+      operationId: disableRoute
+  /admin/v1/routes/{route_id}/cooldown:
+    parameters: [{ $ref: '#/components/parameters/RouteID' }]
+    get:
+      <<: *admin
+      tags: [Admin route cooldowns]
+      summary: Get route cooldown
+      operationId: getRouteCooldown
+    post:
+      <<: *adminWrite
+      tags: [Admin route cooldowns]
+      summary: Set route cooldown
+      operationId: setRouteCooldown
+    delete:
+      <<: *admin
+      tags: [Admin route cooldowns]
+      summary: Clear route cooldown
+      operationId: clearRouteCooldown
+  /admin/v1/routes/{route_id}/price:
+    parameters: [{ $ref: '#/components/parameters/RouteID' }]
+    get:
+      <<: *admin
+      tags: [Admin route prices]
+      summary: Get route price
+      operationId: getRoutePrice
+    put:
+      <<: *adminWrite
+      tags: [Admin route prices]
+      summary: Upsert route price
+      operationId: upsertRoutePrice
+
+  /admin/v1/usage-records:
+    get:
+      <<: *admin
+      tags: [Admin usage]
+      summary: List usage records
+      operationId: listUsageRecords
+      parameters: [{ $ref: '#/components/parameters/Limit' }, { $ref: '#/components/parameters/Offset' }]
+  /admin/v1/usage-records/{local_request_id}:
+    parameters: [{ $ref: '#/components/parameters/LocalRequestID' }]
+    get:
+      <<: *admin
+      tags: [Admin usage]
+      summary: Get usage record
+      operationId: getUsageRecord
+  /admin/v1/usage-records/{local_request_id}/resolve/billable:
+    parameters: [{ $ref: '#/components/parameters/LocalRequestID' }]
+    post:
+      <<: *adminWrite
+      tags: [Admin usage]
+      summary: Resolve usage as billable
+      operationId: resolveUsageBillable
+  /admin/v1/usage-records/{local_request_id}/resolve/failed:
+    parameters: [{ $ref: '#/components/parameters/LocalRequestID' }]
+    post:
+      <<: *adminWrite
+      tags: [Admin usage]
+      summary: Resolve usage as failed
+      operationId: resolveUsageFailed
+  /admin/v1/usage-records/{local_request_id}/resolve/charged:
+    parameters: [{ $ref: '#/components/parameters/LocalRequestID' }]
+    post:
+      <<: *adminWrite
+      tags: [Admin usage]
+      summary: Resolve usage as charged
+      operationId: resolveUsageCharged
+
+  /admin/v1/billing-charge-batches:
+    get:
+      <<: *admin
+      tags: [Admin billing]
+      summary: List billing charge batches
+      operationId: listBillingChargeBatches
+      parameters: [{ $ref: '#/components/parameters/Limit' }, { $ref: '#/components/parameters/Offset' }]
+  /admin/v1/billing-charge-batches/{batch_id}:
+    parameters: [{ $ref: '#/components/parameters/BatchID' }]
+    get:
+      <<: *admin
+      tags: [Admin billing]
+      summary: Get billing charge batch
+      operationId: getBillingChargeBatch
+  /admin/v1/billing-charge-batches/{batch_id}/retry:
+    parameters: [{ $ref: '#/components/parameters/BatchID' }]
+    post:
+      <<: *adminWrite
+      tags: [Admin billing]
+      summary: Retry failed billing charge batch
+      operationId: retryBillingChargeBatch
+
+  /admin/v1/route-events:
+    get:
+      <<: *admin
+      tags: [Admin route events]
+      summary: List route events
+      operationId: listRouteEvents
+      parameters: [{ $ref: '#/components/parameters/Limit' }, { $ref: '#/components/parameters/Offset' }]
+  /admin/v1/telegram-alerts:
+    get:
+      <<: *admin
+      tags: [Admin Telegram alerts]
+      summary: List Telegram alerts
+      operationId: listTelegramAlerts
+      parameters: [{ $ref: '#/components/parameters/Limit' }, { $ref: '#/components/parameters/Offset' }]
+  /admin/v1/telegram-alerts/{alert_id}/retry:
+    parameters: [{ $ref: '#/components/parameters/AlertID' }]
+    post:
+      <<: *adminWrite
+      tags: [Admin Telegram alerts]
+      summary: Retry failed Telegram alert
+      operationId: retryTelegramAlert
+  /admin/v1/audit-log:
+    get:
+      <<: *admin
+      tags: [Admin audit]
+      summary: List admin audit log entries
+      operationId: listAdminAuditLog
+      parameters: [{ $ref: '#/components/parameters/Limit' }, { $ref: '#/components/parameters/Offset' }]
+
+components:
+  securitySchemes:
+    TokenioBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Tokenio sk_* API key
+    TokenioAnthropicApiKey:
+      type: apiKey
+      in: header
+      name: x-api-key
+    TokenioGeminiApiKey:
+      type: apiKey
+      in: header
+      name: x-goog-api-key
+    ProvisioningServiceToken:
+      type: apiKey
+      in: header
+      name: X-Service-Token
+    AdminBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Admin token
+  parameters:
+    Model: { name: model, in: path, required: true, schema: { type: string } }
+    UserID: { name: user_id, in: path, required: true, schema: { type: string } }
+    APIKeyID: { name: api_key_id, in: path, required: true, schema: { type: string } }
+    ProvisioningID: { name: provisioning_id, in: path, required: true, schema: { type: string } }
+    ResellerID: { name: reseller_id, in: path, required: true, schema: { type: string } }
+    RouteID: { name: route_id, in: path, required: true, schema: { type: string } }
+    LocalRequestID: { name: local_request_id, in: path, required: true, schema: { type: string } }
+    BatchID: { name: batch_id, in: path, required: true, schema: { type: string } }
+    AlertID: { name: alert_id, in: path, required: true, schema: { type: string } }
+    Limit: { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 500, default: 100 } }
+    Offset: { name: offset, in: query, required: false, schema: { type: integer, minimum: 0, default: 0 } }
+  requestBodies:
+    FlexibleJSON:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/FlexibleJSON' }
+    ProvisionAPIKey:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ProvisionAPIKeyRequest' }
+  headers:
+    XLocalRequestID: { description: Gateway local request id., schema: { type: string } }
+    XAdminRequestID: { description: Gateway admin request id., schema: { type: string } }
+    XProvisioningRequestID: { description: Gateway provisioning request id., schema: { type: string } }
+    XBillingProviderType: { description: Selected upstream provider type., schema: { type: string } }
+    XBillingClientModel: { description: Client-visible model used for billing., schema: { type: string } }
+    XBillingModel: { description: Billing model classification., schema: { type: string } }
+    XBillingStatus: { description: Usage ledger status after finalization., schema: { type: string } }
+    XBillingUsageCompleteness: { description: Completeness level of provider usage data., schema: { type: string } }
+    XBillingCurrency: { description: Billing currency., schema: { type: string, enum: [RUB] } }
+    XBillingAmountCents: { description: Client amount for this request in cents., schema: { type: integer, format: int64 } }
+    XBillingRemainingCents: { description: Remaining effective balance in cents., schema: { type: integer, format: int64 } }
+  responses:
+    HealthOK:
+      description: Gateway is alive.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/HealthResponse' }
+    JSONOK:
+      description: JSON response.
+      headers:
+        X-Local-Request-ID: { $ref: '#/components/headers/XLocalRequestID' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/FlexibleJSON' }
+    LLMOK:
+      description: Upstream provider response forwarded by Gateway.
+      headers:
+        X-Local-Request-ID: { $ref: '#/components/headers/XLocalRequestID' }
+        X-Billing-Provider-Type: { $ref: '#/components/headers/XBillingProviderType' }
+        X-Billing-Client-Model: { $ref: '#/components/headers/XBillingClientModel' }
+        X-Billing-Model: { $ref: '#/components/headers/XBillingModel' }
+        X-Billing-Status: { $ref: '#/components/headers/XBillingStatus' }
+        X-Billing-Usage-Completeness: { $ref: '#/components/headers/XBillingUsageCompleteness' }
+        X-Billing-Currency: { $ref: '#/components/headers/XBillingCurrency' }
+        X-Billing-Amount-Cents: { $ref: '#/components/headers/XBillingAmountCents' }
+        X-Billing-Remaining-Cents: { $ref: '#/components/headers/XBillingRemainingCents' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/FlexibleJSON' }
+    ProvisioningOK:
+      description: Provisioning response.
+      headers:
+        X-Provisioning-Request-ID: { $ref: '#/components/headers/XProvisioningRequestID' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/FlexibleJSON' }
+    AdminOK:
+      description: Admin response.
+      headers:
+        X-Admin-Request-ID: { $ref: '#/components/headers/XAdminRequestID' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/FlexibleJSON' }
+    Error:
+      description: Error response.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+  schemas:
+    FlexibleJSON:
+      type: object
+      additionalProperties: true
+    HealthResponse:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, example: ok }
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error: { $ref: '#/components/schemas/ErrorBody' }
+    ErrorBody:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        request_id: { type: string }
+    ProvisionAPIKeyRequest:
+      type: object
+      required: [external_billing_user_id, idempotency_key]
+      properties:
+        external_billing_user_id: { type: string }
+        idempotency_key: { type: string }
+        key_name: { type: string }
