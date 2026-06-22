@@ -117,7 +117,7 @@ SOURCE_MARKERS: dict[str, list[str]] = {
         'case "telegram-alerts":',
         'case "audit-log":',
         'parts[1] == "api-keys"',
-        'parts[1] == "revoke"',
+        'parts[1] != "revoke"',
         'parts[1] == "balance"',
         'parts[1] == "cooldown"',
         'parts[1] == "price"',
